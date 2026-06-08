@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Database } from "lucide-react";
 import { activeNavItem } from "./nav";
 
-export default function Topbar() {
+export default function Topbar({ live }: { live: boolean }) {
   const pathname = usePathname();
   const current = activeNavItem(pathname);
 
@@ -18,13 +18,23 @@ export default function Topbar() {
         </span>
       </nav>
 
-      <div
-        className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200"
-        title="Showing mock data — not yet connected to the live backend."
-      >
-        <Database className="h-3.5 w-3.5" strokeWidth={2} />
-        Mock data
-      </div>
+      {live ? (
+        <div
+          className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200"
+          title="Connected to the live Supabase backend."
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Live
+        </div>
+      ) : (
+        <div
+          className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200"
+          title="Showing mock data — not yet connected to the live backend."
+        >
+          <Database className="h-3.5 w-3.5" strokeWidth={2} />
+          Mock data
+        </div>
+      )}
     </header>
   );
 }

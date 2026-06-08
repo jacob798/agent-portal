@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Inbox,
   ListChecks,
   Activity,
   Calculator,
@@ -25,6 +26,7 @@ export const NAV_SECTIONS: NavSection[] = [
     heading: "Operations",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/inbox", label: "Inbox", icon: Inbox },
       { href: "/review-queue", label: "Review Queue", icon: ListChecks },
       { href: "/monitoring", label: "Monitoring", icon: Activity },
     ],

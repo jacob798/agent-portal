@@ -7,11 +7,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Foundry Capital brand (from agent-system valuation brand profile) */
+/* Foundry Capital brand (from the official logo) */
 @theme {
-  --color-brand: #497af2; /* Foundry blue — accent */
-  --color-brand-navy: #0b1f3a; /* navy — primary / ink */
-  --color-brand-lime: #acf249; /* lime — highlight */
+  --color-brand: #1768a3; /* medium blue — accent */
+  --color-brand-navy: #0a2c4e; /* navy — primary / ink */
+  --color-brand-sky: #5ba3d2; /* light blue — highlight */
 }
 
 :root {
@@ -35,6 +35,6 @@ body {
 
 /* Consistent focus ring for keyboard users */
 :focus-visible {
-  outline: 2px solid #497af2; /* Foundry blue */
+  outline: 2px solid #1768a3; /* Foundry blue */
   outline-offset: 2px;
 }

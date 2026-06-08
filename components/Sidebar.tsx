@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { NAV_SECTIONS } from "./nav";
+import { LogoMark } from "./Logo";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -11,15 +12,13 @@ export default function Sidebar() {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
       {/* Brand */}
-      <div className="flex h-16 items-center gap-2.5 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-navy text-sm font-bold text-brand-lime">
-          F
-        </span>
+      <div className="flex h-16 items-center gap-3 px-5">
+        <LogoMark className="h-7 w-7" />
         <span className="flex flex-col leading-none">
           <span className="text-sm font-semibold tracking-tight text-brand-navy">
-            Foundry
+            Foundry Capital
           </span>
-          <span className="mt-0.5 text-[11px] font-medium text-slate-400">
+          <span className="mt-1 text-[11px] font-medium text-slate-400">
             Agent Portal
           </span>
         </span>

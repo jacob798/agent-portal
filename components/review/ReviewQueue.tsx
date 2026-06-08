@@ -71,7 +71,7 @@ export default function ReviewQueue({ initial }: { initial: ReviewItem[] }) {
             onClick={() => setFilter(f)}
             className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition ${
               filter === f
-                ? "bg-slate-900 text-white"
+                ? "bg-brand-navy text-white"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
@@ -149,7 +149,7 @@ export default function ReviewQueue({ initial }: { initial: ReviewItem[] }) {
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => resolve(item.id, "approved")}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-700"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-navy px-3 py-1.5 text-xs font-medium text-white transition hover:opacity-90"
                   >
                     <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
                     Approve

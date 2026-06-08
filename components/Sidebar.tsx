@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Hexagon } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { NAV_SECTIONS } from "./nav";
 
 export default function Sidebar() {
@@ -12,11 +12,16 @@ export default function Sidebar() {
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
-          <Hexagon className="h-4.5 w-4.5 text-white" strokeWidth={2.25} />
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-navy text-sm font-bold text-brand-lime">
+          F
         </span>
-        <span className="text-sm font-semibold tracking-tight text-slate-900">
-          Agent Portal
+        <span className="flex flex-col leading-none">
+          <span className="text-sm font-semibold tracking-tight text-brand-navy">
+            Foundry
+          </span>
+          <span className="mt-0.5 text-[11px] font-medium text-slate-400">
+            Agent Portal
+          </span>
         </span>
       </div>
 
@@ -39,14 +44,14 @@ export default function Sidebar() {
                     href={item.href}
                     className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       active
-                        ? "bg-indigo-50 text-indigo-700"
+                        ? "bg-brand/10 text-brand-navy"
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
                     <Icon
                       className={`h-4.5 w-4.5 ${
                         active
-                          ? "text-indigo-600"
+                          ? "text-brand"
                           : "text-slate-400 group-hover:text-slate-600"
                       }`}
                       strokeWidth={2}
@@ -63,7 +68,7 @@ export default function Sidebar() {
       {/* User / sign out */}
       <div className="border-t border-slate-200 p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-navy text-xs font-semibold text-white">
             JW
           </span>
           <div className="min-w-0 flex-1">

@@ -13,7 +13,7 @@ export default function PageHeader({
   return (
     <div className="flex items-end justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+        <h1 className="text-xl font-semibold tracking-tight text-brand-navy">
           {title}
         </h1>
         {subtitle && (

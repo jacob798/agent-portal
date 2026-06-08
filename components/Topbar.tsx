@@ -13,7 +13,7 @@ export default function Topbar() {
       <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
         <span className="text-slate-400">Portal</span>
         <span className="text-slate-300">/</span>
-        <span className="font-medium text-slate-900">
+        <span className="font-medium text-brand-navy">
           {current?.label ?? "—"}
         </span>
       </nav>

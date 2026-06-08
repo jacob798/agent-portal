@@ -7,8 +7,8 @@ const TONES: Record<Tone, string> = {
   green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   amber: "bg-amber-50 text-amber-700 ring-amber-200",
   red: "bg-red-50 text-red-700 ring-red-200",
-  indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-  slate: "bg-slate-800 text-white ring-slate-700",
+  indigo: "bg-brand/10 text-brand-navy ring-brand/25",
+  slate: "bg-brand-navy text-white ring-brand-navy",
 };
 
 const DOTS: Record<Tone, string> = {
@@ -16,7 +16,7 @@ const DOTS: Record<Tone, string> = {
   green: "bg-emerald-500",
   amber: "bg-amber-500",
   red: "bg-red-500",
-  indigo: "bg-indigo-500",
+  indigo: "bg-brand",
   slate: "bg-slate-300",
 };
 

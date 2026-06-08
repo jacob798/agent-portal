@@ -105,7 +105,7 @@ function Stat({
   tone: Tone;
 }) {
   const iconTone: Record<Tone, string> = {
-    indigo: "bg-indigo-50 text-indigo-600",
+    indigo: "bg-brand/10 text-brand",
     green: "bg-emerald-50 text-emerald-600",
     amber: "bg-amber-50 text-amber-600",
     red: "bg-red-50 text-red-600",

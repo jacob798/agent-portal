@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Hexagon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -31,14 +30,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900">
-            <Hexagon className="h-6 w-6 text-white" strokeWidth={2.25} />
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-navy text-xl font-bold text-brand-lime">
+            F
           </span>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
-            Agent Portal
+          <h1 className="text-lg font-semibold tracking-tight text-brand-navy">
+            Foundry
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Sign in to continue
+            Agent Portal — sign in to continue
           </p>
         </div>
 

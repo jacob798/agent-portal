@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Hexagon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -14,7 +15,6 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        // Restrict to the foundry-capital.co tenant and request a basic profile.
         scopes: "email openid profile",
         redirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -23,32 +23,44 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     }
-    // On success the browser is redirected to Microsoft; no further work here.
+    // On success the browser is redirected to Microsoft.
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-xl font-semibold text-gray-900">Agent Portal</h1>
-          <p className="mt-1 text-sm text-gray-500">
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="w-full max-w-sm">
+        {/* Brand */}
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900">
+            <Hexagon className="h-6 w-6 text-white" strokeWidth={2.25} />
+          </span>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900">
+            Agent Portal
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
             Sign in to continue
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={signInWithMicrosoft}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <MicrosoftLogo />
-          {loading ? "Redirecting…" : "Sign in with Microsoft"}
-        </button>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <button
+            type="button"
+            onClick={signInWithMicrosoft}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <MicrosoftLogo />
+            {loading ? "Redirecting…" : "Sign in with Microsoft"}
+          </button>
 
-        {error && (
-          <p className="mt-4 text-center text-sm text-red-600">{error}</p>
-        )}
+          {error && (
+            <p className="mt-4 text-center text-sm text-red-600">{error}</p>
+          )}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          Access is restricted to authorized Foundry Capital accounts.
+        </p>
       </div>
     </main>
   );

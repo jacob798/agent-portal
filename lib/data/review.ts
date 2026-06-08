@@ -1,11 +1,13 @@
 /**
  * Review queue data — items awaiting operator review across agents.
  *
- * MOCK for now so the queue is usable before Supabase is live. To go live:
- *  - replace getReviewItems() with a Supabase query
- *  - implement resolveReviewItem() as a server action that updates the row
- * The types stay the same so the UI doesn't change.
+ * Queries the Supabase `review_queue` table when the backend is configured;
+ * otherwise returns mock data so the queue stays usable. Defensive — any error
+ * falls back to mock. Expected table shape is in supabase/migrations/0001_portal.sql.
  */
+
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export type ReviewStatus = "pending" | "approved" | "rejected";
 export type ReviewPriority = "high" | "medium" | "low";
@@ -114,8 +116,34 @@ const MOCK_ITEMS: ReviewItem[] = [
   },
 ];
 
-/** Returns all review items (optionally you can filter client-side). */
+/** Returns all review items (live when wired, else mock). */
 export async function getReviewItems(): Promise<ReviewItem[]> {
-  // TODO(supabase): replace with a query against the review_queue table.
-  return MOCK_ITEMS;
+  if (!isSupabaseConfigured()) return MOCK_ITEMS;
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("review_queue")
+      .select(
+        "id, agent, agent_label, title, summary, entity, amount, priority, status, created_at",
+      )
+      .order("created_at", { ascending: false });
+
+    if (error || !data) return MOCK_ITEMS;
+
+    return data.map((r) => ({
+      id: r.id,
+      agent: r.agent,
+      agentLabel: r.agent_label,
+      title: r.title,
+      summary: r.summary ?? "",
+      entity: r.entity ?? undefined,
+      amount: r.amount ?? undefined,
+      priority: r.priority as ReviewPriority,
+      status: r.status as ReviewStatus,
+      createdAt: r.created_at,
+    }));
+  } catch {
+    return MOCK_ITEMS;
+  }
 }

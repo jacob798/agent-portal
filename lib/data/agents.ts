@@ -1,11 +1,14 @@
 /**
  * Agent health data for the dashboard.
  *
- * MOCK for now — returns static data so the portal is usable before the
- * Supabase backend is live. To go live, replace the body of getAgents() with a
- * Supabase query against the agent-system heartbeat/status table; the return
- * type stays the same so callers don't change.
+ * Queries the Supabase `agent_health` table when the backend is configured
+ * (env vars present); otherwise returns mock data so the portal stays usable.
+ * The query is defensive — any error falls back to mock. Expected table shape
+ * is defined in supabase/migrations/0001_portal.sql.
  */
+
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export type AgentStatus = "healthy" | "degraded" | "down" | "idle";
 
@@ -71,8 +74,28 @@ const MOCK_AGENTS: AgentHealth[] = [
   },
 ];
 
-/** Returns the health snapshot for every agent. */
+/** Returns the health snapshot for every agent (live when wired, else mock). */
 export async function getAgents(): Promise<AgentHealth[]> {
-  // TODO(supabase): replace with a query against the agent heartbeat table.
-  return MOCK_AGENTS;
+  if (!isSupabaseConfigured()) return MOCK_AGENTS;
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("agent_health")
+      .select("id, name, status, last_run_at, queue_depth, description")
+      .order("name");
+
+    if (error || !data) return MOCK_AGENTS;
+
+    return data.map((r) => ({
+      id: r.id,
+      name: r.name,
+      status: r.status as AgentStatus,
+      lastRunAt: r.last_run_at,
+      queueDepth: r.queue_depth ?? 0,
+      description: r.description ?? "",
+    }));
+  } catch {
+    return MOCK_AGENTS;
+  }
 }

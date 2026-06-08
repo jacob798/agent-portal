@@ -6,7 +6,18 @@ import { LogOut } from "lucide-react";
 import { NAV_SECTIONS } from "./nav";
 import { LogoMark } from "./Logo";
 
-export default function Sidebar() {
+interface SidebarUser {
+  displayName: string;
+  email: string;
+  roleLabel: string;
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+export default function Sidebar({ user }: { user: SidebarUser | null }) {
   const pathname = usePathname();
 
   return (
@@ -65,28 +76,30 @@ export default function Sidebar() {
       </nav>
 
       {/* User / sign out */}
-      <div className="border-t border-slate-200 p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-navy text-xs font-semibold text-white">
-            JW
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-900">
-              Jacob Wolbach
-            </p>
-            <p className="truncate text-xs text-slate-400">Signed in</p>
+      {user && (
+        <div className="border-t border-slate-200 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-navy text-xs font-semibold text-white">
+              {initials(user.displayName)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-900">
+                {user.displayName}
+              </p>
+              <p className="truncate text-xs text-slate-400">{user.roleLabel}</p>
+            </div>
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                title="Sign out"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <LogOut className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </form>
           </div>
-          <form action="/auth/signout" method="post">
-            <button
-              type="submit"
-              title="Sign out"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={2} />
-            </button>
-          </form>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

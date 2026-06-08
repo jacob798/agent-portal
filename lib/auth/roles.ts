@@ -1,31 +1,33 @@
 /**
  * Roles and capabilities for the portal.
  *
- * Ported 1:1 from agent-system's agents/valuation/core/auth.py so both
- * surfaces agree on who-can-do-what. Keep this in sync with that file.
+ * Portal-wide access tiers (fit every agent, not just valuation):
+ *   admin    — everything, incl. user/role management
+ *   operator — read + act: submit jobs, approve/resolve queue, create, note, value
+ *   viewer   — read-only
  *
- *   underwriter (full, incl. lock) > analyst (create/value/note) > viewer (read)
+ * Valuation's underwriter/analyst/viewer map onto admin/operator/viewer.
  */
 
-export const ROLES = ["underwriter", "analyst", "viewer"] as const;
+export const ROLES = ["admin", "operator", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const CAPABILITIES = [
   "read",
-  "note",
-  "value",
+  "act",
   "create",
   "lock",
+  "manage_users",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
-/** capability -> roles allowed (mirrors _CAPS in auth.py) */
+/** capability -> roles allowed */
 const CAPS: Record<Capability, ReadonlySet<Role>> = {
-  read: new Set(["underwriter", "analyst", "viewer"]),
-  note: new Set(["underwriter", "analyst"]),
-  value: new Set(["underwriter", "analyst"]),
-  create: new Set(["underwriter", "analyst"]),
-  lock: new Set(["underwriter"]),
+  read: new Set(["admin", "operator", "viewer"]),
+  act: new Set(["admin", "operator"]),
+  create: new Set(["admin", "operator"]),
+  lock: new Set(["admin"]),
+  manage_users: new Set(["admin"]),
 };
 
 /** Whether a role is allowed to perform a capability. */
@@ -34,5 +36,12 @@ export function can(role: Role, capability: Capability): boolean {
 }
 
 export function isRole(value: unknown): value is Role {
-  return typeof value === "string" && (ROLES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (ROLES as readonly string[]).includes(value)
+  );
+}
+
+/** Human label for a role. */
+export function roleLabel(role: Role): string {
+  return { admin: "Admin", operator: "Operator", viewer: "Viewer" }[role];
 }

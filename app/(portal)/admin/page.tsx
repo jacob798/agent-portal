@@ -1,10 +1,20 @@
-import Placeholder from "@/components/Placeholder";
+import PageHeader from "@/components/ui/PageHeader";
+import UserTable from "@/components/admin/UserTable";
+import { getProfile, getProfiles } from "@/lib/auth/profile";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  // Access is already gated by app/(portal)/admin/layout.tsx (manage_users).
+  const [me, users] = await Promise.all([getProfile(), getProfiles()]);
+
   return (
-    <Placeholder
-      title="Admin"
-      note="User management and role assignment will live here (roles TBD)."
-    />
+    <div className="mx-auto max-w-6xl px-8 py-8">
+      <PageHeader
+        title="User Management"
+        subtitle="Assign portal roles. Admins manage users; operators act; viewers read."
+      />
+      <div className="mt-6">
+        <UserTable initial={users} currentUserId={me?.id ?? ""} />
+      </div>
+    </div>
   );
 }

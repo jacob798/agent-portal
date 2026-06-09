@@ -84,15 +84,15 @@ Planned features:
 
 ## Deployment
 
-### Planned URL
+### URL
 agents.foundry-capital.co
 
-### Planned Hosting
+### Hosting
 
-- Vercel
-- Supabase
-- Dropbox
-- Agent System Worker Nodes
+- Vercel — portal frontend
+- Supabase — database, auth, job/action queues
+- Azure — Agent System workers (the `agent-system` backend runs on Azure, not on-prem hardware)
+- Dropbox — document storage
 
 ---
 

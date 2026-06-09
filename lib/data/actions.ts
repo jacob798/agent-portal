@@ -28,6 +28,9 @@ export interface OperatorAction {
   priority: ActionPriority;
   entity?: string;
   amount?: number;
+  /** Directly-viewable link to the source document (PDF/email) for this action. */
+  sourceUrl?: string;
+  sourceLabel?: string;
   status: ActionStatus;
   createdAt: string;
 }
@@ -48,6 +51,8 @@ const MOCK_ACTIONS: OperatorAction[] = [
     priority: "high",
     entity: "UNK",
     amount: 4218.55,
+    sourceUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    sourceLabel: "Invoice — Home Depot #426182812.pdf",
     status: "pending",
     createdAt: "2026-06-08T15:40:00Z",
   },
@@ -100,7 +105,7 @@ export async function getOperatorActions(): Promise<OperatorAction[]> {
     const { data, error } = await supabase
       .from("operator_actions")
       .select(
-        "id, agent, agent_label, type, title, body, options, priority, entity, amount, status, created_at",
+        "id, agent, agent_label, type, title, body, options, priority, entity, amount, source_url, source_label, status, created_at",
       )
       .eq("status", "pending")
       .order("created_at", { ascending: false });
@@ -118,6 +123,8 @@ export async function getOperatorActions(): Promise<OperatorAction[]> {
       priority: r.priority as ActionPriority,
       entity: r.entity ?? undefined,
       amount: r.amount ?? undefined,
+      sourceUrl: r.source_url ?? undefined,
+      sourceLabel: r.source_label ?? undefined,
       status: r.status as ActionStatus,
       createdAt: r.created_at,
     }));

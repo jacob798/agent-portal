@@ -75,8 +75,35 @@
   .chg,.mk{color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .resolved{color:var(--green);font-size:12.5px;font-weight:600;text-align:right}
   /* trip detail */
-  .dtl-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+  .dtl-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:16px}
   .dtl-head .dest{font-size:22px;font-weight:600} .dtl-head .meta{color:var(--muted);margin-top:3px}
+  .purpose{margin-top:9px;font-size:13.5px;color:var(--ink)}.purpose .plbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;margin-right:7px}
+  .tripacts{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+  .brandnote{font-size:11px;color:#94a3b8;margin-top:7px}.brandnote b{color:var(--navy)}
+  /* branded report / print overlay */
+  .rscrim{position:fixed;inset:0;background:#475569;z-index:90;display:none;overflow:auto}
+  .rscrim.open{display:block}
+  .rtoolbar{position:sticky;top:0;display:flex;align-items:center;gap:10px;background:#1e293b;color:#fff;padding:11px 20px;font-size:13px}
+  .rtoolbar .chip{background:#fff}
+  .rsheet{background:#fff;max-width:780px;margin:24px auto 60px;box-shadow:0 12px 44px rgba(0,0,0,.35)}
+  .rband{padding:26px 36px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+  .rmark{font-weight:800;font-size:26px;letter-spacing:1px}
+  .rband .rtitle{font-size:13px;opacity:.85;text-transform:uppercase;letter-spacing:2px;text-align:right}
+  .rbody{padding:26px 36px 40px}
+  .rmeta{display:flex;flex-wrap:wrap;gap:6px 34px;margin-bottom:22px}
+  .rmeta .ri{font-size:13px}.rmeta .rk{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;margin-bottom:2px}
+  .rtable{width:100%;border-collapse:collapse;font-size:13px}
+  .rtable th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;border-bottom:2px solid currentColor;padding:7px 8px}
+  .rtable td{padding:8px;border-bottom:1px solid #eef1f4}
+  .rtable tfoot td{font-weight:700;border-top:2px solid #334155;border-bottom:0;font-size:14px}
+  .rfoot{margin-top:28px;font-size:11px;color:#94a3b8;border-top:1px solid #eef1f4;padding-top:12px}
+  @media print{
+    body{display:block}
+    body>*{display:none!important}
+    .rscrim{display:block!important;position:static;background:#fff;overflow:visible}
+    .rtoolbar{display:none!important}
+    .rsheet{box-shadow:none;margin:0;max-width:none}
+  }
   .badge{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#eaf1f8;color:var(--navy)}
   .badge.open{background:var(--green-bg);color:var(--green)}.badge.closed{background:#eef2f7;color:#64748b}
   .itin{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:18px}
@@ -121,7 +148,7 @@
     <a id="nav-trips" onclick="showView('trips')">🧳 Trips <span class="b">7</span></a>
     <div class="grp">Other agents</div>
     <a href="payables_exceptions.html">💳 Payables</a>
-    <a id="nav-book" href="#" onclick="return false">📒 Bookkeeper</a>
+    <a id="nav-book" href="bookkeeper_status.html">📒 Bookkeeper</a>
   </div>
 </div>
 
@@ -164,7 +191,7 @@
     <div class="grid">
       <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Travel</div><div class="dates">Last cycle today 8:00 AM</div><div class="meta"><span class="open">7 need you</span><a class="chg" style="font-weight:600" onclick="showView('expenses')">Open →</a></div></div>
       <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Payables</div><div class="dates">Last cycle today 8:00 AM</div><div class="meta"><span class="open">4 need you</span><a class="chg" style="font-weight:600" href="payables_exceptions.html">Open →</a></div></div>
-      <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Bookkeeper</div><div class="dates">Posting via Zapier</div><div class="meta"><span>0 need you</span><span>38 posted</span></div></div>
+      <div class="trip" style="border-left-color:var(--amber);cursor:pointer" onclick="location.href='bookkeeper_status.html'"><span class="ent" style="background:var(--amber-bg);color:var(--amber)">● 1 error</span><div class="dest">Bookkeeper</div><div class="dates">Posts classified items to QuickBooks</div><div class="meta"><span class="open" style="color:var(--amber)">1 failed · 2 doc-gaps</span><a class="chg" style="font-weight:600" href="bookkeeper_status.html">Open →</a></div></div>
       <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Contacts</div><div class="dates">Last run today 7:40 AM</div><div class="meta"><span>0 need you</span><span>3 added</span></div></div>
     </div>
     <div class="seclbl">Needs you now</div>
@@ -173,6 +200,18 @@
       <div class="row" style="grid-template-columns:34px 2fr 1fr;cursor:pointer" onclick="location.href='payables_exceptions.html'"><div class="ic">💳</div><div><div class="m">Payables — exceptions</div><div class="msub">New vendor · split coding · possible duplicate · 4 items</div></div><div class="sug"><span class="to">Review →</span></div></div>
     </div>
   </div></div>
+</div>
+
+<!-- Branded report / print preview -->
+<div class="rscrim" id="reportScrim">
+  <div class="rtoolbar">
+    <span id="r-toolbar-lbl">Expense report preview</span>
+    <div style="flex:1"></div>
+    <button class="chip" onclick="window.print()">🖨 Print / Save as PDF</button>
+    <button class="chip" onclick="exportZip(currentReportId)">⬇ Download .zip</button>
+    <button class="chip" onclick="closeReport()">Close</button>
+  </div>
+  <div class="rsheet" id="report-sheet"></div>
 </div>
 
 <!-- Drawer -->
@@ -195,6 +234,55 @@
 const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
 const ENT={BC:"Builders Capital",FC:"Foundry Capital",PER:"Personal",WJW:"WJW Investments",WB12:"Waterbrook 1 & 12",IOTA:"Iota Street",PC:"Prestwick Capital"};
 const TRIPVEND="Travel 2026-06 — Builders Capital · Denver Site Visit (6/4–6/7)";
+
+/* Brand profiles — Builders Capital expense reports carry BCX branding (Roboto, navy/green,
+   from the BCX styleguide); everything else is Foundry (Poppins, navy/blue). */
+const BRANDS={
+  BC:{mark:"BCX",full:"Builders Capital",font:"'Roboto',Arial,Helvetica,sans-serif",navy:"#10102e",accent:"#177245",accent2:"#7bbf43"},
+  _def:{mark:"Foundry",full:"Foundry Capital",font:"'Poppins',-apple-system,system-ui,sans-serif",navy:"#0a2c4e",accent:"#1768a3",accent2:"#5ba3d2"}
+};
+const brandFor=ent=>BRANDS[ent]||BRANDS._def;
+let currentReportId=null;
+function reportLogo(b){
+  return b.mark==="Foundry"
+    ? `<svg viewBox="0 0 950 950" style="width:34px;height:34px"><rect x="260" width="690" height="260" fill="${b.accent2}"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="${b.accent}"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg><span class="rmark" style="margin-left:10px">Foundry</span>`
+    : `<span class="rmark"><span style="color:${b.accent2}">B</span>CX</span>`;
+}
+function openReport(id,zip){
+  const t=trips.find(x=>x.id===id); if(!t) return;
+  currentReportId=id; const b=brandFor(t.ent);
+  const rows=(t.exps||[]).map(e=>{
+    const when=e.sub&&e.sub.includes('·')?e.sub.split('·').pop().trim():t.dates;
+    return `<tr><td>${when}</td><td>${e.what}</td><td>${e.gl}</td><td style="text-align:center;color:${b.accent}">✓ receipt</td><td style="text-align:right">${money(e.amt)}</td></tr>`;
+  }).join("")||`<tr><td colspan="5" style="color:#94a3b8;padding:14px 8px">No expenses attributed yet.</td></tr>`;
+  document.getElementById("r-toolbar-lbl").textContent=`${b.mark} expense report — ${t.dest}`;
+  const sheet=document.getElementById("report-sheet");
+  sheet.style.fontFamily=b.font; sheet.style.color="#1f2937";
+  sheet.innerHTML=`
+    <div class="rband" style="background:${b.navy};border-bottom:5px solid ${b.accent2}">
+      <div style="display:flex;align-items:center">${reportLogo(b)}</div>
+      <div class="rtitle">Travel Expense Report</div>
+    </div>
+    <div class="rbody">
+      <div class="rmeta">
+        <div class="ri"><span class="rk">Traveler</span>Jacob Wolbach</div>
+        <div class="ri"><span class="rk">Entity</span>${b.full}</div>
+        <div class="ri"><span class="rk">Destination</span>${t.dest}</div>
+        <div class="ri"><span class="rk">Dates</span>${t.dates}</div>
+        <div class="ri" style="flex-basis:100%"><span class="rk">Purpose</span>${t.purpose||'—'}</div>
+      </div>
+      <table class="rtable" style="color:${b.accent}">
+        <thead><tr><th>Date</th><th>Vendor</th><th>GL account</th><th style="text-align:center">Documentation</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody style="color:#1f2937">${rows}</tbody>
+        <tfoot><tr><td colspan="4" style="text-align:right;color:#1f2937">Total</td><td style="text-align:right;color:${b.navy}">${money(t.total)}</td></tr></tfoot>
+      </table>
+      <div class="rfoot">Generated by the ${b.mark==="BCX"?"Builders Capital":"Foundry"} agent system · receipts attached in the exported .zip · one QuickBooks vendor: ${t.id==='den'?TRIPVEND:'Travel '+t.dates+' — '+ENT[t.ent]+' '+t.dest}</div>
+    </div>`;
+  document.getElementById("reportScrim").classList.add("open");
+  if(zip) setTimeout(()=>alert(`Exporting "${t.dest}" as a ${b.mark}-branded .zip — branded PDF report + all receipt files.`),60);
+}
+function closeReport(){document.getElementById("reportScrim").classList.remove("open");}
+function exportZip(id){const t=trips.find(x=>x.id===id);const b=brandFor(t?t.ent:'');alert(`Exporting "${t?t.dest:''}" as a ${b.mark}-branded .zip — branded PDF report + all receipt files.`);}
 
 const trips=[
   {id:"den",ent:"BC",dest:"Denver, CO",dates:"Jun 4 – 7",status:"open",grace:"grace thru Jul 7",total:1403.02,purpose:"Site visit — Iota St JV",
@@ -307,11 +395,25 @@ function openTrip(id){
   const badge=t.status==="open"?`<span class="badge open">● Open for expenses</span>`:t.status==="up"?`<span class="badge">Upcoming</span>`:`<span class="badge closed">Closed</span>`;
   const itin=t.itin.length?t.itin.map(i=>`<div class="iitem"><div class="iic">${i.ic}</div><div class="iwhen">${i.when}</div><div><div class="iwhat">${i.what}</div><div class="isub">${i.sub}</div></div></div>`).join(""):`<div class="iitem"><div class="isub" style="padding:4px 0">No itinerary items yet.</div></div>`;
   const exprows=t.exps.length?t.exps.map(e=>`<div class="iitem"><div class="iic">${e.ic}</div><div class="iwhen">${e.sub.split('·').pop().trim()}</div><div><div class="iwhat">${e.what}</div><div class="isub">${e.gl} · <a class="viewdoc" onclick="alert('Receipt preview — ${e.what}')">📄 view</a></div></div><div class="iamt">${money(e.amt)}</div></div>`).join(""):`<div class="iitem"><div class="isub" style="padding:4px 0">No expenses attributed yet.</div></div>`;
+  const b=brandFor(t.ent);
   document.getElementById("detail-body").innerHTML=`
-    <div class="dtl-head"><div><div class="dest">${t.dest}</div><div class="meta">${ENT[t.ent]} · ${t.dates}</div></div><div>${badge}</div></div>
-    <div class="kv" style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;margin-bottom:6px"><span class="k">Purpose</span><span class="v">${t.purpose||'—'}</span></div>
+    <div class="dtl-head">
+      <div>
+        <div class="dest">${t.dest}</div>
+        <div class="meta">${ENT[t.ent]} · ${t.dates}</div>
+        <div class="purpose"><span class="plbl">Purpose</span> ${t.purpose||'— (add one)'}</div>
+      </div>
+      <div style="text-align:right">
+        ${badge}
+        <div class="tripacts">
+          <button class="chip" onclick="openReport('${t.id}')">🖨 Print / Save PDF</button>
+          <button class="chip" onclick="openReport('${t.id}',true)">⬇ Export (.zip)</button>
+        </div>
+        <div class="brandnote">Exports as <b>${b.mark}</b> branded report</div>
+      </div>
+    </div>
     <div class="itin"><div class="ihead">Itinerary — what's scheduled</div>${itin}</div>
-    <div class="itin"><div class="ihead" style="display:flex;justify-content:space-between;align-items:center"><span>Trip expenses (${t.exps.length})</span><span style="display:flex;gap:12px;align-items:center"><span>${money(t.total)}</span><button class="chip" onclick="alert('Exporting ${t.dest} — receipts + summary as .zip')">⬇ Export (.zip)</button></span></div>${exprows}</div>
+    <div class="itin"><div class="ihead" style="display:flex;justify-content:space-between;align-items:center"><span>Trip expenses (${t.exps.length})</span><span>${money(t.total)}</span></div>${exprows}</div>
     <div class="qbsum">Posts to QuickBooks under one vendor — <b>${t.id==='den'?TRIPVEND:'Travel '+t.dates+' — '+ENT[t.ent]+' '+t.dest}</b>. Each merchant is a memo line, never its own vendor.</div>`;
   showView('detail');
   document.getElementById("title").textContent=t.dest;

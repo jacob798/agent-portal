@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bookkeeper — QuickBooks Posting Status (Mockup)</title>
+<style>
+  :root{--navy:#0a2c4e;--blue:#1768a3;--sky:#5ba3d2;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;
+    --green:#0f9d58;--green-bg:#e8f6ee;--amber:#b7791f;--amber-bg:#fdf3e3;--red:#c0392b;--red-bg:#fdecea;--purple:#6b3fa0;--purple-bg:#efeaf8;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;display:flex;min-height:100vh}
+  a{cursor:pointer}
+  /* sidebar */
+  .side{width:230px;flex:0 0 230px;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:11px;padding:18px 18px 14px}
+  .brand svg{width:30px;height:30px}.brand .t{font-size:15px;font-weight:600}.brand .s{font-size:11px;color:#9bb8d4}
+  .nav{padding:8px 12px;flex:1}
+  .nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;color:#c8d8e8;font-size:13.5px;font-weight:500;text-decoration:none;margin-bottom:2px}
+  .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav a.on{background:var(--blue);color:#fff}
+  .nav a .b{margin-left:auto;border-radius:999px;font-size:11px;padding:1px 8px;font-weight:600;background:rgba(255,255,255,.18)}
+  .nav a .b.err{background:var(--red)}.nav a .b.gap{background:var(--amber)}
+  .nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#6f8aa6;padding:14px 12px 6px;font-weight:600}
+  /* main */
+  .main{flex:1;min-width:0;overflow:auto}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:18px 26px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .bar h1{font-size:18px;margin:0;font-weight:600}.bar .crumb{font-size:12.5px;color:var(--muted);margin-bottom:3px}
+  .btn-cta{background:var(--navy);color:#fff;border:0;border-radius:9px;height:38px;padding:0 16px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.btn-cta:hover{opacity:.92}
+  .pad{padding:24px 26px;max-width:1040px}
+  /* summary */
+  .summary{display:flex;gap:14px;margin-bottom:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1}
+  .stat .n{font-size:24px;font-weight:600}.stat .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+  .stat.posted .n{color:var(--green)}.stat.err .n{color:var(--red)}.stat.gap .n{color:var(--amber)}
+  /* filter */
+  .filters{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
+  .filters button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+  .filters button.on{background:var(--navy);color:#fff}
+  .filters .cnt{opacity:.7;margin-left:6px;font-size:12px}
+  /* ledger */
+  .ledger{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .lhead{display:grid;grid-template-columns:22px 2.4fr 1.3fr 1.2fr 1fr 1.3fr;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);
+    font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;background:#f8fafc}
+  .lrow{display:grid;grid-template-columns:22px 2.4fr 1.3fr 1.2fr 1fr 1.3fr;gap:12px;padding:13px 18px;border-bottom:1px solid #f1f5f9;align-items:center}
+  .lrow:last-child{border-bottom:0}.lrow:hover{background:#f8fbff}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .dot.ok{background:var(--green)}.dot.pend{background:var(--sky)}.dot.err{background:var(--red)}
+  .vend{font-weight:600}.memo{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .type{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-block}
+  .type.purchase{background:#eaf1f8;color:var(--blue)}.type.bill{background:var(--purple-bg);color:var(--purple)}
+  .type.deposit{background:var(--green-bg);color:var(--green)}.type.check{background:#fdf3e3;color:var(--amber)}
+  .qbfile{font-size:12.5px;font-weight:600}.qbsub{color:var(--muted);font-size:11.5px;margin-top:1px}
+  .amt{font-weight:600;font-variant-numeric:tabular-nums}
+  .status{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  .slbl{font-size:12.5px;font-weight:600}.slbl.ok{color:var(--green)}.slbl.pend{color:var(--blue)}.slbl.err{color:var(--red)}
+  .ref{color:var(--muted);font-size:11px;display:block;text-align:right}
+  .qlink{color:var(--blue);font-size:12px;text-decoration:none;white-space:nowrap}.qlink:hover{text-decoration:underline}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:8px;height:30px;padding:0 12px;display:inline-flex;align-items:center;font:inherit;font-size:12px;font-weight:600;color:#334155;cursor:pointer;white-space:nowrap}
+  .mini:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}
+  .mini.retry{border-color:#f3d4d0;color:var(--red);background:var(--red-bg)}.mini.retry:hover{background:#fbe1dd}
+  .mini.gap{border-color:#f3dcae;color:var(--amber);background:var(--amber-bg)}.mini.gap:hover{background:#fbeccb}
+  /* intercompany pairing */
+  .ic{margin-left:6px;font-size:10.5px;font-weight:700;color:var(--purple);background:var(--purple-bg);border-radius:5px;padding:1px 6px}
+  .legs{grid-column:2 / -1;margin-top:10px;background:#faf8fd;border:1px solid #e7ddf2;border-left:3px solid var(--purple);border-radius:10px;padding:11px 14px;display:flex;flex-direction:column;gap:7px}
+  .legs-h{font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--purple);text-transform:uppercase}
+  .leg{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#475569}
+  .leg .leg-ck{color:var(--green);font-weight:800}
+  .leg .lg-file{font-weight:600;color:var(--navy);min-width:210px}
+  .leg .lg-act{color:var(--muted)}.leg .lg-amt{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+  .legs-bal{font-size:12px;color:#6b7280;border-top:1px dashed #e7ddf2;padding-top:7px;margin-top:1px}
+  .docgap-badge{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--amber-bg);color:var(--amber);border:1px solid #f3dcae;margin-left:6px}
+  .hint{font-size:11px;color:#94a3b8;margin-top:10px}
+  /* connection pill */
+  .conn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green);background:var(--green-bg);border:1px solid #bfe6cd;border-radius:999px;padding:5px 12px}
+  /* auto-flow explainer */
+  .autobar{background:var(--green-bg);border:1px solid #bfe6cd;border-radius:12px;padding:12px 16px;font-size:13px;color:#1f5135;line-height:1.55;margin-bottom:14px}
+  .autobar a{color:var(--blue);font-weight:600;text-decoration:none}.autobar a:hover{text-decoration:underline}
+  /* ready-to-post batch checkpoint */
+  .readybar{background:#eef5fb;border:1px solid #cfe3f2;border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px}
+  .readybar .rt{font-weight:600;color:var(--navy)}.readybar .rs{color:#475569;font-size:12.5px;margin-top:3px;line-height:1.5}
+  .readybar a{color:var(--blue);font-weight:600;text-decoration:none}.readybar a:hover{text-decoration:underline}
+  /* error banner */
+  .errbar{background:var(--red-bg);border:1px solid #f3d4d0;border-radius:12px;padding:13px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px}
+  .errbar .et{font-weight:600;color:var(--red)}.errbar .es{color:#9b4a42;font-size:12.5px;margin-top:2px}
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(10,44,78,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<!-- Sidebar -->
+<div class="side">
+  <div class="brand">
+    <svg viewBox="0 0 950 950"><rect x="260" width="690" height="260" fill="#5ba3d2"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="#1768a3"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg>
+    <div><div class="t">Foundry</div><div class="s">Bookkeeper</div></div>
+  </div>
+  <div class="nav">
+    <a href="travel_exceptions.html">📊 Dashboard</a>
+    <a id="nav-ledger" class="on" onclick="setFilter('all')">📒 Posting ledger</a>
+    <a id="nav-err" onclick="setFilter('err')">⚠️ Errors <span class="b err" id="nav-err-n">1</span></a>
+    <a id="nav-gap" onclick="setFilter('gap')">📎 Doc-gaps <span class="b gap" id="nav-gap-n">2</span></a>
+    <div class="grp">Other agents</div>
+    <a href="travel_exceptions.html">🧳 Travel</a>
+    <a href="payables_exceptions.html">💳 Payables</a>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="bar">
+    <div><div class="crumb">Bookkeeper · QuickBooks posting authority</div><h1>Posting ledger</h1></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="conn" title="Connected to QuickBooks Online via OAuth">● QuickBooks connected</span>
+      <button class="btn-cta" onclick="toast('Refreshing posting status from QuickBooks…')">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="pad">
+    <div class="autobar">✓ <b>The agent auto-approves and codes items — you don't touch them one by one.</b> Each cycle they're staged below; you post the whole batch to QuickBooks with <b>one click</b>. You only dig into <b>errors</b> and <b>doc-gaps</b>. Exceptions are handled in <a href="payables_exceptions.html">Payables</a> / <a href="travel_exceptions.html">Travel</a>.</div>
+    <div class="readybar" id="readybar">
+      <div><div class="rt">🗂 <span id="ready-n">3</span> items auto-approved &amp; staged for this cycle</div><div class="rs">Reviewed and coded by the agent — post them to QuickBooks as one batch, or open the <a onclick="setFilter('ready')">Ready</a> tab to spot-check first.</div></div>
+      <button class="btn-cta" style="background:var(--green)" onclick="postAll()">✓ Post all to QuickBooks</button>
+    </div>
+    <div class="errbar" id="errbar">
+      <div><div class="et">⚠️ 1 transaction failed to post to QuickBooks</div><div class="es">The Clean-Up Crew · Bill → Builders Capital QB — vendor not found in the QuickBooks file. Create or remap the vendor, then retry.</div></div>
+      <button class="mini retry" onclick="retryAll()">Retry failed</button>
+    </div>
+
+    <div class="summary">
+      <div class="stat"><div class="n" id="s-ready" style="color:var(--blue)">3</div><div class="l">Ready to post</div></div>
+      <div class="stat posted"><div class="n" id="s-posted">5</div><div class="l">Posted today ✓</div></div>
+      <div class="stat err"><div class="n" id="s-err">1</div><div class="l">Errors</div></div>
+      <div class="stat gap"><div class="n" id="s-gap">2</div><div class="l">Doc-gaps</div></div>
+    </div>
+
+    <div class="filters">
+      <button class="on" data-f="all" onclick="setFilter('all')">All<span class="cnt" id="f-all">9</span></button>
+      <button data-f="ready" onclick="setFilter('ready')">Ready<span class="cnt" id="f-ready">3</span></button>
+      <button data-f="posted" onclick="setFilter('posted')">Posted<span class="cnt">5</span></button>
+      <button data-f="err" onclick="setFilter('err')">Errors<span class="cnt">1</span></button>
+      <button data-f="gap" onclick="setFilter('gap')">Doc-gaps<span class="cnt">2</span></button>
+    </div>
+
+    <div class="ledger">
+      <div class="lhead"><div></div><div>Vendor / Memo</div><div>Type</div><div>QuickBooks file</div><div>Amount</div><div>Status</div></div>
+      <div id="rows"></div>
+    </div>
+    <div class="hint">Bookkeeper is the posting authority: it takes classified items from Payables &amp; Travel and posts them to QuickBooks. Intercompany expenses post two legs — a PER-QB Purchase + the entity-QB Bill. Documentation gaps are tracked here until a receipt is matched.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+// st: posted | pend | err ; gap=true means posted-but-missing-receipt
+const data=[
+  {id:1, st:"posted", vend:"Travel 2026-06 — Builders Capital · Denver (6/4–6/7)", memo:"Delta Air Lines · airfare", type:"Purchase", file:"Jacob Wolbach (PER)", sub:"AMEX Delta ••5001", amt:410.00, ref:"QB Txn #1071"},
+  {id:2, st:"posted", vend:"Home Depot", memo:"Lumber & framing + power tools (split)", type:"Purchase", file:"WJW Investments Idaho", sub:"intercompany", amt:287.43, ref:"QB Txn #1072",
+    legs:[{file:"Jacob Wolbach (PER) — Purchase", act:"Cr AMEX ••1004 · Dr Loans Receivable — WJW", amt:287.43},
+          {file:"WJW Investments — Bill", act:"Dr 6120 Materials / 6140 Tools · Cr Expenses Payable — Jacob Wolbach", amt:287.43}]},
+  {id:3, st:"posted", vend:"Quantum Fiber", memo:"Internet — June", type:"Purchase", file:"Foundry Capital LLC", sub:"AMEX Foundry ••1005", amt:120.00, ref:"QB Txn #1073", gap:true},
+  {id:4, st:"posted", vend:"Data Engine, LLC", memo:"RealEstateAPI subscription", type:"Purchase", file:"Jacob Wolbach (PER)", sub:"BC — balance sheet (Loan - Builders Capital)", amt:616.97, ref:"QB Txn #1074"},
+  {id:5, st:"posted", vend:"Paylocity reimbursement", memo:"BC expense reimbursement received", type:"Deposit", file:"Jacob Wolbach (PER)", sub:"clears Loan - Builders Capital", amt:540.00, ref:"QB Txn #1070"},
+  {id:6, st:"ready", vend:"St Ignatius School", memo:"Tuition autopay", type:"Bill", file:"Jacob Wolbach (PER)", sub:"auto-approved · staged for this cycle", amt:425.00, ref:"ready"},
+  {id:8, st:"ready", vend:"Adobe", memo:"Creative Cloud — monthly", type:"Purchase", file:"Foundry Capital LLC", sub:"auto-approved · known vendor", amt:59.99, ref:"ready"},
+  {id:9, st:"ready", vend:"Selkirk Management", memo:"Office supplies (intercompany)", type:"Purchase", file:"Selkirk Management LLC", sub:"auto-approved · intercompany", amt:142.10, ref:"ready",
+    legs:[{file:"Jacob Wolbach (PER) — Purchase", act:"Cr AMEX ••1004 · Dr Loans Receivable — Selkirk", amt:142.10},
+          {file:"Selkirk Management — Bill", act:"Dr 6900 Office / Admin · Cr Expenses Payable — Jacob Wolbach", amt:142.10}],
+    balnote:"Nets to $0 across the books — funded by Personal (PER), tracked as Loans Receivable until settled (50/50 partnership entity)."},
+  {id:7, st:"err", vend:"The Clean-Up Crew", memo:"Cleaning services · invoice 690", type:"Bill", file:"Builders Capital", sub:"vendor not found in QB file", amt:540.00, ref:"not posted", gap:true,
+    err:"Vendor “The Clean-Up Crew” does not exist in the Builders Capital QuickBooks file. Create the vendor or remap, then retry."},
+];
+
+let filter="all";
+function match(it){
+  if(filter==="all") return true;
+  if(filter==="gap") return it.gap;
+  if(filter==="posted") return it.st==="posted";
+  if(filter==="ready") return it.st==="ready";
+  if(filter==="err") return it.st==="err";
+  return true;
+}
+function statusCell(it){
+  if(it.st==="err") return `<div class="status"><span class="slbl err">⚠ Failed</span><button class="mini retry" onclick="retry(${it.id})">Retry</button></div>`;
+  if(it.st==="ready") return `<div class="status"><span class="slbl pend">🗂 Ready to post</span><a class="qlink" onclick="hold(${it.id})" title="Hold this item out of the batch">hold</a></div>`;
+  if(it.st==="held") return `<div class="status"><span class="slbl" style="color:var(--muted)">⏸ Held</span><a class="qlink" onclick="release(${it.id})" title="Return to the batch">release</a></div>`;
+  const gap = it.gap?`<button class="mini gap" onclick="attach(${it.id})" title="Posted, but no receipt attached yet">📎 Attach receipt</button>`:`<a class="qlink">Open in QBO ↗</a>`;
+  return `<div class="status"><span class="slbl ok">✓ Posted</span>${gap}<span class="ref">${it.ref}</span></div>`;
+}
+function row(it){
+  const dot = it.st==="err"?"err":(it.st==="ready"||it.st==="held")?"pend":"ok";
+  const ic = it.legs?`<span class="ic" title="Two-QB intercompany — both legs">⇄ intercompany</span>`:"";
+  const gapb = it.gap&&it.st!=="err"?`<span class="docgap-badge" title="Posted; receipt still needed">no receipt</span>`:"";
+  const legs = it.legs?`<div class="legs">
+      <div class="legs-h">⇄ Two-QB intercompany — both legs ${it.st==="ready"?"staged":"posted"}</div>
+      ${it.legs.map(l=>`<div class="leg"><span class="leg-ck">✓</span><span class="lg-file">${l.file}</span><span class="lg-act">${l.act}</span><span class="lg-amt">${money(l.amt)}</span></div>`).join("")}
+      <div class="legs-bal">${it.balnote||"Nets to $0 across the books — the entity expense is funded by Personal (PER) and tracked as Loans Receivable until settled."}</div>
+    </div>`:"";
+  return `<div class="lrow">
+    <div><span class="dot ${dot}"></span></div>
+    <div><div class="vend">${it.vend}${gapb}</div><div class="memo">${it.memo}</div></div>
+    <div><span class="type ${it.type.toLowerCase()}">${it.type}</span></div>
+    <div><div class="qbfile">${it.file}${ic}</div><div class="qbsub">${it.sub}</div></div>
+    <div class="amt">${money(it.amt)}</div>
+    <div>${statusCell(it)}</div>
+    ${legs}
+  </div>`;
+}
+function render(){
+  document.getElementById("rows").innerHTML=data.filter(match).map(row).join("");
+  document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
+  const posted=data.filter(x=>x.st==="posted").length, ready=data.filter(x=>x.st==="ready").length,
+        err=data.filter(x=>x.st==="err").length, gap=data.filter(x=>x.gap).length;
+  s("s-posted",posted);s("s-ready",ready);s("s-err",err);s("s-gap",gap);
+  s("nav-err-n",err);s("nav-gap-n",gap);s("f-all",data.length);s("f-ready",ready);s("ready-n",ready);
+  document.getElementById("errbar").style.display = err? "flex":"none";
+  document.getElementById("readybar").style.display = ready? "flex":"none";
+  document.getElementById("nav-ledger").classList.toggle("on",["all","posted","ready"].includes(filter));
+  document.getElementById("nav-err").classList.toggle("on",filter==="err");
+  document.getElementById("nav-gap").classList.toggle("on",filter==="gap");
+}
+function s(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function setFilter(f){filter=f;render();}
+let toastT;
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),3400);}
+function retry(id){const it=data.find(x=>x.id===id);it.st="posted";it.ref="QB Txn #1080";toast(`↻ Retried — ${it.vend} posted to ${it.file}`);render();}
+function retryAll(){data.filter(x=>x.st==="err").forEach(it=>{it.st="posted";it.ref="QB Txn #1080";});toast("↻ Retried all failed — posted to QuickBooks");render();}
+function attach(id){const it=data.find(x=>x.id===id);it.gap=false;toast(`📎 Receipt matched to ${it.vend} — documentation gap cleared`);render();}
+let qbn=1075;
+function postAll(){
+  const ready=data.filter(x=>x.st==="ready");
+  if(!ready.length){toast("Nothing staged to post right now");return;}
+  ready.forEach(it=>{it.st="posted";it.ref="QB Txn #"+(qbn++);});
+  toast(`✓ Posted ${ready.length} item${ready.length>1?'s':''} to QuickBooks`);
+  render();
+}
+function hold(id){const it=data.find(x=>x.id===id);it.st="held";it.ref="held";toast(`⏸ ${it.vend} held out of this batch — won't post until you release it`);render();}
+function release(id){const it=data.find(x=>x.id===id);it.st="ready";it.ref="ready";toast(`${it.vend} returned to the batch`);render();}
+render();
+</script>
+</body>
+</html>

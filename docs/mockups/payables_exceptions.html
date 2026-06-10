@@ -117,6 +117,7 @@
   .fld .qbnote{font-size:11.5px;color:#94a3b8;margin-top:4px}
   /* doc-gap badge */
   .docgap{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--amber-bg);color:var(--amber);border:1px solid #f3dcae;margin-left:6px}
+  .docok{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:#eef2f7;color:#64748b;border:1px solid #e2e8f0;margin-left:6px}
   /* toast */
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(10,44,78,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -154,6 +155,7 @@
 
   <div class="filters">
     <button class="on" data-f="need">Need you<span class="cnt" id="f-need">4</span></button>
+    <button data-f="docs">Missing docs<span class="cnt" id="f-docs">3</span></button>
     <button data-f="all">All<span class="cnt">42</span></button>
     <button data-f="auto">Auto-coded<span class="cnt">38</span></button>
   </div>
@@ -207,8 +209,9 @@
       <div class="fld"><label>Entity (which QuickBooks file)</label>
         <select><option>FC — Foundry Capital</option><option>BC — Builders Capital</option><option>PER — Jacob Wolbach (Personal)</option><option>WJW — WJW Investments Idaho</option><option>WB12 — Waterbrook 1 &amp; 12</option><option>IOTA — Iota Street Garden City</option><option>PC — Prestwick Capital</option></select>
         <div class="qbnote">↳ the parsed transactions post here</div></div>
+      <div class="routed" style="margin-bottom:0">📥 Imported transactions land in <b>Payables</b>, get classified, and any <b>missing a receipt</b> are flagged under <b>Missing docs</b> — attach an invoice, or mark "no receipt needed" to keep the expense without one.</div>
     </div>
-    <div class="dfoot"><button class="btn primary" onclick="closeUpload()">Import &amp; parse</button><button class="btn ghost" onclick="closeUpload()">Cancel</button></div>
+    <div class="dfoot"><button class="btn primary" onclick="importCsv()">Import &amp; parse</button><button class="btn ghost" onclick="closeUpload()">Cancel</button></div>
   </div>
 </div>
 
@@ -235,8 +238,8 @@ const data = [
     reason:"A meal, but it's not inside any trip window — so it's a normal payable, not a trip expense", lines:[{d:"Dinner",a:78.50,gl:"7800 Meals (PER)"}]},
   // auto-coded examples
   {id:5, auto:true, vendor:"Dropbox", sub:"Business plan renewal", amt:96.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
-  {id:6, auto:true, vendor:"Quantum Fiber", sub:"Internet — June", amt:120.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6420 Internet"},
-  {id:7, auto:true, vendor:"Apple", sub:"iCloud+ receipt", amt:2.99, post:"charge", acct:"AMEX Delta ••5001", entity:"PER", gl:"7800 Personal"},
+  {id:6, auto:true, nodoc:true, vendor:"Quantum Fiber", sub:"Internet — June · from CSV", amt:120.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6420 Internet"},
+  {id:7, auto:true, nodoc:true, vendor:"Apple", sub:"iCloud+ · from CSV", amt:2.99, post:"charge", acct:"AMEX Delta ••5001", entity:"PER", gl:"7800 Personal"},
   {id:8, auto:true, vendor:"Adobe", sub:"Creative Cloud", amt:59.99, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
 ];
 
@@ -254,7 +257,13 @@ function entityCell(it){
 const OPEN_TRIPS=["Builders Capital · Denver","Foundry Capital · Seattle"];
 let travelMode={};
 function travelBtn(it){return `<button class="chip" style="border-color:#cfe3f2;color:var(--blue)" title="Reclassify as a travel expense" onclick="event.stopPropagation();travelMode[${it.id}]=true;render()">🧳 Travel</button>`;}
+function docActions(it){
+  if(it.doc_waived) return `<span class="resolved">✓ no receipt needed</span>`;
+  return `<button class="miniact" onclick="resolveDoc(event,${it.id},'attach')">📎 Attach receipt</button>
+          <button class="chip" onclick="resolveDoc(event,${it.id},'waive')" title="Keep the expense accurate; stop asking for a receipt">No receipt needed</button>`;
+}
 function actionCell(it){
+  if(filter==="docs") return docActions(it);
   if(it.resolved) return `<span class="resolved">✓ ${it.resolvedTo||""}</span>`;
   if(it.auto) return `<span class="auto-msg">✓ Auto-coded · ${it.gl}</span>`;
   if(travelMode[it.id]){
@@ -276,28 +285,43 @@ function actionCell(it){
             <button class="miniact" onclick="resolveInline(event,${it.id},'keep')">Keep both</button>${travelBtn(it)}`;
   }
 }
+const missingDoc=it=>it.nodoc && !it.doc_waived;
+function docBadge(it){
+  if(it.doc_waived) return '<span class="docok" title="You marked this as not needing a receipt — the expense still posts accurately">no receipt needed</span>';
+  if(it.nodoc) return '<span class="docgap" title="Charge posts; flagged as a documentation gap until a receipt is matched or marked not needed">no receipt</span>';
+  return '';
+}
 function render(){
   const rows = data.filter(it=>{
     if(filter==="all") return true;
     if(filter==="auto") return it.auto;
+    if(filter==="docs") return missingDoc(it);
     return !it.auto && !it.resolved; // need you
   });
-  document.getElementById("rows").innerHTML = rows.map(it=>`
+  document.getElementById("rows").innerHTML = rows.length ? rows.map(it=>`
     <div class="row" onclick="openDrawer(event,${it.id})">
       <div><span class="dot ${it.auto?'auto':(it.ex==='dup'?'dup':'ex')}"></span></div>
-      <div><div class="vend">${it.vendor}${it.nodoc?'<span class="docgap" title="Charge posts; flagged as a documentation gap until a receipt is matched">no receipt</span>':''}</div><div class="vsub">${it.sub}${it.reason?` · <span style="color:var(--amber)">${it.reason}</span>`:''}</div></div>
+      <div><div class="vend">${it.vendor}${docBadge(it)}</div><div class="vsub">${it.sub}${it.reason?` · <span style="color:var(--amber)">${it.reason}</span>`:''}</div></div>
       <div>${postCell(it)}</div>
       <div>${entityCell(it)}<div class="amt" style="margin-top:6px">${money(it.amt)}</div></div>
       <div class="act">${actionCell(it)}</div>
-    </div>`).join("");
+    </div>`).join("") : `<div style="padding:26px 18px;color:#94a3b8;font-size:13.5px">Nothing here — every transaction is documented. 🎉</div>`;
   document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
   const need=data.filter(it=>!it.auto&&!it.resolved).length;
   document.getElementById("needN").textContent=need;
   document.getElementById("f-need").textContent=need;
+  document.getElementById("f-docs").textContent=data.filter(missingDoc).length;
   document.getElementById("autoN").textContent=data.filter(it=>it.auto||it.resolved).length;
 }
 let toastT;
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),3400);}
+function resolveDoc(e,id,how){
+  e.stopPropagation();
+  const it=data.find(x=>x.id===id);
+  if(how==='attach'){it.nodoc=false; toast(`📎 Receipt attached to ${it.vendor} — documentation gap cleared`);}
+  else {it.doc_waived=true; toast(`Marked ${it.vendor} “no receipt needed” — expense still posts accurately`);}
+  render();
+}
 function resolveInline(e,id,choice){
   e.stopPropagation();
   const it=data.find(x=>x.id===id);
@@ -376,6 +400,8 @@ function closeDrawer(){document.getElementById("scrim").classList.remove("open")
 /* ---- Intake: Plaid + Upload ---- */
 function openUpload(){document.getElementById("uploadScrim").classList.add("open");}
 function closeUpload(){document.getElementById("uploadScrim").classList.remove("open");}
+function importCsv(){closeUpload();setFilter('docs');toast("✓ Imported 18 transactions · 14 auto-coded · 3 missing a receipt — shown below");}
+function setFilter(f){filter=f;render();}
 function openInv(){document.getElementById("invScrim").classList.add("open");}
 function closeInv(){document.getElementById("invScrim").classList.remove("open");toast("✓ Invoices uploaded — OCR + classify running; exceptions will appear here");}
 function plaidPull(){

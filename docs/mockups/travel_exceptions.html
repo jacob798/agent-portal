@@ -3,60 +3,61 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Travel — Exception Queue (Mockup)</title>
+<title>Travel — Trips & Expense Attribution (Mockup)</title>
 <style>
-  :root{
-    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
-    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
-    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3; --red:#c0392b;
-  }
+  :root{--navy:#0a2c4e;--blue:#1768a3;--sky:#5ba3d2;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;
+    --green:#0f9d58;--green-bg:#e8f6ee;--amber:#b7791f;--amber-bg:#fdf3e3;--red:#c0392b;--red-bg:#fdecea;}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
   .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:14px 22px}
-  .mark{width:30px;height:30px;display:block}
-  .top h1{font-size:16px;margin:0;font-weight:600}
-  .top .sub{color:#9bb8d4;font-size:12px}
-  .top .spacer{flex:1}
-  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px}
-  .wrap{max-width:1180px;margin:0 auto;padding:22px}
-  /* active trips strip */
-  .triphead{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;margin:2px 0 10px}
+  .mark{width:30px;height:30px} .top h1{font-size:16px;margin:0;font-weight:600} .top .sub{color:#9bb8d4;font-size:12px}
+  .top .spacer{flex:1} .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px}
+  .wrap{max-width:1120px;margin:0 auto;padding:22px}
+  .hdr{display:flex;justify-content:space-between;align-items:center;margin:2px 0 10px}
+  .hdr .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600}
+  .newtrip{background:var(--navy);color:#fff;border:0;border-radius:9px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .newtrip:hover{opacity:.92}
   .trips{display:flex;gap:12px;margin-bottom:22px;overflow:auto}
-  .trip{min-width:210px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;border-left:4px solid var(--blue)}
+  .trip{min-width:200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;border-left:4px solid var(--blue)}
   .trip.new{border-left-color:var(--amber);background:#fffdf7}
   .trip .ent{font-size:11px;font-weight:700;color:var(--navy);background:#eaf1f8;border-radius:6px;padding:2px 7px;display:inline-block}
   .trip.new .ent{background:var(--amber-bg);color:var(--amber)}
-  .trip .dest{font-weight:600;margin:8px 0 2px}
-  .trip .dates{color:var(--muted);font-size:12.5px}
+  .trip .dest{font-weight:600;margin:8px 0 2px} .trip .dates{color:var(--muted);font-size:12.5px}
   .trip .meta{color:var(--muted);font-size:12px;margin-top:9px;border-top:1px solid #f1f5f9;padding-top:8px}
-  /* filters + queue (shared look w/ payables) */
-  .filters{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
-  .filters button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
-  .filters button.on{background:var(--navy);color:#fff}
-  .filters .cnt{opacity:.7;margin-left:6px;font-size:12px}
-  .queue{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  .row{display:grid;grid-template-columns:26px 30px 2.2fr 1.5fr 2.6fr;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
-  .row:hover{background:#f8fbff}.row:last-child{border-bottom:0}
-  .dot{width:9px;height:9px;border-radius:50%}
-  .dot.trip{background:var(--sky)} .dot.attr{background:var(--amber)} .dot.skip{background:#94a3b8}
+  .trip .open{color:var(--green);font-weight:600}
+  /* section card */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:20px;overflow:hidden}
+  .ctitle{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);background:#f8fafc}
+  .ctitle h2{margin:0;font-size:14px;font-weight:600}
+  .ctitle .n{color:var(--muted);font-size:12.5px;font-weight:500}
+  .confirmall{background:var(--green);color:#fff;border:0;border-radius:9px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .confirmall:hover{opacity:.92}
+  /* expense row */
+  .row{display:grid;grid-template-columns:34px 30px 2.1fr 1.5fr 1.7fr;gap:12px;padding:13px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .row:last-child{border-bottom:0} .row:hover{background:#f8fbff}
+  .row.home{background:#fafbfc}
+  .cbx{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff}
+  .cbx.on{background:var(--green);border-color:var(--green);color:#fff;font-weight:800;font-size:13px}
+  .cbx.home{border-style:dashed}
   .ic{font-size:18px;text-align:center}
-  .vend{font-weight:600}
-  .vsub{color:var(--muted);font-size:12.5px;margin-top:2px}
-  .match{font-size:12.5px}
-  .match .mt{color:var(--navy);font-weight:600}
-  .match .win{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-top:4px}
-  .win.in{background:var(--green-bg);color:var(--green)} .win.out{background:#eef2f7;color:#64748b}
-  .amt{font-weight:600;font-variant-numeric:tabular-nums}
-  .act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .m{font-weight:600} .msub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .loc{font-size:12.5px}
+  .loc .dest{color:var(--green);font-weight:600} .loc .home{color:var(--muted);font-weight:600}
+  .loc .post{display:inline-block;font-size:10.5px;font-weight:700;color:#6b3fa0;background:#efeaf8;border-radius:5px;padding:1px 6px;margin-left:5px}
+  .sug{font-size:13px;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+  .sug .to{font-weight:600;color:var(--navy)} .sug .non{font-weight:600;color:var(--muted)}
+  .sug .amt{font-variant-numeric:tabular-nums;color:var(--muted)}
+  .chg{color:var(--blue);font-size:12px;cursor:pointer;text-decoration:none}.chg:hover{text-decoration:underline}
+  .mk{color:var(--blue);font-size:12px;cursor:pointer}
+  /* small confirm lane rows */
+  .crow{display:grid;grid-template-columns:30px 2fr 2.4fr;gap:12px;padding:13px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .crow:last-child{border-bottom:0}.crow:hover{background:#f8fbff}
+  .cact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
   .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
-  .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}
-  .chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}.chip.rec:hover{opacity:.9}
-  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
-  .miniact.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
-  .resolved{color:var(--green);font-size:12.5px;font-weight:600}
-  .src{color:var(--blue);font-size:12px;text-decoration:none;cursor:pointer}.src:hover{text-decoration:underline}
-  .hint{font-size:11px;color:#94a3b8;margin-top:4px;text-align:right}
-  /* drawer */
+  .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)} .chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}
+  .resolved{color:var(--green);font-size:12.5px;font-weight:600;text-align:right}
+  .hint{font-size:11px;color:#94a3b8;text-align:right;margin-top:-12px;margin-bottom:18px}
+  /* drawer + modal (shared) */
   .scrim{position:fixed;inset:0;background:rgba(10,44,78,.32);backdrop-filter:blur(2px);display:none}.scrim.open{display:block}
   .drawer{position:fixed;top:0;right:0;height:100%;width:540px;max-width:94vw;background:#fff;box-shadow:-12px 0 40px rgba(10,44,78,.22);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
   .drawer.open{transform:translateX(0)}
@@ -65,32 +66,23 @@
   .dbody{flex:1;overflow:auto;padding:0 22px 22px}
   .sect{padding:16px 0;border-bottom:1px solid #f1f5f9}
   .sect h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:0 0 10px}
-  .kv{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}.kv .k{color:var(--muted)}.kv .v{font-weight:500}
-  .tripcard{background:#f8fbff;border:1px solid #cfe3f2;border-radius:10px;padding:14px}
-  .tripcard .dest{font-weight:600}.tripcard .dates{color:var(--muted);font-size:13px;margin-top:2px}
-  .checks{margin-top:10px}
-  .check{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
-  .check .y{color:var(--green);font-weight:700}.check .n{color:#94a3b8;font-weight:700}
-  .entrow{display:flex;gap:8px;flex-wrap:wrap}
-  .always{display:flex;align-items:center;gap:9px;font-size:13px;color:#334155;background:#f0f7fc;border:1px solid #cfe3f2;border-radius:10px;padding:11px 14px;margin-top:10px}
-  .always input{width:17px;height:17px;accent-color:var(--blue)}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}.kv .k{color:var(--muted)}.kv .v{font-weight:500;text-align:right}
+  .photo{height:160px;border:1px dashed var(--line);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px}
+  .checks .c{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}
+  .checks .y{color:var(--green);font-weight:800}.checks .n{color:#94a3b8;font-weight:800}
+  .qb{background:#f4f8fc;border:1px solid #d7e6f2;border-radius:10px;padding:14px}
+  .qb .qline{display:flex;gap:10px;padding:4px 0;font-size:13px}
+  .qb .ql{color:var(--muted);width:62px;flex:0 0 62px;font-weight:600}
+  .qb .qv{font-weight:500}.qb .qv.vend{color:var(--navy);font-weight:600}
   .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
   .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
   .btn.primary{background:var(--navy);color:#fff}.btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
-  /* new trip button + modal */
-  .newtrip{background:var(--navy);color:#fff;border:0;border-radius:9px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.2px}
-  .newtrip:hover{opacity:.92}
-  .modal-scrim{position:fixed;inset:0;background:rgba(10,44,78,.4);display:none;align-items:center;justify-content:center;z-index:50}
-  .modal-scrim.open{display:flex}
+  .modal-scrim{position:fixed;inset:0;background:rgba(10,44,78,.4);display:none;align-items:center;justify-content:center;z-index:50}.modal-scrim.open{display:flex}
   .modal{background:#fff;border-radius:16px;width:440px;max-width:94vw;box-shadow:0 24px 60px rgba(10,44,78,.3);overflow:hidden}
-  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-  .modal .mh h2{margin:0;font-size:16px;font-weight:600}
-  .modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}
-  .modal .mb{padding:20px 22px}
-  .fld{margin-bottom:15px}
-  .fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
-  .fld input,.fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;color:var(--ink)}
-  .fld input:focus,.fld select:focus{outline:none;border-color:var(--blue)}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modal .mh h2{margin:0;font-size:16px}
+  .modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}.modal .mb{padding:20px 22px}
+  .fld{margin-bottom:15px}.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
+  .fld input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px}
   .two{display:flex;gap:12px}.two .fld{flex:1}
   .entpick{display:flex;gap:7px;flex-wrap:wrap}
   .entpick button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;font-weight:600;color:#334155;cursor:pointer}
@@ -100,32 +92,36 @@
 <body>
 <div class="top">
   <svg class="mark" viewBox="0 0 950 950"><rect x="260" width="690" height="260" fill="#5ba3d2"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="#1768a3"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg>
-  <div><h1>Foundry · Travel</h1><div class="sub">Confirm trips · tie itineraries · attribute trip expenses</div></div>
-  <div class="spacer"></div><div class="pill">Cycle: today 8:00 AM · live</div>
+  <div><h1>Foundry · Travel</h1><div class="sub">Receipts → invoices@foundry-capital.co → matched to your trips</div></div>
+  <div class="spacer"></div><div class="pill">7 trip expenses ready · daily 8:00 AM nudge</div>
 </div>
 
 <div class="wrap">
-  <div class="triphead" style="display:flex;justify-content:space-between;align-items:center">
-    <span>Active &amp; recent trips</span>
-    <button class="newtrip" onclick="openNewTrip()">+ New trip</button>
-  </div>
+  <div class="hdr"><span class="lbl">Active &amp; recent trips</span><button class="newtrip" onclick="openNewTrip()">+ New trip</button></div>
   <div class="trips" id="tripsStrip">
-    <div class="trip"><span class="ent">BC</span><div class="dest">Boise, ID</div><div class="dates">Jun 4 – 7</div><div class="meta">3 bookings · 4 expenses · $1,840</div></div>
+    <div class="trip"><span class="ent">BC</span><div class="dest">Denver, CO</div><div class="dates">Jun 4 – 7</div><div class="meta"><span class="open">● open for expenses</span> · grace thru Jul 7</div></div>
     <div class="trip"><span class="ent">FC</span><div class="dest">Seattle, WA</div><div class="dates">Jun 18 – 20</div><div class="meta">2 bookings · 0 expenses</div></div>
     <div class="trip"><span class="ent">BC</span><div class="dest">Salt Lake City</div><div class="dates">May 28 – 30</div><div class="meta">closed · $2,110</div></div>
-    <div class="trip new"><span class="ent">NEW ?</span><div class="dest">Portland, OR</div><div class="dates">Jun 24 – 26</div><div class="meta">awaiting confirm</div></div>
   </div>
 
-  <div class="filters">
-    <button class="on" data-f="need">Need you<span class="cnt" id="f-need">5</span></button>
-    <button data-f="all">All<span class="cnt">5</span></button>
-    <button data-f="done">Resolved<span class="cnt" id="f-done">0</span></button>
+  <!-- Trips & itineraries to confirm -->
+  <div class="card">
+    <div class="ctitle"><h2>Trips &amp; itineraries to confirm</h2><span class="n">2</span></div>
+    <div id="trips-confirm"></div>
   </div>
 
-  <div class="queue"><div id="rows"></div></div>
-  <div class="hint">Travel-category charges inside a trip window attribute to the trip. Non-travel charges (software, etc.) stay standalone — even mid-trip.</div>
+  <!-- Expense attribution — the batch list -->
+  <div class="card">
+    <div class="ctitle">
+      <div><h2>Trip expenses to confirm</h2><span class="n">7 suggested · 1 home → Payables</span></div>
+      <button class="confirmall" onclick="confirmAll()">✓ Confirm all 7</button>
+    </div>
+    <div id="exp-rows"></div>
+  </div>
+  <div class="hint">Each receipt was matched on arrival: 📍location + date window + travel category → a suggestion. Tap ✓ down the list, or Confirm all.</div>
 </div>
 
+<!-- Drawer -->
 <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
   <div class="dhead"><div><div style="font-weight:600;font-size:16px" id="d-title">x</div><div style="color:var(--muted);font-size:13px" id="d-sub">x</div></div><button class="x" onclick="closeDrawer()">×</button></div>
@@ -137,140 +133,113 @@
   <div class="modal">
     <div class="mh"><h2>New trip</h2><button class="x" onclick="closeNewTrip()">×</button></div>
     <div class="mb">
-      <div class="fld"><label>Entity</label>
-        <div class="entpick" id="ntEnt">
-          <button class="on" data-e="BC">BC</button><button data-e="FC">FC</button>
-          <button data-e="PER">PER</button><button data-e="WJW">WJW</button><button data-e="WB12">WB12</button>
-        </div></div>
-      <div class="fld"><label>Destination</label><input id="ntDest" placeholder="e.g. Boise, ID" /></div>
-      <div class="two">
-        <div class="fld"><label>Start date</label><input id="ntStart" type="date" /></div>
-        <div class="fld"><label>End date</label><input id="ntEnd" type="date" /></div>
-      </div>
+      <div class="fld"><label>Entity</label><div class="entpick" id="ntEnt"><button class="on" data-e="BC">BC</button><button data-e="FC">FC</button><button data-e="PER">PER</button><button data-e="WJW">WJW</button><button data-e="WB12">WB12</button></div></div>
+      <div class="fld"><label>Destination</label><input id="ntDest" placeholder="e.g. Denver, CO" /></div>
+      <div class="two"><div class="fld"><label>Start date</label><input id="ntStart" type="date" /></div><div class="fld"><label>End date</label><input id="ntEnd" type="date" /></div></div>
       <div class="fld"><label>Purpose (optional)</label><input id="ntPurpose" placeholder="e.g. Site visit — Iota St" /></div>
+      <div style="font-size:12.5px;color:var(--muted);background:#f0f7fc;border:1px solid #cfe3f2;border-radius:9px;padding:10px 12px">↻ On create, recent receipts in this date window are re-scanned and queued as suggestions.</div>
     </div>
-    <div class="dfoot">
-      <button class="btn primary" onclick="createTrip()">Create trip</button>
-      <button class="btn ghost" onclick="closeNewTrip()">Cancel</button>
-    </div>
+    <div class="dfoot"><button class="btn primary" onclick="createTrip()">Create trip</button><button class="btn ghost" onclick="closeNewTrip()">Cancel</button></div>
   </div>
 </div>
 
 <script>
 const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-const data=[
-  {id:1, kind:"newtrip", ic:"✈️", title:"New trip — Seattle, WA", sub:"Delta DL1234 · BOI→SEA · Jun 18", rec:"FC",
-    reason:"Itinerary detected. Recent SEA trips were FC."},
-  {id:2, kind:"tie", ic:"🏨", title:"Boise Marriott — Jun 4→6", sub:"Hotel booking · confirmation #M8821",
-    match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)", reason:"Hotel dates fall inside the BC Boise trip."},
-  {id:3, kind:"attr", ic:"🏨", title:"Boise Marriott — $612.00", sub:"AMEX WJW ••1004 · Jun 5 · Lodging",
-    amt:612.00, cat:"Lodging", match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)",
-    reason:"Lodging charge inside the trip window."},
-  {id:4, kind:"attr", ic:"🍽️", title:"Chandlers Steakhouse — $84.20", sub:"AMEX WJW ••1004 · Jun 5 · Boise · Dining",
-    amt:84.20, cat:"Dining", match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)",
-    reason:"Dining charge inside the trip window, near the destination."},
-  {id:5, kind:"standalone", ic:"💳", title:"Data Engine, LLC — $616.97", sub:"AMEX WJW ••1004 · Jun 5 · Software",
-    amt:616.97, cat:"Software", match:"BC · Boise, ID", win:"in",
-    reason:"Charge falls in the trip window but is Software — NOT a travel expense. Keep standalone (goes to Payables, not the trip)."},
+const TRIP="Travel 2026-06 — BC Denver Site Visit (6/4–6/7)";
+
+const confirms=[
+  {id:"t1",ic:"✈️",title:"New trip — Seattle, WA",sub:"Delta DL1234 · BOI→SEA · Jun 18",kind:"newtrip",rec:"FC"},
+  {id:"t2",ic:"🏨",title:"Westin Denver — Jun 4→6",sub:"Hotel booking · conf #W8821",kind:"tie",rec:"BC Denver"},
 ];
-let filter="need";
-function rowMatch(it){
-  if(it.kind==="newtrip") return `<span class="match"><span class="mt">${it.rec}</span><br><span style="color:var(--muted);font-size:12px">recommended entity</span></span>`;
-  const win = it.win==="in"?`<span class="win in">✓ in trip window</span>`:`<span class="win out">outside window</span>`;
-  return `<span class="match"><span class="mt">${it.match||""}</span><br>${win}${it.cat?` · ${it.cat}`:''}</span>`;
-}
-function rowAct(it){
-  if(it.resolved) return `<span class="resolved">✓ ${it.resolvedTo}</span>`;
-  if(it.kind==="newtrip") return `<button class="chip rec" onclick="res(event,${it.id},'Confirm ${it.rec} trip')">Confirm ${it.rec}</button>
-     <button class="chip" onclick="open_(event,${it.id})">Other ▾</button>
-     <button class="chip" onclick="res(event,${it.id},'Not a trip')">Not a trip</button>`;
-  if(it.kind==="tie") return `<button class="miniact" onclick="res(event,${it.id},'Tied to '+'${it.match}')">Tie to ${it.match.split(' · ')[0]} trip</button>
-     <a class="src" onclick="open_(event,${it.id})">wrong trip</a>`;
-  if(it.kind==="attr") return `<button class="miniact" onclick="res(event,${it.id},'Attributed')">Attribute to trip</button>
-     <button class="miniact ghost" onclick="res(event,${it.id},'Personal')">Personal</button>`;
-  if(it.kind==="standalone") return `<button class="miniact" onclick="res(event,${it.id},'Standalone')">Keep standalone</button>
-     <a class="src" onclick="open_(event,${it.id})">actually trip?</a>`;
-}
-function render(){
-  const rows=data.filter(it=> filter==="all"?true: filter==="done"?it.resolved : !it.resolved);
-  document.getElementById("rows").innerHTML=rows.map(it=>{
-    const dot = it.kind==="standalone"?"skip": it.kind==="attr"?"attr":"trip";
-    return `<div class="row" onclick="open_(event,${it.id})">
-      <div><span class="dot ${dot}"></span></div>
-      <div class="ic">${it.ic}</div>
-      <div><div class="vend">${it.title}</div><div class="vsub">${it.sub}</div></div>
-      <div>${rowMatch(it)}</div>
-      <div class="act">${rowAct(it)}</div></div>`;
+const exps=[
+  {id:"e1",ic:"🏨",m:"Westin Denver",sub:"AMEX WJW ••1004 · Jun 5 · Lodging",loc:"Denver, CO",home:false,cat:"Lodging",amt:612.00,trip:"BC Denver",sugg:true,gl:"6700 Travel — Lodging"},
+  {id:"e2",ic:"🍽️",m:"Chandlers Steakhouse",sub:"AMEX WJW ••1004 · Jun 5 · Dining",loc:"Denver, CO",home:false,cat:"Dining",amt:84.20,trip:"BC Denver",sugg:true,gl:"6710 Travel — Meals"},
+  {id:"e3",ic:"🚗",m:"Hertz",sub:"Invoiced Jun 21 · Jun 4–7 rental · Transport",loc:"Denver, CO",home:false,cat:"Transport",amt:240.00,trip:"BC Denver",sugg:true,post:true,gl:"6720 Travel — Ground"},
+  {id:"e4",ic:"✈️",m:"Delta Air Lines",sub:"AMEX Delta ••5001 · Jun 4 · Airfare",loc:"—",home:false,cat:"Airfare",amt:410.00,trip:"BC Denver",sugg:true,gl:"6730 Travel — Airfare"},
+  {id:"e5",ic:"☕",m:"Dutch Bros",sub:"AMEX WJW ••1004 · Jun 6 · Dining",loc:"Denver, CO",home:false,cat:"Dining",amt:9.15,trip:"BC Denver",sugg:true,gl:"6710 Travel — Meals"},
+  {id:"eu1",ic:"🚕",m:"Uber",sub:"AMEX WJW ••1004 · Jun 4 · Rideshare (DEN→hotel)",loc:"Denver, CO",home:false,cat:"Transport",amt:28.50,trip:"BC Denver",sugg:true,gl:"6720 Travel — Ground"},
+  {id:"eu2",ic:"🚕",m:"Uber",sub:"AMEX WJW ••1004 · Jun 6 · Rideshare (site visit)",loc:"Denver, CO",home:false,cat:"Transport",amt:19.20,trip:"BC Denver",sugg:true,gl:"6720 Travel — Ground"},
+  {id:"e6",ic:"🍽️",m:"Goldy's Breakfast",sub:"AMEX WJW ••1004 · Jun 12 · Dining",loc:"Boise, ID",home:true,cat:"Dining",amt:31.40,trip:null,sugg:false,gl:"7800 Personal"},
+];
+let conf={}, done={};
+
+/* ---- Trips & itineraries lane ---- */
+function renderConfirms(){
+  document.getElementById("trips-confirm").innerHTML=confirms.map(c=>{
+    if(done[c.id]) return `<div class="crow"><div class="ic">${c.ic}</div><div><div class="m">${c.title}</div><div class="msub">${c.sub}</div></div><div class="resolved">✓ ${done[c.id]}</div></div>`;
+    const act = c.kind==="newtrip"
+      ? `<button class="chip rec" onclick="resConf(event,'${c.id}','Confirmed ${c.rec} trip')">Confirm ${c.rec}</button><button class="chip" onclick="resConf(event,'${c.id}','Other')">Other ▾</button><button class="chip" onclick="resConf(event,'${c.id}','Not a trip')">Not a trip</button>`
+      : `<button class="chip rec" onclick="resConf(event,'${c.id}','Tied to ${c.rec}')">Tie to ${c.rec} trip</button><button class="chip" onclick="resConf(event,'${c.id}','Wrong trip')">Wrong trip</button>`;
+    return `<div class="crow"><div class="ic">${c.ic}</div><div><div class="m">${c.title}</div><div class="msub">${c.sub}</div></div><div class="cact">${act}</div></div>`;
   }).join("");
-  const need=data.filter(it=>!it.resolved).length;
-  document.getElementById("f-need").textContent=need;
-  document.getElementById("f-done").textContent=data.length-need;
-  document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
 }
-function res(e,id,label){e.stopPropagation();const it=data.find(x=>x.id===id);it.resolved=true;it.resolvedTo=label;render();}
-function open_(e,id){
-  if(e)e.stopPropagation();const it=data.find(x=>x.id===id);
-  document.getElementById("d-title").textContent=it.title;
-  document.getElementById("d-sub").textContent=it.sub;
-  let body="";
-  if(it.kind==="newtrip"){
-    body=`<div class="sect"><h3>Itinerary</h3><div class="tripcard"><div class="dest">${it.title.replace('New trip — ','')}</div><div class="dates">${it.sub}</div></div></div>
-      <div class="sect"><h3>Which entity is this trip for?</h3><div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">${it.reason}</div>
-        <div class="entrow"><button class="chip rec">${it.rec}</button><button class="chip">BC</button><button class="chip">PER</button><button class="chip">More ▾</button></div>
-        <label class="always"><input type="checkbox"> This route (BOI→SEA) is always ${it.rec}</label></div>`;
-  } else {
-    const checks = `<div class="checks">
-      <div class="check"><span class="${it.win==='in'?'y':'n'}">${it.win==='in'?'✓':'✗'}</span> Date inside trip window (${it.rec||it.match})</div>
-      <div class="check"><span class="${(it.cat&&['Lodging','Dining','Transport','Airfare'].includes(it.cat))?'y':'n'}">${(it.cat&&['Lodging','Dining','Transport','Airfare'].includes(it.cat))?'✓':'✗'}</span> Travel category (${it.cat||'—'})</div>
-      <div class="check"><span class="y">✓</span> Near destination</div></div>`;
-    const verdict = it.kind==="standalone"
-      ? `<div style="background:#fef6f6;border:1px solid #f3d4d0;color:var(--red);border-radius:10px;padding:12px;font-size:13px;margin-top:6px"><b>Not a trip expense.</b> ${it.reason}</div>`
-      : `<label class="always"><input type="checkbox" checked> Always attribute ${it.cat} from this card during a trip</label>`;
-    body=`<div class="sect"><h3>Charge</h3>
-        ${it.amt?`<div class="kv"><span class="k">Amount</span><span class="v">${money(it.amt)}</span></div>`:''}
-        <div class="kv"><span class="k">Category</span><span class="v">${it.cat||'—'}</span></div>
-        <div class="kv"><span class="k">Card</span><span class="v">${it.sub.split(' · ')[0]}</span></div></div>
-      <div class="sect"><h3>Candidate trip</h3><div class="tripcard"><div class="dest">${it.match}</div><div class="dates">${it.rec||''}</div>${checks}</div></div>
-      <div class="sect"><h3>${it.kind==="standalone"?"Decision":"Attribute to this trip?"}</h3>${verdict}</div>`;
-  }
-  document.getElementById("d-body").innerHTML=body;
-  const foot = it.kind==="standalone"
-    ? `<button class="btn ghost" onclick="dres(${it.id},'Attributed')">Actually a trip expense</button><button class="btn primary" onclick="dres(${it.id},'Standalone')">Keep standalone</button>`
-    : it.kind==="attr"
-      ? `<button class="btn ghost" onclick="dres(${it.id},'Personal')">Personal</button><button class="btn primary" onclick="dres(${it.id},'Attributed')">Attribute to ${it.match.split(' · ')[0]} trip</button>`
-      : it.kind==="tie"
-        ? `<button class="btn primary" onclick="dres(${it.id},'Tied')">Tie to ${it.match.split(' · ')[0]} trip</button><button class="btn ghost" onclick="closeDrawer()">Wrong trip</button>`
-        : `<button class="btn primary" onclick="dres(${it.id},'Confirm ${it.rec} trip')">Confirm ${it.rec} trip</button><button class="btn ghost" onclick="closeDrawer()">Skip</button>`;
-  document.getElementById("d-foot").innerHTML=foot;
+function resConf(e,id,label){e.stopPropagation();done[id]=label;renderConfirms();}
+
+/* ---- Expense suggestion list ---- */
+function renderExps(){
+  document.getElementById("exp-rows").innerHTML=exps.map(x=>{
+    if(done[x.id]) return `<div class="row"><div></div><div class="ic">${x.ic}</div><div><div class="m">${x.m}</div><div class="msub">${x.sub}</div></div><div></div><div class="resolved">✓ ${done[x.id]}</div></div>`;
+    const checked = (x.id in conf)? conf[x.id] : x.sugg;  // default = suggestion
+    const box = `<div class="cbx ${checked?'on':''} ${x.home?'home':''}" onclick="toggle(event,'${x.id}')">${checked?'✓':''}</div>`;
+    const loc = x.home? `<span class="loc"><span class="home">📍 ${x.loc} · home</span></span>`
+                      : `<span class="loc"><span class="dest">📍 ${x.loc==='—'?'no location':x.loc}</span>${x.post?'<span class="post">post-trip</span>':''}</span>`;
+    const sug = x.home
+      ? `<div class="sug"><span class="non">not a trip → Payables</span><span class="amt">${money(x.amt)}</span><a class="mk" onclick="event.stopPropagation();conf['${x.id}']=true;renderExps()">make trip ▾</a></div>`
+      : `<div class="sug"><span class="to">→ ${x.trip}</span><span class="amt">${money(x.amt)}</span><a class="chg" onclick="event.stopPropagation();open_('${x.id}')">change</a></div>`;
+    return `<div class="row ${x.home?'home':''}" onclick="open_('${x.id}')">
+      <div>${box}</div><div class="ic">${x.ic}</div>
+      <div><div class="m">${x.m}</div><div class="msub">${x.sub}</div></div>
+      <div>${loc}</div>${sug}</div>`;
+  }).join("");
+}
+function toggle(e,id){e.stopPropagation();const x=exps.find(z=>z.id===id);conf[id]=!((id in conf)?conf[id]:x.sugg);renderExps();}
+function confirmAll(){exps.forEach(x=>{const checked=(x.id in conf)?conf[x.id]:x.sugg; if(checked&&!x.home) done[x.id]="→ "+x.trip;}); renderExps();}
+
+/* ---- Drawer ---- */
+function open_(id){
+  const x=exps.find(z=>z.id===id); if(!x) return;
+  document.getElementById("d-title").textContent=x.m+" — "+money(x.amt);
+  document.getElementById("d-sub").textContent=x.sub;
+  const trip = x.home? "—" : TRIP;
+  const checks=`<div class="checks">
+    <div class="c"><span class="${!x.home?'y':'n'}">${!x.home?'✓':'✗'}</span> 📍 Location ${x.loc==='—'?'(none — used date+category)':'= '+x.loc} ${x.home?'(home → not a trip)':'(matches destination)'}</div>
+    <div class="c"><span class="y">✓</span> Date ${x.post?'in grace window (post-trip)':'inside trip window'}</div>
+    <div class="c"><span class="${['Lodging','Dining','Transport','Airfare'].includes(x.cat)?'y':'n'}">✓</span> Travel category (${x.cat})</div></div>`;
+  const qb = x.home? `<div style="background:var(--red-bg);border:1px solid #f3d4d0;color:var(--red);border-radius:10px;padding:12px;font-size:13px"><b>Not a trip expense.</b> Charged at home → posts to Payables as Personal, its own line. No trip vendor.</div>`
+    : `<div class="qb">
+        <div class="qline"><span class="ql">Vendor</span><span class="qv vend">${TRIP}</span></div>
+        <div class="qline"><span class="ql">Memo</span><span class="qv">${x.m} · ${x.cat.toLowerCase()} · ${x.sub.split('·')[1]?.trim()||''}</span></div>
+        <div class="qline"><span class="ql">GL</span><span class="qv">${x.gl}</span></div>
+        <div class="qline"><span class="ql">Entity</span><span class="qv">BC</span></div></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">↳ Rolls into the trip vendor — <b>${x.m}</b> never becomes its own QuickBooks vendor.</div>`;
+  document.getElementById("d-body").innerHTML=`
+    <div class="sect"><h3>Receipt</h3><div class="photo">📸 ${x.m} — receipt photo (preview)</div><a class="chg" style="display:inline-block;margin-top:8px">Open in Dropbox ↗</a></div>
+    <div class="sect"><h3>Why this trip</h3><div style="font-weight:600;margin-bottom:8px">${x.home?'Suggestion: not a trip':'Suggested: '+x.trip+' trip'}</div>${checks}</div>
+    <div class="sect"><h3>Posts to QuickBooks as</h3>${qb}</div>`;
+  document.getElementById("d-foot").innerHTML = x.home
+    ? `<button class="btn ghost" onclick="dres('${id}','→ BC Denver (overridden)')">Make trip expense</button><button class="btn primary" onclick="dres('${id}','Personal')">Keep as Personal</button>`
+    : `<button class="btn ghost" onclick="closeDrawer()">Different trip ▾</button><button class="btn primary" onclick="dres('${id}','→ ${x.trip}')">Confirm → ${x.trip} trip</button>`;
   document.getElementById("scrim").classList.add("open");document.getElementById("drawer").classList.add("open");
 }
-function dres(id,label){res({stopPropagation(){}},id,label);closeDrawer();}
+function dres(id,label){done[id]=label;closeDrawer();renderExps();}
 function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
 
-/* ---- Manual new trip ---- */
+/* ---- New trip modal ---- */
 let ntEntity="BC";
-document.querySelectorAll("#ntEnt button").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll("#ntEnt button").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); ntEntity=b.dataset.e;
-});
+document.querySelectorAll("#ntEnt button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#ntEnt button").forEach(x=>x.classList.remove("on"));b.classList.add("on");ntEntity=b.dataset.e;});
 function openNewTrip(){document.getElementById("newtripScrim").classList.add("open");}
 function closeNewTrip(){document.getElementById("newtripScrim").classList.remove("open");}
 function fmtD(d){if(!d)return"";const[y,m,day]=d.split("-");return new Date(y,m-1,day).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 function createTrip(){
   const dest=document.getElementById("ntDest").value||"New destination";
   const s=document.getElementById("ntStart").value,e=document.getElementById("ntEnd").value;
-  const purpose=document.getElementById("ntPurpose").value;
   const dates=(s||e)?`${fmtD(s)}${e?" – "+fmtD(e):""}`:"dates TBD";
-  const card=document.createElement("div");
-  card.className="trip";card.style.borderLeftColor="var(--green)";
-  card.innerHTML=`<span class="ent">${ntEntity}</span><div class="dest">${dest}</div><div class="dates">${dates}</div><div class="meta">✚ created manually · ${purpose||'open for expenses'}</div>`;
-  document.getElementById("tripsStrip").prepend(card);
-  closeNewTrip();
+  const card=document.createElement("div");card.className="trip";card.style.borderLeftColor="var(--green)";
+  card.innerHTML=`<span class="ent">${ntEntity}</span><div class="dest">${dest}</div><div class="dates">${dates}</div><div class="meta"><span class="open">✚ created · re-scanning receipts…</span></div>`;
+  document.getElementById("tripsStrip").prepend(card);closeNewTrip();
   ["ntDest","ntStart","ntEnd","ntPurpose"].forEach(id=>document.getElementById(id).value="");
 }
-
-document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
-render();
+renderConfirms();renderExps();
 </script>
 </body>
 </html>

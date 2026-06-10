@@ -95,6 +95,24 @@
   .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
   .btn.primary{background:var(--navy);color:#fff}
   .btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
+  /* intake toolbar */
+  .intake{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+  .intk-left{display:flex;gap:10px}
+  .ibtn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 16px;font:inherit;font-size:13.5px;font-weight:600;color:var(--navy);cursor:pointer}
+  .ibtn:hover{border-color:var(--blue);background:#f0f7fc}
+  .ibtn.plaid{background:var(--navy);color:#fff;border-color:var(--navy)}.ibtn.plaid:hover{opacity:.92}
+  .plaid-status{font-size:12.5px;color:var(--muted)}
+  .routed{background:#f4f8fc;border:1px solid #d7e6f2;border-radius:10px;padding:11px 16px;font-size:13px;color:#334155;margin-bottom:18px}
+  .routed a{color:var(--blue);font-weight:600;text-decoration:none}.routed a:hover{text-decoration:underline}
+  /* upload modal */
+  .modal-scrim{position:fixed;inset:0;background:rgba(10,44,78,.4);display:none;align-items:center;justify-content:center;z-index:50}.modal-scrim.open{display:flex}
+  .modal{background:#fff;border-radius:16px;width:460px;max-width:94vw;box-shadow:0 24px 60px rgba(10,44,78,.3);overflow:hidden}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modal .mh h2{margin:0;font-size:16px}
+  .modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}.modal .mb{padding:20px 22px}
+  .drop{border:2px dashed #cfe3f2;border-radius:12px;padding:26px;text-align:center;color:var(--muted);font-size:13.5px;background:#f8fbff;margin-bottom:16px}.drop b{color:var(--navy)}
+  .fld{margin-bottom:15px}.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
+  .fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;background:#fff}
+  .fld .qbnote{font-size:11.5px;color:#94a3b8;margin-top:4px}
 </style>
 </head>
 <body>
@@ -110,6 +128,15 @@
 </div>
 
 <div class="wrap">
+  <div class="intake">
+    <div class="intk-left">
+      <button class="ibtn plaid" onclick="plaidPull()">⚡ Get transactions from Plaid</button>
+      <button class="ibtn" onclick="openUpload()">⬆ Upload CSV / QBO</button>
+    </div>
+    <div class="plaid-status" id="plaidStatus">Plaid: AMEX · Wells Fargo · Schwab — synced 8:00 AM</div>
+  </div>
+  <div class="routed">🧳 <b>12</b> travel charges (meals, rides, lodging) that landed inside a trip window were routed to <a href="travel_exceptions.html">Travel →</a>. Meals/Ubers <b>not</b> in a trip window stay here as payables.</div>
+
   <div class="summary">
     <div class="stat"><div class="n">42</div><div class="l">Invoices this cycle</div></div>
     <div class="stat auto"><div class="n" id="autoN">38</div><div class="l">Auto-coded ✓</div></div>
@@ -146,6 +173,23 @@
   <div class="dfoot" id="d-foot"></div>
 </div>
 
+<!-- Upload modal -->
+<div class="modal-scrim" id="uploadScrim">
+  <div class="modal">
+    <div class="mh"><h2>Upload transactions</h2><button class="x" onclick="closeUpload()">×</button></div>
+    <div class="mb">
+      <div class="drop">⬆ Drop a <b>CSV</b> or <b>.QBO</b> here, or <b>browse</b><br><span style="font-size:12px">bank export or QuickBooks file</span></div>
+      <div class="fld"><label>Account</label>
+        <select><option>AMEX WJW Business ••1004</option><option>AMEX Foundry Business ••1005</option><option>AMEX Delta Reserve ••5001</option><option>Citibank ••4658</option><option>Wells Fargo Checking</option><option>Charles Schwab Checking</option></select>
+        <div class="qbnote">↳ pulled from your QuickBooks accounts</div></div>
+      <div class="fld"><label>Entity (which QuickBooks file)</label>
+        <select><option>FC — Foundry Capital</option><option>BC — Builders Capital</option><option>PER — Jacob Wolbach (Personal)</option><option>WJW — WJW Investments Idaho</option><option>WB12 — Waterbrook 1 &amp; 12</option><option>IOTA — Iota Street Garden City</option><option>PC — Prestwick Capital</option></select>
+        <div class="qbnote">↳ the parsed transactions post here</div></div>
+    </div>
+    <div class="dfoot"><button class="btn primary" onclick="closeUpload()">Import &amp; parse</button><button class="btn ghost" onclick="closeUpload()">Cancel</button></div>
+  </div>
+</div>
+
 <script>
 const ENTITIES = ["BC","FC","PER","WJW"];
 const data = [
@@ -158,6 +202,8 @@ const data = [
     lines:[{d:"Lumber & framing",a:180.00,gl:"6120 Materials (WJW)"},{d:"Power tools",a:107.43,gl:"6140 Sm Tools (WJW)"}]},
   {id:4, ex:"dup", vendor:"St Ignatius School", sub:"Automatic payment · Jun 6", amt:425.00, post:"bill", acct:"Wells Fargo Checking", entity:"PER", rec:null,
     reason:"Looks like a duplicate of a May 6 charge", lines:[{d:"Tuition autopay",a:425.00,gl:"7800 Personal"}]},
+  {id:9, ex:"entity", vendor:"Percy's Restaurant", sub:"Jun 12 · Dining · 🚫 no trip on these dates", amt:78.50, post:"charge", acct:"AMEX WJW ••1004", entity:null, rec:"PER",
+    reason:"A meal, but it's not inside any trip window — so it's a normal payable, not a trip expense", lines:[{d:"Dinner",a:78.50,gl:"7800 Meals (PER)"}]},
   // auto-coded examples
   {id:5, auto:true, vendor:"Dropbox", sub:"Business plan renewal", amt:96.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
   {id:6, auto:true, vendor:"Quantum Fiber", sub:"Internet — June", amt:120.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6420 Internet"},
@@ -269,6 +315,16 @@ function openDrawer(e,id){
 }
 function drawerResolve(id,choice){ resolveInline({stopPropagation(){}},id,choice); closeDrawer(); }
 function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
+
+/* ---- Intake: Plaid + Upload ---- */
+function openUpload(){document.getElementById("uploadScrim").classList.add("open");}
+function closeUpload(){document.getElementById("uploadScrim").classList.remove("open");}
+function plaidPull(){
+  const s=document.getElementById("plaidStatus");
+  s.textContent="Plaid: pulling new transactions…";
+  setTimeout(()=>{s.textContent="Plaid: AMEX · Wells Fargo · Schwab — synced just now · +14 new";},900);
+}
+
 document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
 render();
 </script>

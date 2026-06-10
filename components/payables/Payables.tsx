@@ -29,7 +29,6 @@ type Row = PayableRow & {
   doc_waived?: boolean;
 };
 
-const OPEN_TRIPS = ["Builders Capital · Denver", "Foundry Capital · Seattle"];
 const missingDoc = (r: Row) => !!r.nodoc && !r.doc_waived;
 
 export default function Payables({
@@ -177,7 +176,26 @@ export default function Payables({
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [alwaysCode, setAlwaysCode] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
+  const [postType, setPostType] = useState<"charge" | "bill">("charge");
   const [posting, setPosting] = useState(false);
+  // Pick a sensible BC Paylocity category from the line's expense category, so
+  // the dropdown doesn't default to the first (alphabetical) item.
+  const matchBcCategory = (category?: string | null): string => {
+    const c = (category ?? "").toLowerCase();
+    const hit =
+      c.includes("software") || c.includes("subscription")
+        ? "Software subscriptions expense"
+        : c.includes("meal") || c.includes("dining")
+          ? "Meals - General"
+          : c.includes("travel") || c.includes("airfare") || c.includes("lodging")
+            ? "Travel : General"
+            : c.includes("office") || c.includes("supplies")
+              ? "Office Supplies"
+              : c.includes("conference") || c.includes("mtg")
+                ? "Conferences or Mtgs - External"
+                : "";
+    return bcCategories.includes(hit) ? hit : bcCategories[0] ?? "";
+  };
   // Unified vendor record for the Learn-vendor modal — one set of fields written
   // to BOTH the QuickBooks vendor and the Outlook contact.
   type VendorForm = {
@@ -200,7 +218,7 @@ export default function Payables({
     const r = rows.find((x) => x.id === drawerId);
     if (!r) return;
     const ent = r.entity ?? r.recommended ?? "PER";
-    const bc = ent === "BC" ? bcCategories[0] : undefined;
+    const bc = ent === "BC" ? matchBcCategory(r.category ?? r.gl) : undefined;
     const base =
       r.lines && r.lines.length
         ? r.lines.map((l) => ({
@@ -213,6 +231,7 @@ export default function Payables({
         : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
     setAlwaysCode(false);
+    setPostType(r.posting === "bill" ? "bill" : "charge");
     setPayFrom(payDefault(r));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerId]);
@@ -249,7 +268,7 @@ export default function Payables({
               ...l,
               entity,
               gl: entity === "BC" ? BC_ROUTE.gl : firstGl(entity),
-              bcCategory: entity === "BC" ? l.bcCategory ?? bcCategories[0] : undefined,
+              bcCategory: entity === "BC" ? l.bcCategory ?? matchBcCategory(l.gl) : undefined,
             }
           : l,
       ),
@@ -262,8 +281,16 @@ export default function Payables({
     setLines((ls) => {
       if (ls.length < 2) return ls;
       const sum = ls.reduce((s, l) => s + l.amount, 0);
-      return [{ desc: `Combined (${ls.length} lines)`, amount: sum, gl: ls[0].gl, entity: ls[0].entity }];
+      return [{ desc: `Combined (${ls.length} lines)`, amount: Math.round(sum * 100) / 100, gl: ls[0].gl, entity: ls[0].entity }];
     });
+  const addLine = () =>
+    setLines((ls) => {
+      const base = ls[0];
+      return [...ls, { desc: "New line", amount: 0, gl: base?.gl ?? "", entity: base?.entity ?? "PER", bcCategory: base?.bcCategory }];
+    });
+  const removeLine = (i: number) => setLines((ls) => (ls.length > 1 ? ls.filter((_, j) => j !== i) : ls));
+  const setLineAmount = (i: number, amount: number) =>
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, amount } : l)));
   const multiEntity = useMemo(
     () => new Set(lines.map((l) => l.entity)).size > 1,
     [lines],
@@ -306,6 +333,18 @@ export default function Payables({
 
   const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
   const rowCategory = (r: Row) => r.category ?? glShort(r.gl) ?? "";
+  // Vendors we've already coded somewhere in the queue — so we don't keep
+  // calling every one of their invoices a "first invoice".
+  const knownVendors = useMemo(
+    () => new Set(rows.filter((r) => r.auto || r.resolved).map((r) => r.vendor.toLowerCase())),
+    [rows],
+  );
+  const displayReason = (r: Row): string | undefined => {
+    if (!r.reason) return undefined;
+    if (/first invoice/i.test(r.reason) && knownVendors.has(r.vendor.toLowerCase()))
+      return "Confirm coding";
+    return r.reason;
+  };
 
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "date", dir: -1 });
   const toggleSort = (col: string) =>
@@ -467,6 +506,37 @@ export default function Payables({
       toast(`Post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
       setPosting(false);
+    }
+  }
+
+  // "Save & remember": code this row (+ all queued invoices from the same
+  // vendor) and learn the vendor so future ones auto-code. Stays in the queue
+  // for posting. Optimistic with revert.
+  async function saveAndRemember(r: Row) {
+    const entity = lines[0]?.entity ?? r.entity ?? r.recommended ?? "PER";
+    const gl = lines[0]?.gl ?? r.gl ?? "";
+    const bcCat = lines.find((l) => l.entity === "BC")?.bcCategory ?? null;
+    const snapshot = new Map(rows.filter((x) => x.vendor === r.vendor && !x.resolved).map((x) => [x.id, x]));
+    setRows((rs) =>
+      rs.map((x) =>
+        x.vendor === r.vendor && !x.resolved
+          ? { ...x, entity, gl, auto: true, exception: undefined, reason: undefined }
+          : x,
+      ),
+    );
+    setDrawerId(null);
+    try {
+      const res = await fetch("/api/payables/code-vendor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendor: r.vendor, entity, gl, bcCategory: bcCat }),
+      });
+      if (!res.ok) throw new Error();
+      const { count } = (await res.json()) as { count: number };
+      toast(`✓ ${r.vendor} → ${entName(entity)} · remembered · ${count} invoice${count === 1 ? "" : "s"} coded`);
+    } catch {
+      setRows((rs) => rs.map((x) => snapshot.get(x.id) ?? x));
+      toast(`Couldn't save ${r.vendor} — try again`);
     }
   }
 
@@ -732,7 +802,7 @@ export default function Payables({
                       📄 doc
                     </a>
                   )}
-                  {r.reason && <span className="truncate text-amber-600">{r.reason}</span>}
+                  {displayReason(r) && <span className="truncate text-amber-600">{displayReason(r)}</span>}
                 </div>
               </div>
               {/* Date */}
@@ -972,11 +1042,8 @@ export default function Payables({
     if (travelRow === r.id) {
       return (
         <>
-          <span className="mr-1 text-xs text-slate-500">Which trip?</span>
-          {OPEN_TRIPS.map((t) => (
-            <Chip key={t} onClick={() => travelTo(r.id, `→ ${t} trip`)}>{t}</Chip>
-          ))}
-          <Chip onClick={() => travelTo(r.id, "→ Travel queue (agent suggests)")}>Let Travel suggest</Chip>
+          <span className="mr-1 text-xs text-slate-500">Send to Travel?</span>
+          <Chip solid onClick={() => travelTo(r.id, "→ Travel")}>Confirm</Chip>
           <button className="text-xs text-brand" onClick={() => setTravelRow(null)}>cancel</button>
         </>
       );
@@ -1063,13 +1130,19 @@ export default function Payables({
         </Section>
 
         <Section title="Posting">
-          <div className="inline-flex gap-1 rounded-lg bg-slate-100 p-1">
-            <span className={`rounded-md px-4 py-1.5 text-sm font-semibold ${r.posting === "charge" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500"}`}>
+          <div className="flex w-full gap-1 rounded-lg bg-slate-100 p-1">
+            <button
+              onClick={() => setPostType("charge")}
+              className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition ${postType === "charge" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
               Charge (card)
-            </span>
-            <span className={`rounded-md px-4 py-1.5 text-sm font-semibold ${r.posting === "bill" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500"}`}>
+            </button>
+            <button
+              onClick={() => setPostType("bill")}
+              className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition ${postType === "bill" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
               Bill (A/P)
-            </span>
+            </button>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-500">Pay from</span>
@@ -1102,10 +1175,22 @@ export default function Payables({
                 className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[13px] text-slate-700">{l.desc}</span>
-                  <span className="shrink-0 tabular-nums text-[13px] font-semibold text-slate-900">
-                    {money(l.amount)}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-slate-700">{l.desc}</span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="text-[12px] text-slate-400">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={l.amount}
+                      onChange={(e) => setLineAmount(i, parseFloat(e.target.value) || 0)}
+                      className="w-20 rounded border border-slate-200 px-1.5 py-1 text-right text-[13px] font-semibold tabular-nums focus:border-brand focus:outline-none"
+                    />
+                    {lines.length > 1 && (
+                      <button onClick={() => removeLine(i)} title="Remove line" className="px-1 text-slate-300 hover:text-red-500">
+                        ×
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1">
                   {entityCodes.map((c) => (
@@ -1130,7 +1215,7 @@ export default function Payables({
                         → PER QB · {BC_ROUTE.gl}
                       </span>
                       <select
-                        value={l.bcCategory ?? bcCategories[0] ?? ""}
+                        value={l.bcCategory ?? matchBcCategory(r.category ?? r.gl)}
                         onChange={(e) => setLineBcCategory(i, e.target.value)}
                         title="Paylocity expense category (for the BC reimbursement report)"
                         className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-amber-800"
@@ -1165,6 +1250,20 @@ export default function Payables({
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">
+              + Add coding line
+            </button>
+            {(() => {
+              const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+              const off = Math.abs(sum - r.amount) > 0.01;
+              return (
+                <span className={`text-[11.5px] tabular-nums ${off ? "font-semibold text-red-600" : "text-slate-400"}`}>
+                  Lines {money(sum)} {off ? `≠ ${money(r.amount)}` : "✓"}
+                </span>
+              );
+            })()}
           </div>
           {lines.some((l) => l.entity === "BC") && (
             <p className="mt-2 text-[11.5px] leading-relaxed text-amber-700">
@@ -1215,19 +1314,12 @@ export default function Payables({
         {!r.auto && r.exception !== "dup" && (
           <Section title="Not a payable?">
             <p className="mb-2.5 text-[12.5px] text-slate-500">
-              If this charge belongs to a trip, reclassify it to Travel — it’ll post under the trip
-              vendor instead of here.
+              If this charge belongs to a trip, reclassify it to Travel — the Travel agent
+              attaches it to the matching trip and it posts under the trip vendor.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {OPEN_TRIPS.map((t) => (
-                <Chip key={t} className="border-brand/30 text-brand" onClick={() => travelTo(r.id, `→ ${t} trip`)}>
-                  🧳 {t}
-                </Chip>
-              ))}
-              <Chip className="border-brand/30 text-brand" onClick={() => travelTo(r.id, "→ Travel queue (agent suggests)")}>
-                Let Travel suggest
-              </Chip>
-            </div>
+            <Chip className="border-brand/30 text-brand" onClick={() => travelTo(r.id, "→ Travel")}>
+              <Plane className="h-3.5 w-3.5" /> Reclassify to Travel
+            </Chip>
           </Section>
         )}
       </div>
@@ -1253,13 +1345,12 @@ export default function Payables({
       );
     return (
       <>
-        {r.exception === "vendor" ? (
-          <Button onClick={() => setLearnId(r.id)}>Learn vendor</Button>
-        ) : (
-          <Button onClick={() => approveAndPost(r)} disabled={posting}>
-            {posting ? "Posting…" : `Confirm ${entName(lines[0]?.entity ?? r.recommended ?? r.entity)} & post`}
-          </Button>
-        )}
+        <Button onClick={() => saveAndRemember(r)} disabled={posting}>
+          Save &amp; remember
+        </Button>
+        <Button variant="secondary" onClick={() => setLearnId(r.id)}>
+          Add vendor details…
+        </Button>
         <Button variant="ghost" onClick={() => setDrawerId(null)}>Skip</Button>
       </>
     );

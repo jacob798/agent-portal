@@ -38,3 +38,25 @@ body {
   outline: 2px solid #1768a3; /* Foundry blue */
   outline-offset: 2px;
 }
+
+/* Print isolation — only the element marked .print-sheet prints (used by branded
+   trip expense reports). Everything else is hidden. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

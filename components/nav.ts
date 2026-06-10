@@ -4,6 +4,9 @@ import {
   Activity,
   Calculator,
   Plane,
+  CreditCard,
+  BookOpenCheck,
+  Banknote,
   Shield,
   type LucideIcon,
 } from "lucide-react";
@@ -32,8 +35,11 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: "Agents",
     items: [
-      { href: "/valuation", label: "Valuation", icon: Calculator },
+      { href: "/payables", label: "Payables", icon: CreditCard },
       { href: "/travel", label: "Travel", icon: Plane },
+      { href: "/bookkeeper", label: "Bookkeeper", icon: BookOpenCheck },
+      { href: "/bc-reimbursement", label: "BC Reimbursement", icon: Banknote },
+      { href: "/valuation", label: "Valuation", icon: Calculator },
     ],
   },
   {

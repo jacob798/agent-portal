@@ -1,10 +1,7 @@
-import Placeholder from "@/components/Placeholder";
+import { getTravel } from "@/lib/data/travel";
+import Travel from "@/components/travel/Travel";
 
-export default function TravelPage() {
-  return (
-    <Placeholder
-      title="Travel"
-      note="Trips, bookings, and travel expense review will live here."
-    />
-  );
+export default async function TravelPage() {
+  const { trips, queue } = await getTravel();
+  return <Travel trips={trips} queue={queue} />;
 }

@@ -1,0 +1,148 @@
+/**
+ * Payables exception-queue data.
+ *
+ * Queries the Supabase `payables_queue` table when the backend is configured;
+ * otherwise (or on any error / empty result) returns mock data so the screen
+ * stays usable. Same defensive pattern as lib/data/agents.ts. The mock mirrors
+ * the approved mockup in docs/mockups/payables_exceptions.html.
+ */
+
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+
+export type Posting = "bill" | "charge";
+export type ExceptionType = "entity" | "vendor" | "split" | "dup";
+
+export interface PayableLine {
+  desc: string;
+  amount: number;
+  gl: string;
+}
+
+export interface PayableRow {
+  id: string;
+  vendor: string;
+  sub: string;
+  amount: number;
+  posting: Posting;
+  account: string;
+  /** Entity code (BC/FC/PER/WJW) or null when unresolved. */
+  entity: string | null;
+  /** Agent's recommended entity code, if any. */
+  recommended?: string | null;
+  exception?: ExceptionType;
+  reason?: string;
+  category?: string;
+  lines?: PayableLine[];
+  gl?: string;
+  auto?: boolean;
+  /** True when posted/coded but no receipt is attached. */
+  nodoc?: boolean;
+}
+
+const MOCK: PayableRow[] = [
+  {
+    id: "1",
+    exception: "entity",
+    vendor: "The Clean-Up Crew",
+    sub: "Invoice 690 · Jun 8",
+    amount: 540.0,
+    posting: "bill",
+    account: "unpaid · due Jun 20",
+    entity: null,
+    recommended: "BC",
+    reason: "No entity detected from invoice content",
+    lines: [{ desc: "Cleaning services", amount: 540, gl: "6300 Repairs & Maint" }],
+  },
+  {
+    id: "2",
+    exception: "vendor",
+    vendor: "Data Engine, LLC",
+    sub: "billing@dataengine.io · Jun 9",
+    amount: 616.97,
+    posting: "charge",
+    account: "AMEX WJW ••1004",
+    entity: "BC",
+    recommended: "BC",
+    reason: "Unrecognized sender — new vendor",
+    category: "Software / Data",
+    lines: [{ desc: "RealEstateAPI subscription", amount: 616.97, gl: "6200 Software" }],
+  },
+  {
+    id: "10",
+    exception: "vendor",
+    vendor: "Data Engine, LLC",
+    sub: "billing@dataengine.io · May 9",
+    amount: 616.97,
+    posting: "charge",
+    account: "AMEX WJW ••1004",
+    entity: "BC",
+    recommended: "BC",
+    reason: "Unrecognized sender — new vendor",
+    category: "Software / Data",
+    lines: [{ desc: "RealEstateAPI subscription", amount: 616.97, gl: "6200 Software" }],
+  },
+  {
+    id: "3",
+    exception: "split",
+    vendor: "Home Depot",
+    sub: "Order #426182812 · Jun 7",
+    amount: 287.43,
+    posting: "charge",
+    account: "AMEX WJW ••1004",
+    entity: "WJW",
+    recommended: null,
+    reason: "Split across line items — confirm coding",
+    lines: [
+      { desc: "Lumber & framing", amount: 180.0, gl: "6120 Materials (WJW)" },
+      { desc: "Power tools", amount: 107.43, gl: "6140 Sm Tools (WJW)" },
+    ],
+  },
+  {
+    id: "4",
+    exception: "dup",
+    vendor: "St Ignatius School",
+    sub: "Automatic payment · Jun 6",
+    amount: 425.0,
+    posting: "bill",
+    account: "Wells Fargo Checking",
+    entity: "PER",
+    recommended: null,
+    reason: "Looks like a duplicate of a May 6 charge",
+    lines: [{ desc: "Tuition autopay", amount: 425.0, gl: "7800 Personal" }],
+  },
+  {
+    id: "9",
+    exception: "entity",
+    vendor: "Percy's Restaurant",
+    sub: "Jun 12 · Dining · 🚫 no trip on these dates",
+    amount: 78.5,
+    posting: "charge",
+    account: "AMEX WJW ••1004",
+    entity: null,
+    recommended: "PER",
+    nodoc: true,
+    reason: "A meal, but it's not inside any trip window — so it's a normal payable, not a trip expense",
+    lines: [{ desc: "Dinner", amount: 78.5, gl: "7800 Meals (PER)" }],
+  },
+  // auto-coded
+  { id: "5", auto: true, vendor: "Dropbox", sub: "Business plan renewal", amount: 96.0, posting: "charge", account: "AMEX Foundry ••1005", entity: "FC", gl: "6200 Software" },
+  { id: "6", auto: true, nodoc: true, vendor: "Quantum Fiber", sub: "Internet — June · from CSV", amount: 120.0, posting: "charge", account: "AMEX Foundry ••1005", entity: "FC", gl: "6420 Internet" },
+  { id: "7", auto: true, nodoc: true, vendor: "Apple", sub: "iCloud+ · from CSV", amount: 2.99, posting: "charge", account: "AMEX Delta ••5001", entity: "PER", gl: "7800 Personal" },
+  { id: "8", auto: true, vendor: "Adobe", sub: "Creative Cloud", amount: 59.99, posting: "charge", account: "AMEX Foundry ••1005", entity: "FC", gl: "6200 Software" },
+];
+
+export async function getPayablesQueue(): Promise<PayableRow[]> {
+  if (!isSupabaseConfigured()) return MOCK;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("payables_queue")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error || !data || data.length === 0) return MOCK;
+    return data as PayableRow[];
+  } catch {
+    return MOCK;
+  }
+}

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Payables — Exception Queue (Mockup)</title>
+<style>
+  :root{
+    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
+    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3;
+    --red:#c0392b; --red-bg:#fdecea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  /* topbar */
+  .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:14px 22px}
+  .mark{width:30px;height:30px;display:block}
+  .top h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.2px}
+  .top .sub{color:#9bb8d4;font-size:12px}
+  .top .spacer{flex:1}
+  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px}
+  /* summary */
+  .wrap{max-width:1180px;margin:0 auto;padding:22px}
+  .summary{display:flex;gap:14px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1}
+  .stat .n{font-size:24px;font-weight:600}
+  .stat .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .stat.need .n{color:var(--amber)}
+  .stat.auto .n{color:var(--green)}
+  /* filter */
+  .filters{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
+  .filters button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+  .filters button.on{background:var(--navy);color:#fff}
+  .filters .cnt{opacity:.7;margin-left:6px;font-size:12px}
+  /* queue */
+  .queue{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .qhead{display:grid;grid-template-columns:26px 2.3fr 1.3fr 1fr 2.4fr;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);
+    font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;background:#f8fafc}
+  .row{display:grid;grid-template-columns:26px 2.3fr 1.3fr 1fr 2.4fr;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .row:hover{background:#f8fbff}
+  .row:last-child{border-bottom:0}
+  .dot{width:9px;height:9px;border-radius:50%;margin-top:3px}
+  .dot.auto{background:var(--green)} .dot.ex{background:var(--amber)} .dot.dup{background:var(--red)}
+  .vend{font-weight:600}
+  .vsub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .amt{font-weight:600;font-variant-numeric:tabular-nums}
+  .pay{font-size:12.5px}
+  .pay .tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px}
+  .tag.charge{background:#eaf1f8;color:var(--blue)}
+  .tag.bill{background:#efeaf8;color:#6b3fa0}
+  .pay .acct{color:var(--muted);font-size:12px;display:block;margin-top:3px}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid}
+  .b-ok{background:var(--green-bg);color:var(--green);border-color:#bfe6cd}
+  .b-unk{background:var(--amber-bg);color:var(--amber);border-color:#f3dcae}
+  .coding{color:var(--muted);font-size:12.5px}
+  /* action cell */
+  .act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .auto-msg{color:var(--green);font-size:12.5px;font-weight:500;white-space:nowrap}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}
+  .chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}
+  .chip.rec:hover{opacity:.9;background:var(--navy)}
+  .chip.more{color:var(--muted);font-weight:500}
+  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .miniact.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
+  .src{color:var(--blue);font-size:12px;text-decoration:none;white-space:nowrap}
+  .src:hover{text-decoration:underline}
+  .resolved{color:var(--green);font-size:12.5px;font-weight:600}
+  .hint{font-size:11px;color:#94a3b8;margin-top:4px;text-align:right}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(10,44,78,.32);backdrop-filter:blur(2px);display:none}
+  .scrim.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:560px;max-width:94vw;background:#fff;box-shadow:-12px 0 40px rgba(10,44,78,.22);
+    transform:translateX(100%);transition:transform .2s ease;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .dhead{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .dhead .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer;line-height:1}
+  .dbody{flex:1;overflow:auto;padding:0 22px 22px}
+  .sect{padding:16px 0;border-bottom:1px solid #f1f5f9}
+  .sect h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:0 0 10px}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}
+  .kv .k{color:var(--muted)} .kv .v{font-weight:500}
+  .docbox{height:150px;border:1px dashed var(--line);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px}
+  .linetbl{width:100%;border-collapse:collapse;font-size:13px}
+  .linetbl td{padding:6px 4px;border-bottom:1px solid #f1f5f9}
+  .linetbl .gl{color:var(--blue);font-weight:600}
+  .toggle{display:flex;gap:8px;background:#f1f5f9;border-radius:9px;padding:4px;width:fit-content}
+  .toggle button{border:0;background:none;padding:7px 16px;border-radius:7px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+  .toggle button.on{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .entrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .always{display:flex;align-items:center;gap:9px;font-size:13px;color:#334155;background:#f0f7fc;border:1px solid #cfe3f2;border-radius:10px;padding:11px 14px;margin-top:6px}
+  .always input{width:17px;height:17px;accent-color:var(--blue)}
+  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--navy);color:#fff}
+  .btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <svg class="mark" viewBox="0 0 950 950"><rect x="260" width="690" height="260" fill="#5ba3d2"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="#1768a3"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg>
+  <div>
+    <h1>Foundry · Payables</h1>
+    <div class="sub">Exception queue — you only touch what the agent can't resolve</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="pill">Cycle: today 8:00 AM · live</div>
+</div>
+
+<div class="wrap">
+  <div class="summary">
+    <div class="stat"><div class="n">42</div><div class="l">Invoices this cycle</div></div>
+    <div class="stat auto"><div class="n" id="autoN">38</div><div class="l">Auto-coded ✓</div></div>
+    <div class="stat need"><div class="n" id="needN">4</div><div class="l">Need you</div></div>
+    <div class="stat"><div class="n">$9,210</div><div class="l">Total staged</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="on" data-f="need">Need you<span class="cnt" id="f-need">4</span></button>
+    <button data-f="all">All<span class="cnt">42</span></button>
+    <button data-f="auto">Auto-coded<span class="cnt">38</span></button>
+  </div>
+
+  <div class="queue">
+    <div class="qhead">
+      <div></div><div>Vendor</div><div>Posting</div><div>Entity</div><div>Action</div>
+    </div>
+    <div id="rows"></div>
+  </div>
+  <div class="hint">Tip: resolve simple exceptions inline. Click a row to open the full coding view.</div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dhead">
+    <div>
+      <div style="font-weight:600;font-size:16px" id="d-vendor">Vendor</div>
+      <div style="color:var(--muted);font-size:13px" id="d-sub">subject</div>
+    </div>
+    <button class="x" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="dbody" id="d-body"></div>
+  <div class="dfoot" id="d-foot"></div>
+</div>
+
+<script>
+const ENTITIES = ["BC","FC","PER","WJW"];
+const data = [
+  {id:1, ex:"entity", vendor:"The Clean-Up Crew", sub:"Invoice 690 · Jun 8", amt:540.00, post:"bill", acct:"unpaid · due Jun 20", entity:null, rec:"BC",
+    reason:"No entity detected from invoice content", lines:[{d:"Cleaning services",a:540,gl:"6300 Repairs & Maint"}]},
+  {id:2, ex:"vendor", vendor:"Data Engine, LLC", sub:"billing@dataengine.io · Jun 9", amt:616.97, post:"charge", acct:"AMEX WJW ••1004", entity:"BC", rec:"BC",
+    reason:"Unrecognized sender — new vendor", cat:"Software / Data", lines:[{d:"RealEstateAPI subscription",a:616.97,gl:"6200 Software"}]},
+  {id:3, ex:"split", vendor:"Home Depot", sub:"Order #426182812 · Jun 7", amt:287.43, post:"charge", acct:"AMEX WJW ••1004", entity:"WJW", rec:null,
+    reason:"Split across line items — confirm coding",
+    lines:[{d:"Lumber & framing",a:180.00,gl:"6120 Materials (WJW)"},{d:"Power tools",a:107.43,gl:"6140 Sm Tools (WJW)"}]},
+  {id:4, ex:"dup", vendor:"St Ignatius School", sub:"Automatic payment · Jun 6", amt:425.00, post:"bill", acct:"Wells Fargo Checking", entity:"PER", rec:null,
+    reason:"Looks like a duplicate of a May 6 charge", lines:[{d:"Tuition autopay",a:425.00,gl:"7800 Personal"}]},
+  // auto-coded examples
+  {id:5, auto:true, vendor:"Dropbox", sub:"Business plan renewal", amt:96.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
+  {id:6, auto:true, vendor:"Quantum Fiber", sub:"Internet — June", amt:120.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6420 Internet"},
+  {id:7, auto:true, vendor:"Apple", sub:"iCloud+ receipt", amt:2.99, post:"charge", acct:"AMEX Delta ••5001", entity:"PER", gl:"7800 Personal"},
+  {id:8, auto:true, vendor:"Adobe", sub:"Creative Cloud", amt:59.99, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
+];
+
+let filter="need";
+const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+function postCell(it){
+  const tag = it.post==="bill" ? `<span class="tag bill">Bill</span>` : `<span class="tag charge">Charge</span>`;
+  return `<div class="pay">${tag}<span class="acct">${it.acct}</span></div>`;
+}
+function entityCell(it){
+  if(it.auto) return `<span class="badge b-ok">${it.entity}</span>`;
+  if(it.entity) return `<span class="badge b-ok">${it.entity}</span>`;
+  return `<span class="badge b-unk">UNK</span>`;
+}
+function actionCell(it){
+  if(it.resolved) return `<span class="resolved">✓ Coded ${it.resolvedTo||""}</span>`;
+  if(it.auto) return `<span class="auto-msg">✓ Auto-coded · ${it.gl}</span>`;
+  if(it.ex==="entity"){
+    const chips = ENTITIES.map(e=>`<button class="chip ${e===it.rec?'rec':''}" onclick="resolveInline(event,${it.id},'${e}')">${e}</button>`).join("");
+    return `${chips}<button class="chip more" onclick="openDrawer(event,${it.id})">more ▾</button>`;
+  }
+  if(it.ex==="vendor"){
+    return `<button class="miniact" onclick="resolveInline(event,${it.id},'learn')">Learn vendor</button>
+            <a class="src" onclick="openDrawer(event,${it.id})">details</a>`;
+  }
+  if(it.ex==="split"){
+    return `<button class="miniact" onclick="resolveInline(event,${it.id},'accept')">Accept split</button>
+            <a class="src" onclick="openDrawer(event,${it.id})">edit</a>`;
+  }
+  if(it.ex==="dup"){
+    return `<button class="miniact ghost" onclick="resolveInline(event,${it.id},'discard')">Discard</button>
+            <button class="miniact" onclick="resolveInline(event,${it.id},'keep')">Keep both</button>`;
+  }
+}
+function render(){
+  const rows = data.filter(it=>{
+    if(filter==="all") return true;
+    if(filter==="auto") return it.auto;
+    return !it.auto && !it.resolved; // need you
+  });
+  document.getElementById("rows").innerHTML = rows.map(it=>`
+    <div class="row" onclick="openDrawer(event,${it.id})">
+      <div><span class="dot ${it.auto?'auto':(it.ex==='dup'?'dup':'ex')}"></span></div>
+      <div><div class="vend">${it.vendor}</div><div class="vsub">${it.sub}${it.reason?` · <span style="color:var(--amber)">${it.reason}</span>`:''}</div></div>
+      <div>${postCell(it)}</div>
+      <div>${entityCell(it)}<div class="amt" style="margin-top:6px">${money(it.amt)}</div></div>
+      <div class="act">${actionCell(it)}</div>
+    </div>`).join("");
+  document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
+  const need=data.filter(it=>!it.auto&&!it.resolved).length;
+  document.getElementById("needN").textContent=need;
+  document.getElementById("f-need").textContent=need;
+  document.getElementById("autoN").textContent=data.filter(it=>it.auto||it.resolved).length;
+}
+function resolveInline(e,id,choice){
+  e.stopPropagation();
+  const it=data.find(x=>x.id===id);
+  it.resolved=true; it.auto=true;
+  it.resolvedTo = choice==='learn'?'(vendor learned)':choice==='accept'?'(split accepted)':choice==='keep'?'(kept)':choice==='discard'?'(discarded)':"→ "+choice;
+  it.entity = ENTITIES.includes(choice)?choice:it.entity;
+  render();
+}
+function openDrawer(e,id){
+  if(e) e.stopPropagation();
+  const it=data.find(x=>x.id===id);
+  document.getElementById("d-vendor").textContent=it.vendor;
+  document.getElementById("d-sub").textContent=it.sub+" · "+money(it.amt);
+  const lines=(it.lines||[{d:it.sub,a:it.amt,gl:it.gl}]);
+  const lineRows=lines.map(l=>`<tr><td>${l.d}</td><td style="text-align:right">${money(l.a)}</td><td class="gl">${l.gl}</td></tr>`).join("");
+  const postToggle=`<div class="toggle"><button class="${it.post==='charge'?'on':''}">Charge (card)</button><button class="${it.post==='bill'?'on':''}">Bill (A/P)</button></div>
+    <div class="kv" style="margin-top:10px"><span class="k">Pay from</span><span class="v">${it.acct}</span></div>`;
+  let resolveBlock="";
+  if(!it.auto && it.ex==="entity"){
+    resolveBlock=`<div class="sect"><h3>Which entity pays this?</h3>
+      <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">ⓘ ${it.reason}. Last 3 from this sender → <b>${it.rec}</b>.</div>
+      <div class="entrow">${ENTITIES.map(en=>`<button class="chip ${en===it.rec?'rec':''}">${en}</button>`).join("")}<button class="chip more">More ▾</button></div>
+      <label class="always"><input type="checkbox"> Always code <b>${it.vendor}</b> → <b>${it.rec}</b> (never ask again)</label></div>`;
+  } else if(!it.auto && it.ex==="split"){
+    resolveBlock=`<div class="sect"><h3>Confirm the split</h3>
+      <div style="color:var(--muted);font-size:12.5px;margin-bottom:8px">Multi-category invoice — each line coded separately.</div>
+      <label class="always"><input type="checkbox"> Always split <b>${it.vendor}</b> this way</label></div>`;
+  } else if(!it.auto && it.ex==="vendor"){
+    resolveBlock=`<div class="sect"><h3>New vendor</h3>
+      <div class="kv"><span class="k">Vendor</span><span class="v">${it.vendor}</span></div>
+      <div class="kv"><span class="k">Category</span><span class="v">${it.cat}</span></div>
+      <label class="always"><input type="checkbox" checked> Learn this vendor + default entity <b>${it.entity}</b></label></div>`;
+  } else if(!it.auto && it.ex==="dup"){
+    resolveBlock=`<div class="sect"><h3>Possible duplicate</h3>
+      <div style="color:var(--muted);font-size:12.5px">${it.reason}. Same vendor + amount.</div></div>`;
+  }
+  document.getElementById("d-body").innerHTML=`
+    <div class="sect"><h3>Source document</h3><div class="docbox">📄 ${it.vendor} — invoice.pdf  (preview)</div>
+      <a class="src" style="display:inline-block;margin-top:8px">Open in Dropbox ↗</a></div>
+    <div class="sect"><h3>Posting</h3>${postToggle}</div>
+    <div class="sect"><h3>Coding</h3><table class="linetbl">${lineRows}</table></div>
+    ${resolveBlock}`;
+  const foot = it.auto
+    ? `<button class="btn primary">Approve &amp; post to QuickBooks</button><button class="btn ghost" onclick="closeDrawer()">Close</button>`
+    : it.ex==="dup"
+      ? `<button class="btn ghost" onclick="drawerResolve(${it.id},'discard')">Discard</button><button class="btn primary" onclick="drawerResolve(${it.id},'keep')">Keep both</button>`
+      : `<button class="btn primary" onclick="drawerResolve(${it.id},'${it.rec||'accept'}')">Confirm${it.rec?' '+it.rec:''} &amp; post</button><button class="btn ghost" onclick="closeDrawer()">Skip</button>`;
+  document.getElementById("d-foot").innerHTML=foot;
+  document.getElementById("scrim").classList.add("open");
+  document.getElementById("drawer").classList.add("open");
+}
+function drawerResolve(id,choice){ resolveInline({stopPropagation(){}},id,choice); closeDrawer(); }
+function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
+document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
+render();
+</script>
+</body>
+</html>

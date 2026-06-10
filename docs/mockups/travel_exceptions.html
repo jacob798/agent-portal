@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Travel — Exception Queue (Mockup)</title>
+<style>
+  :root{
+    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
+    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3; --red:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:14px 22px}
+  .mark{width:30px;height:30px;display:block}
+  .top h1{font-size:16px;margin:0;font-weight:600}
+  .top .sub{color:#9bb8d4;font-size:12px}
+  .top .spacer{flex:1}
+  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px}
+  /* active trips strip */
+  .triphead{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;margin:2px 0 10px}
+  .trips{display:flex;gap:12px;margin-bottom:22px;overflow:auto}
+  .trip{min-width:210px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;border-left:4px solid var(--blue)}
+  .trip.new{border-left-color:var(--amber);background:#fffdf7}
+  .trip .ent{font-size:11px;font-weight:700;color:var(--navy);background:#eaf1f8;border-radius:6px;padding:2px 7px;display:inline-block}
+  .trip.new .ent{background:var(--amber-bg);color:var(--amber)}
+  .trip .dest{font-weight:600;margin:8px 0 2px}
+  .trip .dates{color:var(--muted);font-size:12.5px}
+  .trip .meta{color:var(--muted);font-size:12px;margin-top:9px;border-top:1px solid #f1f5f9;padding-top:8px}
+  /* filters + queue (shared look w/ payables) */
+  .filters{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
+  .filters button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+  .filters button.on{background:var(--navy);color:#fff}
+  .filters .cnt{opacity:.7;margin-left:6px;font-size:12px}
+  .queue{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .row{display:grid;grid-template-columns:26px 30px 2.2fr 1.5fr 2.6fr;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .row:hover{background:#f8fbff}.row:last-child{border-bottom:0}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .dot.trip{background:var(--sky)} .dot.attr{background:var(--amber)} .dot.skip{background:#94a3b8}
+  .ic{font-size:18px;text-align:center}
+  .vend{font-weight:600}
+  .vsub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .match{font-size:12.5px}
+  .match .mt{color:var(--navy);font-weight:600}
+  .match .win{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-top:4px}
+  .win.in{background:var(--green-bg);color:var(--green)} .win.out{background:#eef2f7;color:#64748b}
+  .amt{font-weight:600;font-variant-numeric:tabular-nums}
+  .act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}
+  .chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}.chip.rec:hover{opacity:.9}
+  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .miniact.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
+  .resolved{color:var(--green);font-size:12.5px;font-weight:600}
+  .src{color:var(--blue);font-size:12px;text-decoration:none;cursor:pointer}.src:hover{text-decoration:underline}
+  .hint{font-size:11px;color:#94a3b8;margin-top:4px;text-align:right}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(10,44,78,.32);backdrop-filter:blur(2px);display:none}.scrim.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:540px;max-width:94vw;background:#fff;box-shadow:-12px 0 40px rgba(10,44,78,.22);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .dhead{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .dhead .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}
+  .dbody{flex:1;overflow:auto;padding:0 22px 22px}
+  .sect{padding:16px 0;border-bottom:1px solid #f1f5f9}
+  .sect h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:0 0 10px}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}.kv .k{color:var(--muted)}.kv .v{font-weight:500}
+  .tripcard{background:#f8fbff;border:1px solid #cfe3f2;border-radius:10px;padding:14px}
+  .tripcard .dest{font-weight:600}.tripcard .dates{color:var(--muted);font-size:13px;margin-top:2px}
+  .checks{margin-top:10px}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0}
+  .check .y{color:var(--green);font-weight:700}.check .n{color:#94a3b8;font-weight:700}
+  .entrow{display:flex;gap:8px;flex-wrap:wrap}
+  .always{display:flex;align-items:center;gap:9px;font-size:13px;color:#334155;background:#f0f7fc;border:1px solid #cfe3f2;border-radius:10px;padding:11px 14px;margin-top:10px}
+  .always input{width:17px;height:17px;accent-color:var(--blue)}
+  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--navy);color:#fff}.btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
+  /* new trip button + modal */
+  .newtrip{background:var(--navy);color:#fff;border:0;border-radius:9px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.2px}
+  .newtrip:hover{opacity:.92}
+  .modal-scrim{position:fixed;inset:0;background:rgba(10,44,78,.4);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-scrim.open{display:flex}
+  .modal{background:#fff;border-radius:16px;width:440px;max-width:94vw;box-shadow:0 24px 60px rgba(10,44,78,.3);overflow:hidden}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .modal .mh h2{margin:0;font-size:16px;font-weight:600}
+  .modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}
+  .modal .mb{padding:20px 22px}
+  .fld{margin-bottom:15px}
+  .fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
+  .fld input,.fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;color:var(--ink)}
+  .fld input:focus,.fld select:focus{outline:none;border-color:var(--blue)}
+  .two{display:flex;gap:12px}.two .fld{flex:1}
+  .entpick{display:flex;gap:7px;flex-wrap:wrap}
+  .entpick button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;font-weight:600;color:#334155;cursor:pointer}
+  .entpick button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+</style>
+</head>
+<body>
+<div class="top">
+  <svg class="mark" viewBox="0 0 950 950"><rect x="260" width="690" height="260" fill="#5ba3d2"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="#1768a3"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg>
+  <div><h1>Foundry · Travel</h1><div class="sub">Confirm trips · tie itineraries · attribute trip expenses</div></div>
+  <div class="spacer"></div><div class="pill">Cycle: today 8:00 AM · live</div>
+</div>
+
+<div class="wrap">
+  <div class="triphead" style="display:flex;justify-content:space-between;align-items:center">
+    <span>Active &amp; recent trips</span>
+    <button class="newtrip" onclick="openNewTrip()">+ New trip</button>
+  </div>
+  <div class="trips" id="tripsStrip">
+    <div class="trip"><span class="ent">BC</span><div class="dest">Boise, ID</div><div class="dates">Jun 4 – 7</div><div class="meta">3 bookings · 4 expenses · $1,840</div></div>
+    <div class="trip"><span class="ent">FC</span><div class="dest">Seattle, WA</div><div class="dates">Jun 18 – 20</div><div class="meta">2 bookings · 0 expenses</div></div>
+    <div class="trip"><span class="ent">BC</span><div class="dest">Salt Lake City</div><div class="dates">May 28 – 30</div><div class="meta">closed · $2,110</div></div>
+    <div class="trip new"><span class="ent">NEW ?</span><div class="dest">Portland, OR</div><div class="dates">Jun 24 – 26</div><div class="meta">awaiting confirm</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="on" data-f="need">Need you<span class="cnt" id="f-need">5</span></button>
+    <button data-f="all">All<span class="cnt">5</span></button>
+    <button data-f="done">Resolved<span class="cnt" id="f-done">0</span></button>
+  </div>
+
+  <div class="queue"><div id="rows"></div></div>
+  <div class="hint">Travel-category charges inside a trip window attribute to the trip. Non-travel charges (software, etc.) stay standalone — even mid-trip.</div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dhead"><div><div style="font-weight:600;font-size:16px" id="d-title">x</div><div style="color:var(--muted);font-size:13px" id="d-sub">x</div></div><button class="x" onclick="closeDrawer()">×</button></div>
+  <div class="dbody" id="d-body"></div><div class="dfoot" id="d-foot"></div>
+</div>
+
+<!-- New trip modal -->
+<div class="modal-scrim" id="newtripScrim">
+  <div class="modal">
+    <div class="mh"><h2>New trip</h2><button class="x" onclick="closeNewTrip()">×</button></div>
+    <div class="mb">
+      <div class="fld"><label>Entity</label>
+        <div class="entpick" id="ntEnt">
+          <button class="on" data-e="BC">BC</button><button data-e="FC">FC</button>
+          <button data-e="PER">PER</button><button data-e="WJW">WJW</button><button data-e="WB12">WB12</button>
+        </div></div>
+      <div class="fld"><label>Destination</label><input id="ntDest" placeholder="e.g. Boise, ID" /></div>
+      <div class="two">
+        <div class="fld"><label>Start date</label><input id="ntStart" type="date" /></div>
+        <div class="fld"><label>End date</label><input id="ntEnd" type="date" /></div>
+      </div>
+      <div class="fld"><label>Purpose (optional)</label><input id="ntPurpose" placeholder="e.g. Site visit — Iota St" /></div>
+    </div>
+    <div class="dfoot">
+      <button class="btn primary" onclick="createTrip()">Create trip</button>
+      <button class="btn ghost" onclick="closeNewTrip()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const data=[
+  {id:1, kind:"newtrip", ic:"✈️", title:"New trip — Seattle, WA", sub:"Delta DL1234 · BOI→SEA · Jun 18", rec:"FC",
+    reason:"Itinerary detected. Recent SEA trips were FC."},
+  {id:2, kind:"tie", ic:"🏨", title:"Boise Marriott — Jun 4→6", sub:"Hotel booking · confirmation #M8821",
+    match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)", reason:"Hotel dates fall inside the BC Boise trip."},
+  {id:3, kind:"attr", ic:"🏨", title:"Boise Marriott — $612.00", sub:"AMEX WJW ••1004 · Jun 5 · Lodging",
+    amt:612.00, cat:"Lodging", match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)",
+    reason:"Lodging charge inside the trip window."},
+  {id:4, kind:"attr", ic:"🍽️", title:"Chandlers Steakhouse — $84.20", sub:"AMEX WJW ••1004 · Jun 5 · Boise · Dining",
+    amt:84.20, cat:"Dining", match:"BC · Boise, ID", win:"in", rec:"BC Boise (Jun 4–7)",
+    reason:"Dining charge inside the trip window, near the destination."},
+  {id:5, kind:"standalone", ic:"💳", title:"Data Engine, LLC — $616.97", sub:"AMEX WJW ••1004 · Jun 5 · Software",
+    amt:616.97, cat:"Software", match:"BC · Boise, ID", win:"in",
+    reason:"Charge falls in the trip window but is Software — NOT a travel expense. Keep standalone (goes to Payables, not the trip)."},
+];
+let filter="need";
+function rowMatch(it){
+  if(it.kind==="newtrip") return `<span class="match"><span class="mt">${it.rec}</span><br><span style="color:var(--muted);font-size:12px">recommended entity</span></span>`;
+  const win = it.win==="in"?`<span class="win in">✓ in trip window</span>`:`<span class="win out">outside window</span>`;
+  return `<span class="match"><span class="mt">${it.match||""}</span><br>${win}${it.cat?` · ${it.cat}`:''}</span>`;
+}
+function rowAct(it){
+  if(it.resolved) return `<span class="resolved">✓ ${it.resolvedTo}</span>`;
+  if(it.kind==="newtrip") return `<button class="chip rec" onclick="res(event,${it.id},'Confirm ${it.rec} trip')">Confirm ${it.rec}</button>
+     <button class="chip" onclick="open_(event,${it.id})">Other ▾</button>
+     <button class="chip" onclick="res(event,${it.id},'Not a trip')">Not a trip</button>`;
+  if(it.kind==="tie") return `<button class="miniact" onclick="res(event,${it.id},'Tied to '+'${it.match}')">Tie to ${it.match.split(' · ')[0]} trip</button>
+     <a class="src" onclick="open_(event,${it.id})">wrong trip</a>`;
+  if(it.kind==="attr") return `<button class="miniact" onclick="res(event,${it.id},'Attributed')">Attribute to trip</button>
+     <button class="miniact ghost" onclick="res(event,${it.id},'Personal')">Personal</button>`;
+  if(it.kind==="standalone") return `<button class="miniact" onclick="res(event,${it.id},'Standalone')">Keep standalone</button>
+     <a class="src" onclick="open_(event,${it.id})">actually trip?</a>`;
+}
+function render(){
+  const rows=data.filter(it=> filter==="all"?true: filter==="done"?it.resolved : !it.resolved);
+  document.getElementById("rows").innerHTML=rows.map(it=>{
+    const dot = it.kind==="standalone"?"skip": it.kind==="attr"?"attr":"trip";
+    return `<div class="row" onclick="open_(event,${it.id})">
+      <div><span class="dot ${dot}"></span></div>
+      <div class="ic">${it.ic}</div>
+      <div><div class="vend">${it.title}</div><div class="vsub">${it.sub}</div></div>
+      <div>${rowMatch(it)}</div>
+      <div class="act">${rowAct(it)}</div></div>`;
+  }).join("");
+  const need=data.filter(it=>!it.resolved).length;
+  document.getElementById("f-need").textContent=need;
+  document.getElementById("f-done").textContent=data.length-need;
+  document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
+}
+function res(e,id,label){e.stopPropagation();const it=data.find(x=>x.id===id);it.resolved=true;it.resolvedTo=label;render();}
+function open_(e,id){
+  if(e)e.stopPropagation();const it=data.find(x=>x.id===id);
+  document.getElementById("d-title").textContent=it.title;
+  document.getElementById("d-sub").textContent=it.sub;
+  let body="";
+  if(it.kind==="newtrip"){
+    body=`<div class="sect"><h3>Itinerary</h3><div class="tripcard"><div class="dest">${it.title.replace('New trip — ','')}</div><div class="dates">${it.sub}</div></div></div>
+      <div class="sect"><h3>Which entity is this trip for?</h3><div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">${it.reason}</div>
+        <div class="entrow"><button class="chip rec">${it.rec}</button><button class="chip">BC</button><button class="chip">PER</button><button class="chip">More ▾</button></div>
+        <label class="always"><input type="checkbox"> This route (BOI→SEA) is always ${it.rec}</label></div>`;
+  } else {
+    const checks = `<div class="checks">
+      <div class="check"><span class="${it.win==='in'?'y':'n'}">${it.win==='in'?'✓':'✗'}</span> Date inside trip window (${it.rec||it.match})</div>
+      <div class="check"><span class="${(it.cat&&['Lodging','Dining','Transport','Airfare'].includes(it.cat))?'y':'n'}">${(it.cat&&['Lodging','Dining','Transport','Airfare'].includes(it.cat))?'✓':'✗'}</span> Travel category (${it.cat||'—'})</div>
+      <div class="check"><span class="y">✓</span> Near destination</div></div>`;
+    const verdict = it.kind==="standalone"
+      ? `<div style="background:#fef6f6;border:1px solid #f3d4d0;color:var(--red);border-radius:10px;padding:12px;font-size:13px;margin-top:6px"><b>Not a trip expense.</b> ${it.reason}</div>`
+      : `<label class="always"><input type="checkbox" checked> Always attribute ${it.cat} from this card during a trip</label>`;
+    body=`<div class="sect"><h3>Charge</h3>
+        ${it.amt?`<div class="kv"><span class="k">Amount</span><span class="v">${money(it.amt)}</span></div>`:''}
+        <div class="kv"><span class="k">Category</span><span class="v">${it.cat||'—'}</span></div>
+        <div class="kv"><span class="k">Card</span><span class="v">${it.sub.split(' · ')[0]}</span></div></div>
+      <div class="sect"><h3>Candidate trip</h3><div class="tripcard"><div class="dest">${it.match}</div><div class="dates">${it.rec||''}</div>${checks}</div></div>
+      <div class="sect"><h3>${it.kind==="standalone"?"Decision":"Attribute to this trip?"}</h3>${verdict}</div>`;
+  }
+  document.getElementById("d-body").innerHTML=body;
+  const foot = it.kind==="standalone"
+    ? `<button class="btn ghost" onclick="dres(${it.id},'Attributed')">Actually a trip expense</button><button class="btn primary" onclick="dres(${it.id},'Standalone')">Keep standalone</button>`
+    : it.kind==="attr"
+      ? `<button class="btn ghost" onclick="dres(${it.id},'Personal')">Personal</button><button class="btn primary" onclick="dres(${it.id},'Attributed')">Attribute to ${it.match.split(' · ')[0]} trip</button>`
+      : it.kind==="tie"
+        ? `<button class="btn primary" onclick="dres(${it.id},'Tied')">Tie to ${it.match.split(' · ')[0]} trip</button><button class="btn ghost" onclick="closeDrawer()">Wrong trip</button>`
+        : `<button class="btn primary" onclick="dres(${it.id},'Confirm ${it.rec} trip')">Confirm ${it.rec} trip</button><button class="btn ghost" onclick="closeDrawer()">Skip</button>`;
+  document.getElementById("d-foot").innerHTML=foot;
+  document.getElementById("scrim").classList.add("open");document.getElementById("drawer").classList.add("open");
+}
+function dres(id,label){res({stopPropagation(){}},id,label);closeDrawer();}
+function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
+
+/* ---- Manual new trip ---- */
+let ntEntity="BC";
+document.querySelectorAll("#ntEnt button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#ntEnt button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); ntEntity=b.dataset.e;
+});
+function openNewTrip(){document.getElementById("newtripScrim").classList.add("open");}
+function closeNewTrip(){document.getElementById("newtripScrim").classList.remove("open");}
+function fmtD(d){if(!d)return"";const[y,m,day]=d.split("-");return new Date(y,m-1,day).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function createTrip(){
+  const dest=document.getElementById("ntDest").value||"New destination";
+  const s=document.getElementById("ntStart").value,e=document.getElementById("ntEnd").value;
+  const purpose=document.getElementById("ntPurpose").value;
+  const dates=(s||e)?`${fmtD(s)}${e?" – "+fmtD(e):""}`:"dates TBD";
+  const card=document.createElement("div");
+  card.className="trip";card.style.borderLeftColor="var(--green)";
+  card.innerHTML=`<span class="ent">${ntEntity}</span><div class="dest">${dest}</div><div class="dates">${dates}</div><div class="meta">✚ created manually · ${purpose||'open for expenses'}</div>`;
+  document.getElementById("tripsStrip").prepend(card);
+  closeNewTrip();
+  ["ntDest","ntStart","ntEnd","ntPurpose"].forEach(id=>document.getElementById(id).value="");
+}
+
+document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
+render();
+</script>
+</body>
+</html>

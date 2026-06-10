@@ -207,6 +207,17 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
                 </div>
                 <div className="mt-0.5 truncate text-[12.5px] text-slate-500">
                   {r.sub}
+                  {r.docUrl && (
+                    <a
+                      href={r.docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="ml-1 font-semibold text-brand hover:underline"
+                    >
+                      📄 doc
+                    </a>
+                  )}
                   {r.reason && <span className="text-amber-600"> · {r.reason}</span>}
                 </div>
               </div>
@@ -474,9 +485,18 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
       <div className="space-y-5">
         <Section title="Source document">
           <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
-            📄 {r.vendor} — invoice.pdf (preview)
+            {r.docUrl ? "📄 Filed to Dropbox" : "📄 No document attached"}
           </div>
-          <a className="mt-2 inline-block text-xs font-medium text-brand">Open in Dropbox ↗</a>
+          {r.docUrl && (
+            <a
+              href={r.docUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+            >
+              Open document in Dropbox ↗
+            </a>
+          )}
         </Section>
 
         <Section title="Posting">

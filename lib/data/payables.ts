@@ -38,6 +38,8 @@ export interface PayableRow {
   auto?: boolean;
   /** True when posted/coded but no receipt is attached. */
   nodoc?: boolean;
+  /** Link to the filed source document (Dropbox share link). */
+  docUrl?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -154,6 +156,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       gl: r.gl ?? undefined,
       auto: r.auto ?? false,
       nodoc: r.nodoc ?? false,
+      docUrl: r.doc_url ?? null,
     }));
   } catch {
     return MOCK;

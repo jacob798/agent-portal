@@ -104,10 +104,10 @@ export default function Payables({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
       const set = new Set(ids);
-      setRows((rs) => rs.filter((r) => !set.has(r.id))); // handed off to Bookkeeper
+      setRows((rs) => rs.filter((r) => !set.has(r.id))); // approved → leaves the queue, posts
       clearSel();
       const n = json.staged ?? ids.length;
-      toast(`✓ Sent ${n} invoice${n === 1 ? "" : "s"} to Bookkeeper to post`);
+      toast(`✓ Posted ${n} invoice${n === 1 ? "" : "s"} to QuickBooks`);
     } catch (e) {
       toast(`Batch post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -496,9 +496,9 @@ export default function Payables({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
       if (alwaysCode && lines[0]?.entity) await saveVendorRule(r.vendor, lines[0].entity, lines[0].gl);
-      setRows((rs) => rs.filter((x) => x.id !== r.id)); // handed off to Bookkeeper
+      setRows((rs) => rs.filter((x) => x.id !== r.id)); // approved → leaves the queue, posts
       setDrawerId(null);
-      toast(`✓ ${r.vendor} sent to Bookkeeper to post`);
+      toast(`✓ ${r.vendor} posted to QuickBooks`);
     } catch (e) {
       toast(`Post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -730,7 +730,7 @@ export default function Payables({
               onClick={() => postBatch([...selected])}
               disabled={posting || selected.size === 0}
             >
-              {posting ? "Sending…" : `Send ${selected.size || ""} to Bookkeeper`}
+              {posting ? "Posting…" : `Post ${selected.size || ""} to QuickBooks`}
             </Button>
           </div>
         </div>
@@ -1328,7 +1328,7 @@ export default function Payables({
       return (
         <>
           <Button onClick={() => approveAndPost(r)} disabled={posting}>
-            {posting ? "Sending…" : "Approve → send to Bookkeeper"}
+            {posting ? "Posting…" : "Post to QuickBooks"}
           </Button>
           <Button variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
         </>

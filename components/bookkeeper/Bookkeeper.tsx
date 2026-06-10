@@ -22,7 +22,6 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
   const [rows, setRows] = useState<LedgerRow[]>(initial);
   const [filter, setFilter] = useState("all");
   const { message, toast } = useToast();
-  let qbn = 1075;
 
   const patch = (id: string, p: Partial<LedgerRow>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -41,14 +40,6 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
     return r.status === filter;
   });
 
-  function postAll() {
-    const ready = rows.filter((r) => r.status === "ready");
-    if (!ready.length) return toast("Nothing staged to post right now");
-    setRows((rs) =>
-      rs.map((r) => (r.status === "ready" ? { ...r, status: "posted", ref: "QB Txn #" + qbn++ } : r)),
-    );
-    toast(`✓ Posted ${ready.length} item${ready.length > 1 ? "s" : ""} to QuickBooks`);
-  }
   function retry(id: string) {
     const r = rows.find((x) => x.id === id);
     patch(id, { status: "posted", ref: "QB Txn #1081" });
@@ -92,22 +83,20 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
       />
 
       <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-[13px] leading-relaxed text-emerald-900">
-        ✓ <b>The agent auto-approves and codes items — you don’t touch them one by one.</b> Each
-        cycle they’re staged below; you post the whole batch to QuickBooks with <b>one click</b>.
-        You only dig into <b>errors</b> and <b>doc-gaps</b>.
+        ✓ <b>This is the posting record — not a second approval.</b> Items you approve in{" "}
+        <b>Payables</b> (and Travel) post to QuickBooks automatically and land here. You only dig
+        into <b>errors</b> and <b>doc-gaps</b>.
       </div>
 
       {counts.ready > 0 && (
         <div className="mt-3.5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand/25 bg-brand/[0.05] px-4 py-3.5">
           <div>
-            <div className="font-semibold text-brand-navy">🗂 {counts.ready} items auto-approved &amp; staged for this cycle</div>
+            <div className="font-semibold text-brand-navy">⏳ {counts.ready} item{counts.ready === 1 ? "" : "s"} posting to QuickBooks this cycle</div>
             <div className="mt-0.5 text-[12.5px] text-slate-600">
-              Reviewed and coded by the agent — post them as one batch, or open the{" "}
-              <button onClick={() => setFilter("ready")} className="font-semibold text-brand">Ready</button>{" "}
-              tab to spot-check first.
+              Approved in Payables — the agent is writing them to QuickBooks now. Need to pull one
+              back? Use <b>hold</b> on the row.
             </div>
           </div>
-          <Button variant="success" onClick={postAll}>✓ Post all to QuickBooks</Button>
         </div>
       )}
 
@@ -122,7 +111,7 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
       )}
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <Stat label="Ready to post" value={counts.ready} tone="brand" />
+        <Stat label="Posting now" value={counts.ready} tone="brand" />
         <Stat label="Posted today ✓" value={counts.posted} tone="green" />
         <Stat label="Errors" value={counts.err} tone="red" />
         <Stat label="Doc-gaps" value={counts.gap} tone="amber" />
@@ -181,7 +170,7 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
                     </>
                   ) : r.status === "ready" ? (
                     <>
-                      <span className="text-[12.5px] font-semibold text-brand">🗂 Ready to post</span>
+                      <span className="text-[12.5px] font-semibold text-brand">⏳ Posting…</span>
                       <button onClick={() => hold(r.id)} className="text-xs font-semibold text-brand">hold</button>
                     </>
                   ) : r.status === "held" ? (

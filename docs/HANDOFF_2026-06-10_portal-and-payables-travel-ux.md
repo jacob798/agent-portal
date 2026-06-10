@@ -81,3 +81,61 @@ Two clickable HTML mockups in **`agent-portal/docs/mockups/`** (open via `file:/
 - Backend bridge work: `~/Projects/agent-system`, branch `portal/operator-bridge`.
 - Open mockups: `open ~/Projects/agent-portal/docs/mockups/payables_exceptions.html` (and `travel_…`).
 - Supabase service key + Graph creds are in `agent-system/.env` (gitignored).
+
+---
+
+# UPDATE — 2026-06-10 PM · Mockups design-complete; ready to build for real
+
+Jacob reviewed all surfaces and signed off ("this is fine for now") — design phase is done; next
+work is **real implementation**, not more mockups. All four mockups are committed to `main`
+(latest: BC reimbursement + learn-vendor approval, commit `92cdebd`).
+
+## Mockups now final (open via `file://` in `~/Projects/agent-portal/docs/mockups/`)
+- **`travel_exceptions.html`** — sidebar app: Dashboard, Expense queue, Trips (Open/Upcoming +
+  searchable compact **Past** list), trip detail with **Purpose + Print/Export**. Trip exports are
+  **brand-aware**: Builders Capital → **BCX** branding (Roboto, navy `#10102e` / green
+  `#177245`,`#7bbf43`), everything else → Foundry. Branded report has a print stylesheet.
+- **`payables_exceptions.html`** — exceptions-only queue (entity short codes + tooltips), editable
+  drawer coding (GL + pay-from dropdowns), **Learn-vendor approval modal** (previews the QuickBooks
+  vendor record + the Outlook contact before saving; applies to all matching invoices), drawer-level
+  "this is a travel expense", **Missing-docs** filter with **Attach receipt / "No receipt needed"**
+  (waive — keeps the expense without an invoice), batch invoice upload, CSV/QBO intake.
+- **`bookkeeper_status.html`** — QBO posting ledger. **Mechanism = QuickBooks Online API over OAuth**
+  (NOT Zapier — that decision is dead). Auto-approved items post as a **one-click batch checkpoint**
+  ("Post all to QuickBooks"), not per-item. Two-QB intercompany shown with both legs + balance note.
+  Errors (retry) + doc-gaps (attach). "QuickBooks connected" OAuth pill.
+- **`bc_reimbursement.html`** (new) — BCX-branded Builders Capital reimbursement workspace.
+  Aggregates **travel + non-travel** BC expenses → one **Paylocity package** (BCX XLSX + receipts).
+  BC posts to PER QB as **Loan – Builders Capital** (balance sheet), cleared by the Paylocity
+  Deposit. Include/exclude + live totals, missing-receipt guard, reimbursement history.
+
+## Key product decisions locked this session
+- **QB posting = QBO API via OAuth** (Zapier + "Intuit API blocked" are both retired). CLAUDE.md
+  amended in `agent-system` (QB posting mechanism / QB attachments / bookkeeper structure sections).
+  ⚠️ That CLAUDE.md edit may still be **uncommitted** on `agent-system` branch `portal/operator-bridge`.
+- **Operator never approves items one-by-one** — auto-approved items post as a single batch
+  checkpoint; operator only touches exceptions (Payables/Travel) + errors/doc-gaps (Bookkeeper).
+- **Missing receipts never block posting** — flagged as doc-gaps; attach later or mark "no receipt
+  needed."
+- **BC is dual:** travel BC → BCX trip reports; non-travel BC → Payables; both bundle into the BC
+  reimbursement Paylocity package.
+
+## To start building for real (mockups → live portal)
+The portal is live (Next.js 16 / App Router / TS / Tailwind v4, Vercel + Supabase, MS SSO). Suggested
+order, each mockup → a real route:
+1. **Payables screen** (`/payables`) — highest-value, most-defined. Wire to the operator-action
+   bridge (`agent-system/shared/operator/`) + the real classify pipeline (Graph→OpenAI vision already
+   proven). Real data: `operator_actions` / `review_queue` in Supabase.
+2. **Travel screens** (`/travel` queue + trips + trip detail) — incl. the branded PDF export
+   (server-side render with the BCX/Foundry brand tokens from
+   `agent-system/agents/valuation/outputs/regression_chart.py` `BRANDS`).
+3. **Bookkeeper** (`/bookkeeper`) — needs the real **QBO OAuth API client** built in
+   `agent-system/agents/bookkeeper/core/` (replaces `qbo_zapier.py`) + the batch-post endpoint.
+4. **BC reimbursement** (`/bc-reimbursement`) — Paylocity XLSX generator + receipt packager
+   (`agent-system/agents/payables/bc/` already scaffolded per CLAUDE.md).
+
+## Open backend threads (unchanged, still blocking real wiring)
+- `agent-system` branch **`portal/operator-bridge`** still not merged (worktree at `/private/tmp/
+  val-phase1` + `agents/valuation/state/repository.py` conflict). Also holds the CLAUDE.md amendment.
+- `agents/bookkeeper/core/qbo_zapier.py` needs repointing to the QBO OAuth API client.
+- Azure prod: set `ALLOW_FULL_PARSER_MULTIMODAL_FALLBACK=true` for PDF vision.

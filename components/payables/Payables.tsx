@@ -239,22 +239,23 @@ export default function Payables({
     const r = rows.find((x) => x.id === learnId);
     if (!r) return;
     const ent = r.entity ?? r.recommended ?? "PER";
-    const email = (r.sub.match(/\S+@\S+/) || [""])[0].replace(/[·,].*$/, "").trim();
+    const emailGuess = (r.sub.match(/\S+@\S+/) || [""])[0].replace(/[·,].*$/, "").trim();
     const gl0 = r.lines?.[0]?.gl ?? r.gl ?? firstGl(ent);
+    const vc = r.vendorContact ?? {};
     setLearnForm({
       vendor: r.vendor,
       display: r.vendor,
-      email,
-      phone: "",
-      website: email.includes("@") ? email.split("@")[1] : "",
-      street: "",
-      city: "",
-      state: "",
-      zip: "",
+      email: vc.email || emailGuess,
+      phone: vc.phone || "",
+      website: vc.website || (emailGuess.includes("@") ? emailGuess.split("@")[1] : ""),
+      street: vc.street || "",
+      city: vc.city || "",
+      state: vc.state || "",
+      zip: vc.zip || "",
       entity: ent,
       gl: gl0,
       terms: r.posting === "bill" ? "Net 30" : "Due on receipt",
-      accountNumber: "",
+      accountNumber: vc.account_number || "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [learnId]);

@@ -44,6 +44,11 @@ export interface PayableRow {
   paymentMethodId?: string | null;
   /** Lifecycle: open | approved (staged for QBO) | posted. */
   status?: string | null;
+  /** Structured vendor contact (from vendor_master / the invoice) — prefills the Learn-vendor modal. */
+  vendorContact?: {
+    street?: string; city?: string; state?: string; zip?: string;
+    phone?: string; email?: string; website?: string; account_number?: string;
+  } | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -170,6 +175,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       docUrl: r.doc_url ?? null,
       paymentMethodId: r.payment_method_id ?? null,
       status: r.status ?? "open",
+      vendorContact: r.vendor_contact ?? null,
     }));
   } catch {
     return MOCK;

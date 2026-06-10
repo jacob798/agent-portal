@@ -55,30 +55,35 @@ export default function Payables({
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [entityPickRow, setEntityPickRow] = useState<string | null>(null);
-  // Set a row's entity directly from the queue (entity drives the GL): persists
-  // the coding + stages it, no need to open the drawer.
+  // Set a row's entity directly from the queue (entity drives the GL). Updates
+  // the row in place (it stays in the queue, now coded), saves the coding, and
+  // reverts on failure. Posting happens later via the batch "Post" button.
   async function codeRowInline(r: Row, code: string) {
     const gl = code === "BC" ? BC_ROUTE.gl : glLabels(code).includes(r.gl ?? "") ? r.gl! : firstGl(code);
     const newLines = (r.lines && r.lines.length ? r.lines : [{ desc: r.sub || r.vendor, amount: r.amount, gl }]).map(
       (l) => ({ ...l, entity: code, gl }),
     );
+    const prev = { entity: r.entity, gl: r.gl, auto: r.auto, exception: r.exception, reason: r.reason };
     setEntityPickRow(null);
+    // Optimistic: show the new entity immediately, mark it coded (clears the
+    // exception) but NOT posted — it stays visible for review/posting.
+    patch(r.id, { entity: code, recommended: code, gl, lines: newLines, auto: true, exception: undefined, reason: undefined });
     try {
       const res = await fetch("/api/payables/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: r.id, entity: code, gl, account: r.account,
+          id: r.id, approve: false, entity: code, gl, account: r.account,
           paymentMethodId: r.paymentMethodId ?? null,
           bcCategory: code === "BC" ? "Software subscriptions expense" : null,
           lines: newLines,
         }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      patch(r.id, { entity: code, gl, resolved: true, auto: true, resolvedTo: `→ ${code} · staged` });
-      toast(`✓ ${r.vendor} → ${entName(code)} · staged for QuickBooks`);
+      toast(`✓ ${r.vendor} → ${entName(code)}`);
     } catch {
-      toast(`Couldn't stage ${r.vendor} — try the drawer`);
+      patch(r.id, prev); // revert
+      toast(`Couldn't save ${r.vendor} — try the drawer`);
     }
   }
   const toggleSel = (id: string) =>
@@ -129,6 +134,17 @@ export default function Payables({
       toast(`Reprocess failed: ${e instanceof Error ? e.message : "unknown"}`);
     }
   }
+  // Persist a lifecycle change for a set of rows (open/approved/discarded).
+  async function setStatusBatch(ids: string[], status: "open" | "approved" | "discarded") {
+    const res = await fetch("/api/payables/set-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, status }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    return ((await res.json()) as { count?: number }).count ?? ids.length;
+  }
+
   // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
   // upstream in getCodingConfig). GL options are filtered per line by entity.
   const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
@@ -282,8 +298,10 @@ export default function Payables({
     const need = rows.filter((r) => !r.auto && !r.resolved).length;
     const docs = rows.filter(missingDoc).length;
     const auto = rows.filter((r) => r.auto || r.resolved).length;
-    const total = rows.reduce((s, r) => s + r.amount, 0);
-    return { need, docs, auto, total };
+    // "Staged" = dollars actually queued to post (approved/posted rows), not the
+    // whole queue.
+    const staged = rows.filter((r) => r.resolved).reduce((s, r) => s + r.amount, 0);
+    return { need, docs, auto, staged };
   }, [rows]);
 
   const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
@@ -319,12 +337,41 @@ export default function Payables({
   const drawerRow = rows.find((r) => r.id === drawerId) || null;
   const learnRow = rows.find((r) => r.id === learnId) || null;
 
-  // ---- resolution actions ----
+  // ---- resolution actions (all persist + revert on failure) ----
   function resolveEntity(id: string, code: string) {
-    patch(id, { resolved: true, auto: true, entity: code, resolvedTo: "→ " + code });
+    const r = rows.find((x) => x.id === id);
+    if (r) void codeRowInline(r, code); // codes in place + persists
   }
-  function resolveSimple(id: string, label: string) {
-    patch(id, { resolved: true, auto: true, resolvedTo: label });
+  // Accept the row's current coding (split / keep-both) and persist it.
+  async function acceptRow(id: string, label: string) {
+    const r = rows.find((x) => x.id === id);
+    if (!r) return;
+    const prev = { auto: r.auto, exception: r.exception, reason: r.reason, resolvedTo: r.resolvedTo };
+    patch(id, { auto: true, exception: undefined, reason: undefined, resolvedTo: label });
+    try {
+      const res = await fetch("/api/payables/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, approve: false, entity: r.entity, gl: r.gl, account: r.account, paymentMethodId: r.paymentMethodId ?? null, lines: r.lines }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      patch(id, prev);
+      toast(`Couldn't save ${r.vendor} — try again`);
+    }
+  }
+  // Discard a row (confirmed duplicate): persist + remove from the queue.
+  async function discardRow(id: string) {
+    const r = rows.find((x) => x.id === id);
+    if (!r) return;
+    setRows((rs) => rs.filter((x) => x.id !== id));
+    try {
+      await setStatusBatch([id], "discarded");
+      toast(`Discarded ${r.vendor}`);
+    } catch {
+      setRows((rs) => [...rs, r as Row]);
+      toast("Couldn't discard — try again");
+    }
   }
   function travelTo(id: string, label: string) {
     setTravelRow(null);
@@ -439,26 +486,35 @@ export default function Payables({
     setDrawerId(null);
   }
 
-  // Bulk: send auto-coded rows back to review when they share a systemic issue
-  // (e.g. the same wrong card/entity on every one).
-  function moveAllToReview() {
-    const n = rows.filter((r) => r.auto && !r.resolved).length;
-    if (!n) return;
+  // Bulk: send coded/staged rows back to review. Acts on the current selection
+  // if any, else every coded-or-staged row in view. Persists + reverts on fail.
+  async function moveAllToReview() {
+    const targets = (selected.size
+      ? rows.filter((r) => selected.has(r.id))
+      : rows.filter((r) => r.auto || r.resolved)
+    ).map((r) => r.id);
+    if (!targets.length) {
+      toast("Nothing to move — select coded rows first");
+      return;
+    }
+    const snapshot = new Map(rows.filter((r) => targets.includes(r.id)).map((r) => [r.id, r]));
+    const set = new Set(targets);
     setRows((rs) =>
       rs.map((r) =>
-        r.auto && !r.resolved
-          ? {
-              ...r,
-              auto: false,
-              exception: r.exception ?? "entity",
-              reason: r.reason ?? "Returned to review (bulk)",
-              recommended: r.recommended ?? r.entity,
-            }
+        set.has(r.id)
+          ? { ...r, auto: false, resolved: false, resolvedTo: undefined, exception: r.exception ?? "entity", reason: "Returned to review", recommended: r.recommended ?? r.entity }
           : r,
       ),
     );
+    clearSel();
     setFilter("need");
-    toast(`↩ Moved ${n} auto-coded item${n > 1 ? "s" : ""} back to review`);
+    try {
+      await setStatusBatch(targets, "open");
+      toast(`↩ Moved ${targets.length} back to review`);
+    } catch {
+      setRows((rs) => rs.map((r) => snapshot.get(r.id) ?? r)); // revert
+      toast("Couldn't move to review — try again");
+    }
   }
 
   function resolveDoc(id: string, how: "attach" | "waive") {
@@ -494,15 +550,15 @@ export default function Payables({
       />
 
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
-        🧳 <b>12</b> travel charges that landed inside a trip window were routed to Travel.
-        Meals/rides <b>not</b> in a trip window stay here as payables.
+        🧳 Charges that land inside a trip window are routed to <b>Travel</b>.
+        Meals and rides <b>outside</b> a trip window stay here as payables.
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
         <Stat label="Need you" value={counts.need} tone="amber" />
         <Stat label="Missing docs" value={counts.docs} tone="amber" />
         <Stat label="Auto-coded ✓" value={counts.auto} tone="green" />
-        <Stat label="Total staged" value={money(counts.total)} tone="navy" />
+        <Stat label="Staged to post" value={money(counts.staged)} tone="navy" />
       </div>
 
       <div className="mt-5">
@@ -577,7 +633,7 @@ export default function Payables({
         </div>
       )}
 
-      {/* Batch select + post — the QuickBooks checkpoint. */}
+      {/* Batch select + actions — the QuickBooks checkpoint. */}
       {filter !== "log" && visible.length > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] shadow-sm">
           <label className="flex cursor-pointer items-center gap-2 font-medium text-slate-600">
@@ -593,9 +649,14 @@ export default function Payables({
           </label>
           <div className="flex items-center gap-2">
             {selected.size > 0 && (
-              <Button size="sm" variant="ghost" onClick={clearSel}>
-                Clear
-              </Button>
+              <>
+                <Button size="sm" variant="ghost" onClick={clearSel}>
+                  Clear
+                </Button>
+                <Button size="sm" variant="secondary" onClick={moveAllToReview} disabled={posting}>
+                  ↩ Move to review
+                </Button>
+              </>
             )}
             <Button
               size="sm"
@@ -605,16 +666,6 @@ export default function Payables({
               {posting ? "Posting…" : `Post ${selected.size || ""} to QuickBooks`}
             </Button>
           </div>
-        </div>
-      )}
-
-      {/* Bulk action — when the auto-coded batch shares a systemic issue. */}
-      {filter === "auto" && counts.auto > 0 && (
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-[13px] text-amber-800">
-          <span>Spot a systemic problem across these? Send the whole batch back to review.</span>
-          <Button size="sm" variant="secondary" onClick={moveAllToReview}>
-            ↩ Move all to review
-          </Button>
         </div>
       )}
 
@@ -959,15 +1010,15 @@ export default function Payables({
     if (r.exception === "split")
       return (
         <>
-          <Chip solid onClick={() => resolveSimple(r.id, "(split accepted)")}>Accept split</Chip>
+          <Chip solid onClick={() => acceptRow(r.id, "(split accepted)")}>Accept split</Chip>
           {travelBtn}
         </>
       );
     if (r.exception === "dup")
       return (
         <>
-          <Chip onClick={() => resolveSimple(r.id, "(discarded)")}>Discard</Chip>
-          <Chip solid onClick={() => resolveSimple(r.id, "(kept)")}>Keep both</Chip>
+          <Chip onClick={() => discardRow(r.id)}>Discard</Chip>
+          <Chip solid onClick={() => acceptRow(r.id, "(kept)")}>Keep both</Chip>
           {travelBtn}
         </>
       );
@@ -1196,8 +1247,8 @@ export default function Payables({
     if (r.exception === "dup")
       return (
         <>
-          <Button variant="ghost" onClick={() => { resolveSimple(r.id, "(discarded)"); setDrawerId(null); }}>Discard</Button>
-          <Button onClick={() => { resolveSimple(r.id, "(kept)"); setDrawerId(null); }}>Keep both</Button>
+          <Button variant="ghost" onClick={() => { discardRow(r.id); setDrawerId(null); }}>Discard</Button>
+          <Button onClick={() => { acceptRow(r.id, "(kept)"); setDrawerId(null); }}>Keep both</Button>
         </>
       );
     return (

@@ -142,7 +142,11 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("payables_queue").select("*").order("ord");
+    const { data, error } = await supabase
+      .from("payables_queue")
+      .select("*")
+      .neq("status", "discarded")
+      .order("ord");
     if (error || !data) return MOCK;
     return data.map((r): PayableRow => ({
       id: r.id,

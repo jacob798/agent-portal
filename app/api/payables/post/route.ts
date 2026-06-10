@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
     gl?: string | null;
     bcCategory?: string | null;
     lines?: { desc: string; amount: number; gl: string; entity?: string; bcCategory?: string }[];
+    /** false = save coding only (stays in the queue); true (default) = stage for QBO. */
+    approve?: boolean;
   };
   try {
     body = await req.json();
@@ -35,12 +37,12 @@ export async function POST(req: NextRequest) {
   const id = (body.id ?? "").trim();
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
+  const approve = body.approve !== false; // default true
   const update: Record<string, unknown> = {
-    status: "approved",
-    approved_at: new Date().toISOString(),
     auto: true,
     exception: null,
     reason: null,
+    ...(approve ? { status: "approved", approved_at: new Date().toISOString() } : {}),
   };
   if (body.entity !== undefined) update.entity = body.entity;
   if (body.account !== undefined) update.account = body.account;

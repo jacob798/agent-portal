@@ -41,7 +41,7 @@ export default function Travel({ trips, queue }: { trips: Trip[]; queue: QueueEx
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-7xl px-6 py-8">
       {openTrip ? (
         <TripDetail
           trip={openTrip}

@@ -46,7 +46,7 @@ export default function BcReimbursement({
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-8 py-8">
+    <div className="mx-auto max-w-7xl px-6 py-8">
       <PageHeader
         title="BC Reimbursement — June 2026"
         subtitle="Builders Capital · employer reimbursement (Paylocity)."

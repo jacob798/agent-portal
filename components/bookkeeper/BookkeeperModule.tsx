@@ -24,7 +24,7 @@ export default function BookkeeperModule({
   const [view, setView] = useState("ledger");
   return (
     <div>
-      <div className="mx-auto max-w-5xl px-8 pt-6">
+      <div className="mx-auto max-w-7xl px-6 pt-6">
         <FilterTabs
           active={view}
           onChange={setView}

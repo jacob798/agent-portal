@@ -286,11 +286,34 @@ export default function Payables({
     return { need, docs, auto, total };
   }, [rows]);
 
-  const visible = rows.filter((r) => {
+  const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
+  const rowCategory = (r: Row) => r.category ?? glShort(r.gl) ?? "";
+
+  const [sort, setSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "date", dir: -1 });
+  const toggleSort = (col: string) =>
+    setSort((s) => (s.col === col ? { col, dir: (s.dir * -1) as 1 | -1 } : { col, dir: 1 }));
+
+  const filtered = rows.filter((r) => {
     if (filter === "all") return true;
     if (filter === "auto") return r.auto || r.resolved;
     if (filter === "docs") return missingDoc(r);
     return !r.auto && !r.resolved; // need
+  });
+  const visible = [...filtered].sort((a, b) => {
+    const key = (r: Row): string | number =>
+      sort.col === "amount"
+        ? r.amount
+        : sort.col === "vendor"
+          ? r.vendor.toLowerCase()
+          : sort.col === "category"
+            ? rowCategory(r).toLowerCase()
+            : sort.col === "posting"
+              ? r.posting
+              : sort.col === "entity"
+                ? r.entity ?? "~"
+                : rowDate(r); // date
+    const ka = key(a), kb = key(b);
+    return ka < kb ? -sort.dir : ka > kb ? sort.dir : 0;
   });
 
   const drawerRow = rows.find((r) => r.id === drawerId) || null;
@@ -451,7 +474,7 @@ export default function Payables({
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-8 py-8">
+    <div className="mx-auto max-w-7xl px-6 py-8">
       <PageHeader
         title="Payables"
         subtitle="Exception queue — you only touch what the agent can't resolve confidently."
@@ -598,12 +621,15 @@ export default function Payables({
       {/* Queue */}
       {filter !== "log" && (
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[22px_16px_2.3fr_1.3fr_1fr_2.4fr] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-[20px_14px_minmax(0,1.7fr)_84px_minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_92px_minmax(0,1.4fr)] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           <div />
           <div />
-          <div>Vendor</div>
-          <div>Posting</div>
-          <div>Entity</div>
+          <SortHead label="Vendor" col="vendor" sort={sort} onClick={toggleSort} />
+          <SortHead label="Date" col="date" sort={sort} onClick={toggleSort} />
+          <SortHead label="Category" col="category" sort={sort} onClick={toggleSort} />
+          <SortHead label="Posting" col="posting" sort={sort} onClick={toggleSort} />
+          <SortHead label="Entity" col="entity" sort={sort} onClick={toggleSort} />
+          <SortHead label="Amount" col="amount" sort={sort} onClick={toggleSort} align="right" />
           <div className="text-right">Action</div>
         </div>
         {visible.length === 0 ? (
@@ -615,7 +641,7 @@ export default function Payables({
             <div
               key={r.id}
               onClick={() => setDrawerId(r.id)}
-              className="grid cursor-pointer grid-cols-[22px_16px_2.3fr_1.3fr_1fr_2.4fr] items-center gap-3 border-b border-slate-100 px-5 py-3.5 last:border-0 hover:bg-brand/[0.03]"
+              className="grid cursor-pointer grid-cols-[20px_14px_minmax(0,1.7fr)_84px_minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_92px_minmax(0,1.4fr)] items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0 hover:bg-brand/[0.03]"
             >
               <input
                 type="checkbox"
@@ -633,37 +659,45 @@ export default function Payables({
                       : "bg-amber-500"
                 }`}
               />
+              {/* Vendor */}
               <div className="min-w-0">
-                <div className="flex items-center gap-2 font-semibold text-slate-900">
-                  {r.vendor}
+                <div className="flex items-center gap-2 truncate font-semibold text-slate-900">
+                  <span className="truncate">{r.vendor}</span>
                   {r.doc_waived ? (
-                    <Badge tone="neutral">no receipt needed</Badge>
+                    <Badge tone="neutral">no receipt</Badge>
                   ) : r.nodoc ? (
                     <Badge tone="amber">no receipt</Badge>
                   ) : null}
                 </div>
-                <div className="mt-0.5 truncate text-[12.5px] text-slate-500">
-                  {r.sub}
+                <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
                   {r.docUrl && (
                     <a
                       href={r.docUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="ml-1 font-semibold text-brand hover:underline"
+                      className="font-semibold text-brand hover:underline"
                     >
                       📄 doc
                     </a>
                   )}
-                  {r.reason && <span className="text-amber-600"> · {r.reason}</span>}
+                  {r.reason && <span className="truncate text-amber-600">{r.reason}</span>}
                 </div>
               </div>
-              <div className="text-[12.5px]">
+              {/* Date */}
+              <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
+              {/* Category */}
+              <div className="truncate text-[12.5px] text-slate-700" title={rowCategory(r)}>
+                {rowCategory(r) || "—"}
+              </div>
+              {/* Posting */}
+              <div className="min-w-0 text-[12px]">
                 <Badge tone={r.posting === "bill" ? "indigo" : "slate"}>
                   {r.posting === "bill" ? "Bill" : "Charge"}
                 </Badge>
-                <div className="mt-1 text-xs text-slate-500">{r.account}</div>
+                <div className="mt-1 truncate text-[11px] text-slate-500" title={r.account}>{r.account}</div>
               </div>
+              {/* Entity (inline picker; multi-line opens the drawer) */}
               <div onClick={(e) => e.stopPropagation()}>
                 {entityPickRow === r.id ? (
                   <div className="flex flex-wrap gap-1">
@@ -685,17 +719,19 @@ export default function Payables({
                   </div>
                 ) : (
                   <button
-                    onClick={() => setEntityPickRow(r.id)}
-                    title="Click to set entity"
+                    onClick={() => ((r.lines?.length ?? 0) > 1 ? setDrawerId(r.id) : setEntityPickRow(r.id))}
+                    title={(r.lines?.length ?? 0) > 1 ? "Multiple line items — open to split by entity/GL" : "Click to set entity"}
                     className="rounded-md transition hover:ring-2 hover:ring-brand/30"
                   >
-                    <Badge tone={r.entity ? "green" : "amber"}>{r.entity ?? "UNK"} ⌄</Badge>
+                    <Badge tone={r.entity ? "green" : "amber"}>
+                      {r.entity ?? "UNK"} {(r.lines?.length ?? 0) > 1 ? "⋯" : "⌄"}
+                    </Badge>
                   </button>
                 )}
-                <div className="mt-1.5 font-semibold tabular-nums text-slate-900">
-                  {money(r.amount)}
-                </div>
               </div>
+              {/* Amount */}
+              <div className="text-right font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
+              {/* Action */}
               <div
                 className="flex flex-wrap items-center justify-end gap-1.5"
                 onClick={(e) => e.stopPropagation()}
@@ -896,8 +932,8 @@ export default function Payables({
     }
 
     const travelBtn = (
-      <Chip onClick={() => setTravelRow(r.id)} className="border-brand/30 text-brand">
-        <Plane className="h-3.5 w-3.5" /> Travel
+      <Chip onClick={() => setTravelRow(r.id)} title="Reclassify to Travel" className="border-brand/30 text-brand">
+        <Plane className="h-3.5 w-3.5" />
       </Chip>
     );
 
@@ -1313,7 +1349,7 @@ function Chip({
   className?: string;
 }) {
   const base =
-    "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[12.5px] font-semibold transition";
+    "inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11.5px] font-semibold transition";
   const style = rec
     ? "border border-brand-navy bg-brand-navy text-white"
     : solid
@@ -1322,6 +1358,33 @@ function Chip({
   return (
     <button title={title} onClick={onClick} className={`${base} ${style}`}>
       {children}
+    </button>
+  );
+}
+
+function SortHead({
+  label,
+  col,
+  sort,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  col: string;
+  sort: { col: string; dir: 1 | -1 };
+  onClick: (col: string) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort.col === col;
+  return (
+    <button
+      onClick={() => onClick(col)}
+      className={`flex items-center gap-1 uppercase tracking-wide transition hover:text-slate-600 ${
+        align === "right" ? "justify-end text-right" : ""
+      } ${active ? "text-brand" : ""}`}
+    >
+      {label}
+      <span className="text-[9px]">{active ? (sort.dir > 0 ? "▲" : "▼") : "↕"}</span>
     </button>
   );
 }

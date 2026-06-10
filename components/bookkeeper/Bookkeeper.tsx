@@ -75,7 +75,7 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-7xl px-6 py-8">
       <PageHeader
         title="Bookkeeper"
         subtitle="QuickBooks posting authority — posts via the QBO API over OAuth."

@@ -29,7 +29,31 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
   const [learnId, setLearnId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showInvoices, setShowInvoices] = useState(false);
+  const [invFiles, setInvFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const { message, toast } = useToast();
+
+  async function uploadInvoices() {
+    if (!invFiles.length) {
+      toast("Pick at least one PDF or image first");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      invFiles.forEach((f) => fd.append("files", f));
+      const res = await fetch("/api/ingest", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "upload failed");
+      toast(`✓ Uploaded ${json.jobs.length} document${json.jobs.length > 1 ? "s" : ""} — queued for OCR + classify`);
+      setInvFiles([]);
+      setShowInvoices(false);
+    } catch (e) {
+      toast(`Upload failed: ${e instanceof Error ? e.message : "unknown error"}`);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const patch = (id: string, p: Partial<Row>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -315,21 +339,25 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
       {/* Batch invoice upload */}
       <Modal
         open={showInvoices}
-        onClose={() => setShowInvoices(false)}
+        onClose={() => {
+          setShowInvoices(false);
+          setInvFiles([]);
+        }}
         title="Upload invoices (batch)"
         footer={
           <>
             <button
-              onClick={() => {
-                setShowInvoices(false);
-                toast("✓ Invoices uploaded — OCR + classify running; exceptions will appear here");
-              }}
-              className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+              onClick={uploadInvoices}
+              disabled={uploading}
+              className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              Upload &amp; process
+              {uploading ? "Uploading…" : invFiles.length ? `Upload ${invFiles.length} file${invFiles.length > 1 ? "s" : ""}` : "Upload & process"}
             </button>
             <button
-              onClick={() => setShowInvoices(false)}
+              onClick={() => {
+                setShowInvoices(false);
+                setInvFiles([]);
+              }}
               className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
@@ -337,12 +365,29 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
           </>
         }
       >
-        <div className="rounded-xl border-2 border-dashed border-brand/30 bg-brand/[0.03] px-6 py-8 text-center text-sm text-slate-500">
-          📄 Drop a <b className="text-brand-navy">batch of invoice PDFs / images</b> here, or browse
-        </div>
+        <label className="block cursor-pointer rounded-xl border-2 border-dashed border-brand/30 bg-brand/[0.03] px-6 py-8 text-center text-sm text-slate-500 transition hover:border-brand hover:bg-brand/[0.06]">
+          📄 Choose a <b className="text-brand-navy">batch of invoice PDFs / images</b>, or drop them here
+          <input
+            type="file"
+            multiple
+            accept=".pdf,image/*"
+            className="hidden"
+            onChange={(e) => setInvFiles(Array.from(e.target.files ?? []))}
+          />
+        </label>
+        {invFiles.length > 0 && (
+          <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2 text-[12.5px] text-slate-600">
+            {invFiles.map((f, i) => (
+              <li key={i} className="flex justify-between gap-2 px-1">
+                <span className="truncate">📄 {f.name}</span>
+                <span className="shrink-0 text-slate-400">{(f.size / 1024).toFixed(0)} KB</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
-          No account/entity needed — the agent OCRs each document, classifies entity · GL · vendor,
-          and queues it. Only the ones it can’t resolve land in this exception queue.
+          No account/entity needed — each document is stored, OCR’d, classified (entity · GL · vendor),
+          and queued. Only the ones the agent can’t resolve land in this exception queue.
         </p>
       </Modal>
 

@@ -66,7 +66,7 @@ export default function Payables({
     setEntityPickRow(null);
     // Optimistic: show the new entity immediately, mark it coded (clears the
     // exception) but NOT posted — it stays visible for review/posting.
-    patch(r.id, { entity: code, recommended: code, gl, lines: newLines, auto: true, exception: undefined, reason: undefined });
+    patch(r.id, { entity: code, recommended: code, gl, lines: newLines, auto: false, exception: undefined, reason: "Coded — review & post" });
     try {
       const res = await fetch("/api/payables/post", {
         method: "POST",
@@ -383,7 +383,7 @@ export default function Payables({
     const r = rows.find((x) => x.id === id);
     if (!r) return;
     const prev = { auto: r.auto, exception: r.exception, reason: r.reason, resolvedTo: r.resolvedTo };
-    patch(id, { auto: true, exception: undefined, reason: undefined, resolvedTo: label });
+    patch(id, { auto: false, exception: undefined, reason: "Coded — review & post", resolvedTo: label });
     try {
       const res = await fetch("/api/payables/post", {
         method: "POST",
@@ -517,7 +517,7 @@ export default function Payables({
     setRows((rs) =>
       rs.map((x) =>
         x.vendor === r.vendor && !x.resolved
-          ? { ...x, entity, gl, auto: true, exception: undefined, reason: undefined }
+          ? { ...x, entity, gl, auto: false, exception: undefined, reason: "Coded from vendor rule — review & post" }
           : x,
       ),
     );
@@ -530,7 +530,7 @@ export default function Payables({
       });
       if (!res.ok) throw new Error();
       const { count } = (await res.json()) as { count: number };
-      toast(`✓ ${r.vendor} → ${entName(entity)} · remembered · ${count} invoice${count === 1 ? "" : "s"} coded`);
+      toast(`✓ ${r.vendor} remembered · ${count} invoice${count === 1 ? "" : "s"} coded — review & post when ready`);
     } catch {
       setRows((rs) => rs.map((x) => snapshot.get(x.id) ?? x));
       toast(`Couldn't save ${r.vendor} — try again`);
@@ -1051,6 +1051,16 @@ export default function Payables({
         <Plane className="h-3.5 w-3.5" />
       </Chip>
     );
+
+    // Coded (entity + GL set) but not yet an auto-coded exception and not posted
+    // — e.g. coded from a learned vendor. Review the charge, then post.
+    if (!r.exception && r.entity)
+      return (
+        <>
+          <Chip solid onClick={() => postBatch([r.id])}>✓ Post</Chip>
+          {travelBtn}
+        </>
+      );
 
     if (r.exception === "entity")
       return (

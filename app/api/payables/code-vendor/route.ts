@@ -3,10 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 
 /**
- * "Save & remember": apply one coding decision to a whole vendor. Updates every
- * still-open queued row for the vendor (entity + GL, marks it coded) AND upserts
- * a vendor_rules entry so future invoices auto-code. This is how the system
- * learns from manual entries — one save handles all of a vendor's invoices.
+ * "Save & remember": learn a vendor's coding once, applied to all of its queued
+ * invoices — WITHOUT auto-approving the transactions. Confirming the vendor
+ * *setup* is not the same as reviewing each *charge*: the queued invoices get
+ * the coding pre-filled but stay in the queue (status open, not auto) for the
+ * operator to review and post. The vendor_rules entry means FUTURE invoices
+ * auto-code; the ones already in the queue still get a human glance.
  */
 export async function POST(req: NextRequest) {
   const profile = await getProfile();
@@ -31,11 +33,12 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // 1) Code every still-open row for this vendor (case-insensitive).
+  // 1) Code every still-open row for this vendor (case-insensitive). NOT auto:
+  // the coding is pre-filled but the operator still reviews + posts each charge.
   const rowUpdate: Record<string, unknown> = {
-    auto: true,
+    auto: false,
     exception: null,
-    reason: null,
+    reason: "Coded from vendor rule — review & post",
   };
   if (entity) rowUpdate.entity = entity;
   if (gl) rowUpdate.gl = gl;

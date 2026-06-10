@@ -38,12 +38,10 @@ export async function POST(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
   const approve = body.approve !== false; // default true
-  const update: Record<string, unknown> = {
-    auto: true,
-    exception: null,
-    reason: null,
-    ...(approve ? { status: "approved", approved_at: new Date().toISOString() } : {}),
-  };
+  const update: Record<string, unknown> = approve
+    ? { auto: true, exception: null, reason: null, status: "approved", approved_at: new Date().toISOString() }
+    : // save coding only — the operator still reviews + posts the charge
+      { auto: false, exception: null, reason: "Coded — review & post" };
   if (body.entity !== undefined) update.entity = body.entity;
   if (body.account !== undefined) update.account = body.account;
   if (body.paymentMethodId !== undefined) update.payment_method_id = body.paymentMethodId;

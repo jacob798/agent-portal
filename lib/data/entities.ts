@@ -57,6 +57,44 @@ export function glsForEntity(gls: GlOption[], entity?: string | null): GlOption[
   return scoped.length ? scoped : gls;
 }
 
+export interface GlGroup {
+  label: string; // parent/header path
+  options: { value: string; label: string }[]; // value = full name, label = leaf
+}
+
+/**
+ * GL accounts grouped for a clean dropdown: QuickBooks full names are
+ * "Parent:Child" where the parent is a summary header (not postable). We group
+ * by the parent path, show only the leaf as the option, and drop header
+ * accounts (any name that is a strict prefix of another) from the choices.
+ */
+export function glGroupsForEntity(gls: GlOption[], entity?: string | null): GlGroup[] {
+  const scoped = glsForEntity(gls, entity);
+  const isHeader = (name: string) =>
+    scoped.some((g) => g.fullName !== name && g.fullName.startsWith(name + ":"));
+  const order: string[] = [];
+  const groups = new Map<string, { value: string; label: string }[]>();
+  for (const g of scoped) {
+    if (isHeader(g.fullName)) continue; // summary header — not postable
+    const i = g.fullName.lastIndexOf(":");
+    const parent = i >= 0 ? g.fullName.slice(0, i) : "General";
+    const leaf = i >= 0 ? g.fullName.slice(i + 1) : g.fullName;
+    if (!groups.has(parent)) {
+      groups.set(parent, []);
+      order.push(parent);
+    }
+    groups.get(parent)!.push({ value: g.fullName, label: leaf });
+  }
+  return order.map((label) => ({ label, options: groups.get(label)! }));
+}
+
+/** Short, de-duplicated label for a stored GL full name (leaf only). */
+export function glShort(fullName?: string | null): string {
+  if (!fullName) return "";
+  const i = fullName.lastIndexOf(":");
+  return i >= 0 ? fullName.slice(i + 1) : fullName;
+}
+
 export const money = (n: number): string =>
   "$" +
   n.toLocaleString("en-US", {

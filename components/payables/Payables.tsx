@@ -5,10 +5,11 @@ import { Zap, Upload, FileText, Plane } from "lucide-react";
 import type { PayableRow } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
-  ENTITIES,
   entName,
   money,
   glsForEntity,
+  glGroupsForEntity,
+  glShort,
   BC_ROUTE,
   type PayAccount,
   type GlOption,
@@ -53,6 +54,33 @@ export default function Payables({
   );
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [entityPickRow, setEntityPickRow] = useState<string | null>(null);
+  // Set a row's entity directly from the queue (entity drives the GL): persists
+  // the coding + stages it, no need to open the drawer.
+  async function codeRowInline(r: Row, code: string) {
+    const gl = code === "BC" ? BC_ROUTE.gl : glLabels(code).includes(r.gl ?? "") ? r.gl! : firstGl(code);
+    const newLines = (r.lines && r.lines.length ? r.lines : [{ desc: r.sub || r.vendor, amount: r.amount, gl }]).map(
+      (l) => ({ ...l, entity: code, gl }),
+    );
+    setEntityPickRow(null);
+    try {
+      const res = await fetch("/api/payables/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: r.id, entity: code, gl, account: r.account,
+          paymentMethodId: r.paymentMethodId ?? null,
+          bcCategory: code === "BC" ? "Software subscriptions expense" : null,
+          lines: newLines,
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      patch(r.id, { entity: code, gl, resolved: true, auto: true, resolvedTo: `→ ${code} · staged` });
+      toast(`✓ ${r.vendor} → ${entName(code)} · staged for QuickBooks`);
+    } catch {
+      toast(`Couldn't stage ${r.vendor} — try the drawer`);
+    }
+  }
   const toggleSel = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -113,6 +141,7 @@ export default function Payables({
   };
   const glLabels = (entity?: string | null) =>
     glsForEntity(gls, entity).map((g) => g.fullName);
+  const glGroups = (entity?: string | null) => glGroupsForEntity(gls, entity);
   const firstGl = (entity?: string | null) => glLabels(entity)[0] ?? "";
   const [filter, setFilter] = useState("need");
   const [drawerId, setDrawerId] = useState<string | null>(null);
@@ -635,13 +664,33 @@ export default function Payables({
                 </Badge>
                 <div className="mt-1 text-xs text-slate-500">{r.account}</div>
               </div>
-              <div>
-                {r.entity || r.auto ? (
-                  <span title={entName(r.entity)}>
-                    <Badge tone="green">{r.entity ?? "—"}</Badge>
-                  </span>
+              <div onClick={(e) => e.stopPropagation()}>
+                {entityPickRow === r.id ? (
+                  <div className="flex flex-wrap gap-1">
+                    {entityCodes.map((c) => (
+                      <button
+                        key={c}
+                        title={entName(c)}
+                        onClick={() => codeRowInline(r, c)}
+                        className={`inline-flex h-6 min-w-[2.1rem] items-center justify-center rounded px-1.5 text-[11px] font-bold transition ${
+                          c === r.entity ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                    <button className="text-[11px] text-slate-400 hover:text-slate-600" onClick={() => setEntityPickRow(null)}>
+                      ✕
+                    </button>
+                  </div>
                 ) : (
-                  <Badge tone="amber">UNK</Badge>
+                  <button
+                    onClick={() => setEntityPickRow(r.id)}
+                    title="Click to set entity"
+                    className="rounded-md transition hover:ring-2 hover:ring-brand/30"
+                  >
+                    <Badge tone={r.entity ? "green" : "amber"}>{r.entity ?? "UNK"} ⌄</Badge>
+                  </button>
                 )}
                 <div className="mt-1.5 font-semibold tabular-nums text-slate-900">
                   {money(r.amount)}
@@ -724,7 +773,7 @@ export default function Payables({
         </Field>
         <Field label="Entity (which QuickBooks file)">
           <select className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            {ENTITIES.map((c) => (
+            {entityCodes.map((c) => (
               <option key={c}>{`${c} — ${entName(c)}`}</option>
             ))}
           </select>
@@ -831,7 +880,7 @@ export default function Payables({
     }
 
     if (r.auto)
-      return <span className="text-[12.5px] font-medium text-emerald-600">✓ Auto-coded · {r.gl}</span>;
+      return <span className="text-[12.5px] font-medium text-emerald-600">✓ Auto-coded · {glShort(r.gl)}</span>;
 
     if (travelRow === r.id) {
       return (
@@ -855,7 +904,7 @@ export default function Payables({
     if (r.exception === "entity")
       return (
         <>
-          {ENTITIES.map((e) => (
+          {entityCodes.map((e) => (
             <Chip key={e} title={entName(e)} rec={e === r.recommended} onClick={() => resolveEntity(r.id, e)}>
               {e}
             </Chip>
@@ -1015,10 +1064,14 @@ export default function Payables({
                       {!glLabels(l.entity).includes(l.gl) && (
                         <option value="">Select GL account…</option>
                       )}
-                      {glLabels(l.entity).map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
+                      {glGroups(l.entity).map((grp) => (
+                        <optgroup key={grp.label} label={grp.label}>
+                          {grp.options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   )}
@@ -1046,9 +1099,9 @@ export default function Payables({
               {r.reason}. Last 3 from this sender → <b>{entName(r.recommended)}</b>.
             </p>
             <div className="flex flex-wrap gap-2">
-              {ENTITIES.map((e) => (
+              {entityCodes.map((e) => (
                 <Chip key={e} rec={e === r.recommended} onClick={() => confirmEntityFromDrawer(r, e)}>
-                  {entName(e)}
+                  {e}
                 </Chip>
               ))}
             </div>
@@ -1061,7 +1114,7 @@ export default function Payables({
               />{" "}
               Always code <b>{r.vendor}</b> → <b>{entName(lines[0]?.entity ?? r.recommended)}</b>
               {" · "}
-              <span className="text-slate-500">{lines[0]?.gl}</span>
+              <span className="text-slate-500">{glShort(lines[0]?.gl)}</span>
             </label>
           </Section>
         )}
@@ -1215,8 +1268,12 @@ export default function Payables({
               ) : (
                 <select value={fGls.includes(f.gl) ? f.gl : ""} onChange={(e) => setLF({ gl: e.target.value })} className={inp}>
                   {!fGls.includes(f.gl) && <option value="">Select GL account…</option>}
-                  {fGls.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                  {glGroups(f.entity).map((grp) => (
+                    <optgroup key={grp.label} label={grp.label}>
+                      {grp.options.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               )}

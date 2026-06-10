@@ -57,12 +57,12 @@
   /* action cell */
   .act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   .auto-msg{color:var(--green);font-size:12.5px;font-weight:500;white-space:nowrap}
-  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;height:32px;padding:0 12px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer;display:inline-flex;align-items:center;gap:5px;line-height:1;white-space:nowrap}
   .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}
   .chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}
   .chip.rec:hover{opacity:.9;background:var(--navy)}
-  .chip.more{color:var(--muted);font-weight:500}
-  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .chip.more{color:var(--muted);font-weight:500;padding:0 10px}
+  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;height:32px;padding:0 14px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;line-height:1;white-space:nowrap}
   .miniact.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
   .src{color:var(--blue);font-size:12px;text-decoration:none;white-space:nowrap}
   .src:hover{text-decoration:underline}
@@ -85,16 +85,18 @@
   .linetbl{width:100%;border-collapse:collapse;font-size:13px}
   .linetbl td{padding:6px 4px;border-bottom:1px solid #f1f5f9}
   .linetbl .gl{color:var(--blue);font-weight:600}
+  .codesel,.acctsel{border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:inherit;font-size:12.5px;background:#fff;color:var(--blue);font-weight:600;max-width:100%}
+  .acctsel{color:var(--ink)}
   .toggle{display:flex;gap:8px;background:#f1f5f9;border-radius:9px;padding:4px;width:fit-content}
-  .toggle button{border:0;background:none;padding:7px 16px;border-radius:7px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+  .toggle button{border:0;background:none;min-width:132px;text-align:center;padding:7px 16px;border-radius:7px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
   .toggle button.on{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .entrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .always{display:flex;align-items:center;gap:9px;font-size:13px;color:#334155;background:#f0f7fc;border:1px solid #cfe3f2;border-radius:10px;padding:11px 14px;margin-top:6px}
   .always input{width:17px;height:17px;accent-color:var(--blue)}
-  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
-  .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+  .btn{flex:0 0 auto;border:0;border-radius:10px;height:44px;padding:0 22px;min-width:128px;display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
   .btn.primary{background:var(--navy);color:#fff}
-  .btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
+  .btn.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
   /* intake toolbar */
   .intake{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
   .intk-left{display:flex;gap:10px}
@@ -113,6 +115,11 @@
   .fld{margin-bottom:15px}.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
   .fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;background:#fff}
   .fld .qbnote{font-size:11.5px;color:#94a3b8;margin-top:4px}
+  /* doc-gap badge */
+  .docgap{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--amber-bg);color:var(--amber);border:1px solid #f3dcae;margin-left:6px}
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(10,44,78,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -132,6 +139,7 @@
     <div class="intk-left">
       <button class="ibtn plaid" onclick="plaidPull()">⚡ Get transactions from Plaid</button>
       <button class="ibtn" onclick="openUpload()">⬆ Upload CSV / QBO</button>
+      <button class="ibtn" onclick="openInv()">📄 Upload invoices (batch)</button>
     </div>
     <div class="plaid-status" id="plaidStatus">Plaid: AMEX · Wells Fargo · Schwab — synced 8:00 AM</div>
   </div>
@@ -158,6 +166,20 @@
   </div>
   <div class="hint">Tip: resolve simple exceptions inline. Click a row to open the full coding view.</div>
 </div>
+
+<!-- Batch invoice upload modal -->
+<div class="modal-scrim" id="invScrim">
+  <div class="modal">
+    <div class="mh"><h2>Upload invoices (batch)</h2><button class="x" onclick="closeInv()">×</button></div>
+    <div class="mb">
+      <div class="drop">📄 Drop a <b>batch of invoice PDFs / images</b> here, or <b>browse</b><br><span style="font-size:12px">same pipeline as invoices@foundry-capital.co — just bulk</span></div>
+      <div class="qbnote" style="font-size:12.5px;color:var(--muted);line-height:1.5">↳ No account/entity needed — the agent OCRs each document, classifies <b>entity · GL · vendor</b>, and queues it. Only the ones it can't resolve land in this exception queue.</div>
+    </div>
+    <div class="dfoot"><button class="btn primary" onclick="closeInv()">Upload &amp; process</button><button class="btn ghost" onclick="closeInv()">Cancel</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <!-- Drawer -->
 <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
@@ -192,17 +214,24 @@
 
 <script>
 const ENTITIES = ["BC","FC","PER","WJW"];
+const ENT = {BC:"Builders Capital",FC:"Foundry Capital",PER:"Personal",WJW:"WJW Investments",UNK:"Unknown"};
+const entName = c => ENT[c] || c;
+const ACCTS = ["AMEX WJW Business ••1004","AMEX Foundry Business ••1005","AMEX Delta Reserve ••5001","Citibank ••4658","Wells Fargo Checking","Charles Schwab Checking"];
+const GLS = ["6120 Materials","6140 Sm Tools","6200 Software","6300 Repairs & Maint","6420 Internet","6710 Travel — Meals","6720 Travel — Ground","6730 Travel — Airfare","6900 Office / Admin","7800 Personal"];
+const sel = (opts,cur,cls)=>`<select class="${cls}">${[...new Set([cur,...opts])].filter(Boolean).map(o=>`<option ${o===cur?'selected':''}>${o}</option>`).join("")}</select>`;
 const data = [
   {id:1, ex:"entity", vendor:"The Clean-Up Crew", sub:"Invoice 690 · Jun 8", amt:540.00, post:"bill", acct:"unpaid · due Jun 20", entity:null, rec:"BC",
     reason:"No entity detected from invoice content", lines:[{d:"Cleaning services",a:540,gl:"6300 Repairs & Maint"}]},
   {id:2, ex:"vendor", vendor:"Data Engine, LLC", sub:"billing@dataengine.io · Jun 9", amt:616.97, post:"charge", acct:"AMEX WJW ••1004", entity:"BC", rec:"BC",
+    reason:"Unrecognized sender — new vendor", cat:"Software / Data", lines:[{d:"RealEstateAPI subscription",a:616.97,gl:"6200 Software"}]},
+  {id:10, ex:"vendor", vendor:"Data Engine, LLC", sub:"billing@dataengine.io · May 9", amt:616.97, post:"charge", acct:"AMEX WJW ••1004", entity:"BC", rec:"BC",
     reason:"Unrecognized sender — new vendor", cat:"Software / Data", lines:[{d:"RealEstateAPI subscription",a:616.97,gl:"6200 Software"}]},
   {id:3, ex:"split", vendor:"Home Depot", sub:"Order #426182812 · Jun 7", amt:287.43, post:"charge", acct:"AMEX WJW ••1004", entity:"WJW", rec:null,
     reason:"Split across line items — confirm coding",
     lines:[{d:"Lumber & framing",a:180.00,gl:"6120 Materials (WJW)"},{d:"Power tools",a:107.43,gl:"6140 Sm Tools (WJW)"}]},
   {id:4, ex:"dup", vendor:"St Ignatius School", sub:"Automatic payment · Jun 6", amt:425.00, post:"bill", acct:"Wells Fargo Checking", entity:"PER", rec:null,
     reason:"Looks like a duplicate of a May 6 charge", lines:[{d:"Tuition autopay",a:425.00,gl:"7800 Personal"}]},
-  {id:9, ex:"entity", vendor:"Percy's Restaurant", sub:"Jun 12 · Dining · 🚫 no trip on these dates", amt:78.50, post:"charge", acct:"AMEX WJW ••1004", entity:null, rec:"PER",
+  {id:9, ex:"entity", vendor:"Percy's Restaurant", sub:"Jun 12 · Dining · 🚫 no trip on these dates", amt:78.50, post:"charge", acct:"AMEX WJW ••1004", entity:null, rec:"PER", nodoc:true,
     reason:"A meal, but it's not inside any trip window — so it's a normal payable, not a trip expense", lines:[{d:"Dinner",a:78.50,gl:"7800 Meals (PER)"}]},
   // auto-coded examples
   {id:5, auto:true, vendor:"Dropbox", sub:"Business plan renewal", amt:96.00, post:"charge", acct:"AMEX Foundry ••1005", entity:"FC", gl:"6200 Software"},
@@ -218,11 +247,11 @@ function postCell(it){
   return `<div class="pay">${tag}<span class="acct">${it.acct}</span></div>`;
 }
 function entityCell(it){
-  if(it.auto) return `<span class="badge b-ok">${it.entity}</span>`;
-  if(it.entity) return `<span class="badge b-ok">${it.entity}</span>`;
+  if(it.auto) return `<span class="badge b-ok" title="${entName(it.entity)}">${it.entity}</span>`;
+  if(it.entity) return `<span class="badge b-ok" title="${entName(it.entity)}">${it.entity}</span>`;
   return `<span class="badge b-unk">UNK</span>`;
 }
-const OPEN_TRIPS=["BC Denver","FC Seattle"];
+const OPEN_TRIPS=["Builders Capital · Denver","Foundry Capital · Seattle"];
 let travelMode={};
 function travelBtn(it){return `<button class="chip" style="border-color:#cfe3f2;color:var(--blue)" title="Reclassify as a travel expense" onclick="event.stopPropagation();travelMode[${it.id}]=true;render()">🧳 Travel</button>`;}
 function actionCell(it){
@@ -233,7 +262,7 @@ function actionCell(it){
     return `<span style="color:var(--muted);font-size:12px;margin-right:2px">Which trip?</span>${tchips}<button class="chip" onclick="resolveInline(event,${it.id},'→ Travel queue (agent suggests)')">Let Travel suggest</button><a class="src" onclick="event.stopPropagation();travelMode[${it.id}]=false;render()">cancel</a>`;
   }
   if(it.ex==="entity"){
-    const chips = ENTITIES.map(e=>`<button class="chip ${e===it.rec?'rec':''}" onclick="resolveInline(event,${it.id},'${e}')">${e}</button>`).join("");
+    const chips = ENTITIES.map(e=>`<button class="chip ${e===it.rec?'rec':''}" title="${entName(e)}" onclick="resolveInline(event,${it.id},'${e}')">${e}</button>`).join("");
     return `${chips}<button class="chip more" onclick="openDrawer(event,${it.id})">⋯</button>${travelBtn(it)}`;
   }
   if(it.ex==="vendor"){
@@ -256,7 +285,7 @@ function render(){
   document.getElementById("rows").innerHTML = rows.map(it=>`
     <div class="row" onclick="openDrawer(event,${it.id})">
       <div><span class="dot ${it.auto?'auto':(it.ex==='dup'?'dup':'ex')}"></span></div>
-      <div><div class="vend">${it.vendor}</div><div class="vsub">${it.sub}${it.reason?` · <span style="color:var(--amber)">${it.reason}</span>`:''}</div></div>
+      <div><div class="vend">${it.vendor}${it.nodoc?'<span class="docgap" title="Charge posts; flagged as a documentation gap until a receipt is matched">no receipt</span>':''}</div><div class="vsub">${it.sub}${it.reason?` · <span style="color:var(--amber)">${it.reason}</span>`:''}</div></div>
       <div>${postCell(it)}</div>
       <div>${entityCell(it)}<div class="amt" style="margin-top:6px">${money(it.amt)}</div></div>
       <div class="act">${actionCell(it)}</div>
@@ -267,11 +296,19 @@ function render(){
   document.getElementById("f-need").textContent=need;
   document.getElementById("autoN").textContent=data.filter(it=>it.auto||it.resolved).length;
 }
+let toastT;
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),3400);}
 function resolveInline(e,id,choice){
   e.stopPropagation();
   const it=data.find(x=>x.id===id);
+  if(choice==='learn'){
+    const same=data.filter(x=>x.vendor===it.vendor && !x.resolved && !x.auto);
+    same.forEach(x=>{x.resolved=true;x.auto=true;x.resolvedTo="(vendor learned)";});
+    toast(`✓ Learned ${it.vendor} → ${entName(it.entity||it.rec)} · auto-coded ${same.length} invoice${same.length>1?'s':''} now + future`);
+    render();return;
+  }
   it.resolved=true; it.auto=true;
-  it.resolvedTo = choice==='learn'?'(vendor learned)':choice==='accept'?'(split accepted)':choice==='keep'?'(kept)':choice==='discard'?'(discarded)':choice.startsWith('→')?choice:"→ "+choice;
+  it.resolvedTo = choice==='accept'?'(split accepted)':choice==='keep'?'(kept)':choice==='discard'?'(discarded)':choice.startsWith('→')?choice:"→ "+choice;
   it.entity = ENTITIES.includes(choice)?choice:it.entity;
   render();
 }
@@ -281,15 +318,16 @@ function openDrawer(e,id){
   document.getElementById("d-vendor").textContent=it.vendor;
   document.getElementById("d-sub").textContent=it.sub+" · "+money(it.amt);
   const lines=(it.lines||[{d:it.sub,a:it.amt,gl:it.gl}]);
-  const lineRows=lines.map(l=>`<tr><td>${l.d}</td><td style="text-align:right">${money(l.a)}</td><td class="gl">${l.gl}</td></tr>`).join("");
+  const lineRows=lines.map(l=>`<tr><td>${l.d}</td><td style="text-align:right">${money(l.a)}</td><td>${sel(GLS,l.gl,'codesel')}</td></tr>`).join("");
+  const payAcct = ACCTS.includes(it.acct) ? it.acct : ACCTS[0];
   const postToggle=`<div class="toggle"><button class="${it.post==='charge'?'on':''}">Charge (card)</button><button class="${it.post==='bill'?'on':''}">Bill (A/P)</button></div>
-    <div class="kv" style="margin-top:10px"><span class="k">Pay from</span><span class="v">${it.acct}</span></div>`;
+    <div class="kv" style="margin-top:12px;align-items:center"><span class="k">Pay from</span>${sel(ACCTS,payAcct,'acctsel')}</div>`;
   let resolveBlock="";
   if(!it.auto && it.ex==="entity"){
     resolveBlock=`<div class="sect"><h3>Which entity pays this?</h3>
-      <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">ⓘ ${it.reason}. Last 3 from this sender → <b>${it.rec}</b>.</div>
-      <div class="entrow">${ENTITIES.map(en=>`<button class="chip ${en===it.rec?'rec':''}">${en}</button>`).join("")}<button class="chip more">More ▾</button></div>
-      <label class="always"><input type="checkbox"> Always code <b>${it.vendor}</b> → <b>${it.rec}</b> (never ask again)</label></div>`;
+      <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">ⓘ ${it.reason}. Last 3 from this sender → <b>${entName(it.rec)}</b>.</div>
+      <div class="entrow">${ENTITIES.map(en=>`<button class="chip ${en===it.rec?'rec':''}">${entName(en)}</button>`).join("")}<button class="chip more">More ▾</button></div>
+      <label class="always"><input type="checkbox"> Always code <b>${it.vendor}</b> → <b>${entName(it.rec)}</b> (never ask again)</label></div>`;
   } else if(!it.auto && it.ex==="split"){
     resolveBlock=`<div class="sect"><h3>Confirm the split</h3>
       <div style="color:var(--muted);font-size:12.5px;margin-bottom:8px">Multi-category invoice — each line coded separately.</div>
@@ -298,32 +336,48 @@ function openDrawer(e,id){
     resolveBlock=`<div class="sect"><h3>New vendor</h3>
       <div class="kv"><span class="k">Vendor</span><span class="v">${it.vendor}</span></div>
       <div class="kv"><span class="k">Category</span><span class="v">${it.cat}</span></div>
-      <label class="always"><input type="checkbox" checked> Learn this vendor + default entity <b>${it.entity}</b></label></div>`;
+      <label class="always"><input type="checkbox" checked> Learn this vendor + default entity <b>${entName(it.entity)}</b></label></div>`;
   } else if(!it.auto && it.ex==="dup"){
     resolveBlock=`<div class="sect"><h3>Possible duplicate</h3>
       <div style="color:var(--muted);font-size:12.5px">${it.reason}. Same vendor + amount.</div></div>`;
   }
+  const travelBlock = (!it.auto && it.ex!=="dup")
+    ? `<div class="sect"><h3>Not a payable?</h3>
+        <div style="color:var(--muted);font-size:12.5px;margin-bottom:10px">If this charge belongs to a trip, reclassify it to Travel — it'll post under the trip vendor instead of here.</div>
+        <button class="chip" style="border-color:#cfe3f2;color:var(--blue)" onclick="drawerTravelPick(${it.id})">🧳 This is a travel expense</button>
+        <div id="drawerTrips"></div></div>`
+    : "";
   document.getElementById("d-body").innerHTML=`
     <div class="sect"><h3>Source document</h3><div class="docbox">📄 ${it.vendor} — invoice.pdf  (preview)</div>
       <a class="src" style="display:inline-block;margin-top:8px">Open in Dropbox ↗</a></div>
     <div class="sect"><h3>Posting</h3>${postToggle}</div>
     <div class="sect"><h3>Coding</h3><table class="linetbl">${lineRows}</table></div>
-    ${resolveBlock}`;
+    ${resolveBlock}${travelBlock}`;
   const foot = it.auto
     ? `<button class="btn primary">Approve &amp; post to QuickBooks</button><button class="btn ghost" onclick="closeDrawer()">Close</button>`
     : it.ex==="dup"
       ? `<button class="btn ghost" onclick="drawerResolve(${it.id},'discard')">Discard</button><button class="btn primary" onclick="drawerResolve(${it.id},'keep')">Keep both</button>`
-      : `<button class="btn primary" onclick="drawerResolve(${it.id},'${it.rec||'accept'}')">Confirm${it.rec?' '+it.rec:''} &amp; post</button><button class="btn ghost" onclick="closeDrawer()">Skip</button>`;
+      : `<button class="btn primary" onclick="drawerResolve(${it.id},'${it.rec||'accept'}')">Confirm${it.rec?' '+entName(it.rec):''} &amp; post</button><button class="btn ghost" onclick="closeDrawer()">Skip</button>`;
   document.getElementById("d-foot").innerHTML=foot;
   document.getElementById("scrim").classList.add("open");
   document.getElementById("drawer").classList.add("open");
 }
 function drawerResolve(id,choice){ resolveInline({stopPropagation(){}},id,choice); closeDrawer(); }
+function drawerTravelPick(id){
+  document.getElementById("drawerTrips").innerHTML=
+    `<div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap;align-items:center">
+      <span style="color:var(--muted);font-size:12px;margin-right:2px">Which trip?</span>
+      ${OPEN_TRIPS.map(t=>`<button class="chip" onclick="drawerResolve(${id},'→ ${t} trip')">${t}</button>`).join("")}
+      <button class="chip" onclick="drawerResolve(${id},'→ Travel queue (agent suggests)')">Let Travel suggest</button>
+    </div>`;
+}
 function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
 
 /* ---- Intake: Plaid + Upload ---- */
 function openUpload(){document.getElementById("uploadScrim").classList.add("open");}
 function closeUpload(){document.getElementById("uploadScrim").classList.remove("open");}
+function openInv(){document.getElementById("invScrim").classList.add("open");}
+function closeInv(){document.getElementById("invScrim").classList.remove("open");toast("✓ Invoices uploaded — OCR + classify running; exceptions will appear here");}
 function plaidPull(){
   const s=document.getElementById("plaidStatus");
   s.textContent="Plaid: pulling new transactions…";

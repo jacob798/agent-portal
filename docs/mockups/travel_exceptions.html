@@ -25,7 +25,7 @@
   .main{flex:1;min-width:0;overflow:auto}
   .bar{display:flex;align-items:center;justify-content:space-between;padding:18px 26px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
   .bar h1{font-size:18px;margin:0;font-weight:600} .bar .crumb{font-size:12.5px;color:var(--muted);margin-bottom:3px}
-  .newtrip{background:var(--navy);color:#fff;border:0;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.newtrip:hover{opacity:.92}
+  .newtrip{background:var(--navy);color:#fff;border:0;border-radius:9px;height:38px;padding:0 16px;display:inline-flex;align-items:center;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.newtrip:hover{opacity:.92}
   .pad{padding:24px 26px;max-width:980px}
   .view{display:none}.view.on{display:block}
   /* trip cards */
@@ -39,17 +39,26 @@
   .trip .open{color:var(--green);font-weight:600}
   .seclbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;margin:22px 0 11px}
   .seclbl:first-child{margin-top:0}
+  /* compact scalable list (past trips) */
+  .tsearch{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font:inherit;font-size:13.5px;margin-bottom:10px}
+  .tlist{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .tgrp{font-size:11px;font-weight:600;color:#94a3b8;background:#f8fafc;padding:7px 16px;border-bottom:1px solid var(--line)}
+  .trow{display:grid;grid-template-columns:150px 1.6fr 110px 110px;gap:14px;padding:12px 16px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .trow:last-child{border-bottom:0}.trow:hover{background:#f8fbff}
+  .trow .te{font-size:11px;font-weight:700;color:var(--navy);background:#eaf1f8;border-radius:6px;padding:2px 8px;justify-self:start}
+  .trow .td{font-weight:600}.trow .tsub{color:var(--muted);font-size:12.5px;margin-top:1px}
+  .trow .tdate{color:var(--muted);font-size:12.5px}.trow .tt{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
   /* exception strip (overlap only) */
   .exc{background:#fffdf7;border:1px solid #f0e2c0;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:20px}
   .exc .ttl{font-weight:600} .exc .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
-  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:8px;height:32px;padding:0 13px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer;display:inline-flex;align-items:center;gap:5px;line-height:1;white-space:nowrap}
   .chip:hover{border-color:var(--blue);background:#f0f7fc;color:var(--navy)}.chip.rec{border-color:var(--navy);background:var(--navy);color:#fff}
   .note{background:#f4f8fc;border:1px solid #d7e6f2;border-radius:10px;padding:11px 16px;font-size:13px;color:#334155;margin-bottom:18px}
   /* expense list */
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
   .ctitle{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);background:#f8fafc}
   .ctitle h2{margin:0;font-size:14px;font-weight:600} .ctitle .n{color:var(--muted);font-size:12.5px}
-  .confirmall{background:var(--green);color:#fff;border:0;border-radius:9px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.confirmall:hover{opacity:.92}
+  .confirmall{background:var(--green);color:#fff;border:0;border-radius:9px;height:38px;padding:0 16px;display:inline-flex;align-items:center;font:inherit;font-size:13px;font-weight:600;cursor:pointer}.confirmall:hover{opacity:.92}
   .row{display:grid;grid-template-columns:34px 28px 2fr 1.5fr 1.7fr;gap:12px;padding:13px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
   .row:last-child{border-bottom:0}.row:hover{background:#f8fbff}.row.home{background:#fafbfc}
   .cbx{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;font-weight:800;font-size:13px}
@@ -59,9 +68,11 @@
   .viewdoc{color:var(--blue);font-size:12px;text-decoration:none;white-space:nowrap}.viewdoc:hover{text-decoration:underline}
   .loc .dest{color:var(--green);font-weight:600;font-size:12.5px}.loc .home{color:var(--muted);font-weight:600;font-size:12.5px}
   .loc .post{font-size:10.5px;font-weight:700;color:#6b3fa0;background:#efeaf8;border-radius:5px;padding:1px 6px;margin-left:5px}
-  .sug{font-size:13px;display:flex;align-items:center;justify-content:flex-end;gap:10px}
-  .sug .to{font-weight:600;color:var(--navy)}.sug .non{font-weight:600;color:var(--muted)}.sug .amt{color:var(--muted);font-variant-numeric:tabular-nums}
-  .chg{color:var(--blue);font-size:12px;cursor:pointer}.mk{color:var(--blue);font-size:12px;cursor:pointer}
+  .sug{font-size:13px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+  .sug .amt{color:var(--muted);font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
+  .sug .dtag{background:#eaf1f8;color:var(--navy);border-radius:7px;padding:3px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .sug .ptag{background:#f1f5f9;color:#475569;border-radius:7px;padding:3px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+  .chg,.mk{color:var(--blue);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
   .resolved{color:var(--green);font-size:12.5px;font-weight:600;text-align:right}
   /* trip detail */
   .dtl-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
@@ -87,14 +98,14 @@
   .photo{height:170px;border:1px dashed var(--line);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px}
   .checks .c{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}.checks .y{color:var(--green);font-weight:800}.checks .n{color:#94a3b8;font-weight:800}
   .qb{background:#f4f8fc;border:1px solid #d7e6f2;border-radius:10px;padding:14px}.qb .qline{display:flex;gap:10px;padding:4px 0;font-size:13px}.qb .ql{color:var(--muted);width:62px;flex:0 0 62px;font-weight:600}.qb .qv{font-weight:500}.qb .qv.vend{color:var(--navy);font-weight:600}
-  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px}
-  .btn{flex:1;border:0;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}.btn.primary{background:var(--navy);color:#fff}.btn.ghost{background:#fff;color:#334155;border:1px solid var(--line);flex:0 0 auto;padding:12px 18px}
+  .dfoot{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+  .btn{flex:0 0 auto;border:0;border-radius:10px;height:44px;padding:0 22px;min-width:128px;display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:14px;font-weight:600;cursor:pointer}.btn.primary{background:var(--navy);color:#fff}.btn.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
   .modal-scrim{position:fixed;inset:0;background:rgba(10,44,78,.4);display:none;align-items:center;justify-content:center;z-index:50}.modal-scrim.open{display:flex}
   .modal{background:#fff;border-radius:16px;width:440px;max-width:94vw;box-shadow:0 24px 60px rgba(10,44,78,.3);overflow:hidden}
   .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modal .mh h2{margin:0;font-size:16px}.modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}.modal .mb{padding:20px 22px}
   .fld{margin-bottom:15px}.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}.fld input,.fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px}
   .two{display:flex;gap:12px}.two .fld{flex:1}
-  .entpick{display:flex;gap:7px;flex-wrap:wrap}.entpick button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}.entpick button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .entpick{display:flex;gap:7px;flex-wrap:wrap}.entpick button{border:1px solid var(--line);background:#fff;border-radius:8px;height:32px;padding:0 13px;display:inline-flex;align-items:center;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}.entpick button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 </style>
 </head>
 <body>
@@ -105,13 +116,13 @@
     <div><div class="t">Foundry</div><div class="s">Travel</div></div>
   </div>
   <div class="nav">
+    <a id="nav-dash" onclick="showView('dash')">📊 Dashboard</a>
     <a id="nav-expenses" class="on" onclick="showView('expenses')">🧾 Expense queue <span class="b" id="nav-exp-n">7</span></a>
     <a id="nav-trips" onclick="showView('trips')">🧳 Trips <span class="b">7</span></a>
     <div class="grp">Other agents</div>
     <a href="payables_exceptions.html">💳 Payables</a>
-    <a>📊 Dashboard</a>
+    <a id="nav-book" href="#" onclick="return false">📒 Bookkeeper</a>
   </div>
-  <div class="foot">Receipts → invoices@foundry-capital.co</div>
 </div>
 
 <!-- Main -->
@@ -138,12 +149,30 @@
     <div class="pad">
       <div class="seclbl">Open for expenses</div><div class="grid" id="trips-open"></div>
       <div class="seclbl">Upcoming</div><div class="grid" id="trips-up"></div>
-      <div class="seclbl">Past trips</div><div class="grid" id="trips-past"></div>
+      <div class="seclbl">Past trips <span id="past-count" style="color:#94a3b8;font-weight:600"></span></div>
+      <input class="tsearch" id="pastSearch" placeholder="Search past trips — destination, entity, purpose…" oninput="renderPast()" />
+      <div class="tlist" id="trips-past"></div>
     </div>
   </div>
 
   <!-- VIEW: trip detail / itinerary -->
   <div id="view-detail" class="view"><div class="pad" id="detail-body"></div></div>
+
+  <!-- VIEW: dashboard -->
+  <div id="view-dash" class="view"><div class="pad">
+    <div class="seclbl">Agents</div>
+    <div class="grid">
+      <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Travel</div><div class="dates">Last cycle today 8:00 AM</div><div class="meta"><span class="open">7 need you</span><a class="chg" style="font-weight:600" onclick="showView('expenses')">Open →</a></div></div>
+      <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Payables</div><div class="dates">Last cycle today 8:00 AM</div><div class="meta"><span class="open">4 need you</span><a class="chg" style="font-weight:600" href="payables_exceptions.html">Open →</a></div></div>
+      <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Bookkeeper</div><div class="dates">Posting via Zapier</div><div class="meta"><span>0 need you</span><span>38 posted</span></div></div>
+      <div class="trip" style="border-left-color:var(--green);cursor:default"><span class="ent" style="background:var(--green-bg);color:var(--green)">● Healthy</span><div class="dest">Contacts</div><div class="dates">Last run today 7:40 AM</div><div class="meta"><span>0 need you</span><span>3 added</span></div></div>
+    </div>
+    <div class="seclbl">Needs you now</div>
+    <div class="card">
+      <div class="row" style="grid-template-columns:34px 2fr 1fr;cursor:pointer" onclick="showView('expenses')"><div class="ic">🧾</div><div><div class="m">Travel — trip expenses to confirm</div><div class="msub">Denver site visit · 7 suggestions</div></div><div class="sug"><span class="to">Review →</span></div></div>
+      <div class="row" style="grid-template-columns:34px 2fr 1fr;cursor:pointer" onclick="location.href='payables_exceptions.html'"><div class="ic">💳</div><div><div class="m">Payables — exceptions</div><div class="msub">New vendor · split coding · possible duplicate · 4 items</div></div><div class="sug"><span class="to">Review →</span></div></div>
+    </div>
+  </div></div>
 </div>
 
 <!-- Drawer -->
@@ -168,7 +197,7 @@ const ENT={BC:"Builders Capital",FC:"Foundry Capital",PER:"Personal",WJW:"WJW In
 const TRIPVEND="Travel 2026-06 — Builders Capital · Denver Site Visit (6/4–6/7)";
 
 const trips=[
-  {id:"den",ent:"BC",dest:"Denver, CO",dates:"Jun 4 – 7",status:"open",grace:"grace thru Jul 7",total:1403.02,
+  {id:"den",ent:"BC",dest:"Denver, CO",dates:"Jun 4 – 7",status:"open",grace:"grace thru Jul 7",total:1403.02,purpose:"Site visit — Iota St JV",
     itin:[
       {ic:"✈️",when:"Jun 4 · 9:10a",what:"Delta DL892 — BOI → DEN",sub:"Confirmation #DL77H2"},
       {ic:"🏨",when:"Jun 4–6",what:"Westin Denver Downtown",sub:"2 nights · conf #W8821"},
@@ -185,13 +214,13 @@ const trips=[
       {ic:"🚕",what:"Uber",sub:"Rideshare · Jun 6",amt:19.20,gl:"6720 Travel — Ground"},
       {ic:"🚗",what:"Hertz",sub:"Ground · invoiced Jun 21 (post-trip)",amt:240.00,gl:"6720 Travel — Ground"},
     ]},
-  {id:"sea",ent:"FC",dest:"Seattle, WA",dates:"Jun 18 – 20",status:"up",total:0,
+  {id:"sea",ent:"FC",dest:"Seattle, WA",dates:"Jun 18 – 20",status:"up",total:0,purpose:"Investor meetings",
     itin:[{ic:"✈️",when:"Jun 18 · 7:25a",what:"Delta DL1234 — BOI → SEA",sub:"Confirmation pending"},{ic:"🏨",when:"Jun 18–20",what:"Hotel — TBD",sub:"Not booked yet"}],exps:[]},
-  {id:"slc",ent:"BC",dest:"Salt Lake City, UT",dates:"May 28 – 30",status:"closed",total:2110.40,
+  {id:"slc",ent:"BC",dest:"Salt Lake City, UT",dates:"May 28 – 30",status:"closed",total:2110.40,purpose:"Lender conference",
     itin:[{ic:"✈️",when:"May 28",what:"Delta — BOI → SLC",sub:""},{ic:"🏨",when:"May 28–30",what:"Marriott SLC",sub:"2 nights"}],
     exps:[{ic:"🏨",what:"Marriott SLC",sub:"Lodging",amt:1180.00,gl:"6700"},{ic:"✈️",what:"Delta",sub:"Airfare",amt:520.00,gl:"6730"},{ic:"🍽️",what:"Meals (5)",sub:"Dining",amt:410.40,gl:"6710"}]},
-  {id:"pdx",ent:"FC",dest:"Portland, OR",dates:"Apr 14 – 16",status:"closed",total:1640.00,itin:[],exps:[{ic:"🏨",what:"Hotel",sub:"",amt:980,gl:"6700"},{ic:"✈️",what:"Air",sub:"",amt:660,gl:"6730"}]},
-  {id:"phx",ent:"BC",dest:"Phoenix, AZ",dates:"Mar 3 – 5",status:"closed",total:1925.00,itin:[],exps:[]},
+  {id:"pdx",ent:"FC",dest:"Portland, OR",dates:"Apr 14 – 16",status:"closed",total:1640.00,purpose:"Property tour",itin:[],exps:[{ic:"🏨",what:"Hotel",sub:"",amt:980,gl:"6700"},{ic:"✈️",what:"Air",sub:"",amt:660,gl:"6730"}]},
+  {id:"phx",ent:"BC",dest:"Phoenix, AZ",dates:"Mar 3 – 5",status:"closed",total:1925.00,purpose:"Builders Capital offsite",itin:[],exps:[]},
 ];
 const overlap={id:"ov",ic:"🏨",ttl:"Hotel — Hyatt Denver, Jun 6→8",sub:"Dates overlap two BC trips (Denver Jun 4–7 and Denver Jun 6–9). Which trip?",opts:["Denver Jun 4–7","Denver Jun 6–9"]};
 const exps=[
@@ -211,7 +240,9 @@ function showView(v){
   document.getElementById("view-"+v).classList.add("on");
   document.getElementById("nav-expenses").classList.toggle("on",v==="expenses");
   document.getElementById("nav-trips").classList.toggle("on",v==="trips");
-  const titles={expenses:["Travel","Trip expenses to confirm"],trips:["Travel","Trips"]};
+  document.getElementById("nav-dash").classList.toggle("on",v==="dash");
+  document.querySelector(".newtrip").style.display = v==="dash" ? "none" : "";
+  const titles={expenses:["Travel","Trip expenses to confirm"],trips:["Travel","Trips"],dash:["Foundry","Dashboard"]};
   if(titles[v]){document.getElementById("crumb").textContent=titles[v][0];document.getElementById("title").textContent=titles[v][1];}
 }
 
@@ -232,8 +263,8 @@ function renderExps(){
     const checked=(x.id in conf)?conf[x.id]:x.sugg;
     const box=`<div class="cbx ${checked?'on':''} ${x.home?'home':''}" onclick="toggle(event,'${x.id}')">${checked?'✓':''}</div>`;
     const loc=x.home?`<span class="loc"><span class="home">📍 ${x.loc} · home</span></span>`:`<span class="loc"><span class="dest">📍 ${x.loc==='—'?'no location':x.loc}</span>${x.post?'<span class="post">post-trip</span>':''}</span>`;
-    const sug=x.home?`<div class="sug"><span class="non">not a trip → Payables</span><span class="amt">${money(x.amt)}</span><a class="mk" onclick="event.stopPropagation();conf['${x.id}']=true;renderExps()">make trip ▾</a></div>`
-      :`<div class="sug"><span class="to">→ ${x.trip}</span><span class="amt">${money(x.amt)}</span><a class="chg" onclick="event.stopPropagation();open_('${x.id}')">change</a></div>`;
+    const sug=x.home?`<div class="sug"><span class="ptag">→ Payables (not a trip)</span><span class="amt">${money(x.amt)}</span><a class="mk" onclick="event.stopPropagation();dres('${x.id}','→ Denver (override)')">make trip</a></div>`
+      :`<div class="sug"><span class="dtag">${x.trip}</span><span class="amt">${money(x.amt)}</span><a class="chg" onclick="event.stopPropagation();open_('${x.id}')">change</a></div>`;
     return `<div class="row ${x.home?'home':''}" onclick="open_('${x.id}')"><div>${box}</div><div class="ic">${x.ic}</div>
       <div><div class="m">${x.m}</div><div class="msub">${x.sub} · <a class="viewdoc" onclick="event.stopPropagation();open_('${x.id}')">📄 view</a></div></div>
       <div>${loc}</div>${sug}</div>`;
@@ -250,10 +281,22 @@ function tripCard(t){
     :`<span>closed</span><span>${money(t.total)}</span>`;
   return `<div class="trip ${cls}" onclick="openTrip('${t.id}')"><span class="ent">${ENT[t.ent]}</span><div class="dest">${t.dest}</div><div class="dates">${t.dates}${t.grace?' · '+t.grace:''}</div><div class="meta">${meta}</div></div>`;
 }
+function pastRow(t){
+  return `<div class="trow" onclick="openTrip('${t.id}')"><span class="te">${ENT[t.ent]}</span>
+    <div><div class="td">${t.dest}</div><div class="tsub">${t.purpose||'—'}</div></div>
+    <div class="tdate">${t.dates}</div><div class="tt">${money(t.total)}</div></div>`;
+}
+function renderPast(){
+  const q=(document.getElementById("pastSearch").value||"").toLowerCase();
+  const all=trips.filter(t=>t.status==="closed");
+  const list=all.filter(t=>!q||(`${ENT[t.ent]} ${t.dest} ${t.purpose||''} ${t.dates}`).toLowerCase().includes(q));
+  document.getElementById("past-count").textContent=q?`(${list.length} of ${all.length})`:`(${all.length})`;
+  document.getElementById("trips-past").innerHTML=list.length?list.map(pastRow).join(""):`<div class="trow" style="cursor:default;color:#94a3b8;grid-template-columns:1fr">No matching trips.</div>`;
+}
 function renderTrips(){
   document.getElementById("trips-open").innerHTML=trips.filter(t=>t.status==="open").map(tripCard).join("");
   document.getElementById("trips-up").innerHTML=trips.filter(t=>t.status==="up").map(tripCard).join("");
-  document.getElementById("trips-past").innerHTML=trips.filter(t=>t.status==="closed").map(tripCard).join("");
+  renderPast();
 }
 
 /* trip detail / itinerary */
@@ -263,11 +306,12 @@ function openTrip(id){
   document.getElementById("title").textContent=t.dest;
   const badge=t.status==="open"?`<span class="badge open">● Open for expenses</span>`:t.status==="up"?`<span class="badge">Upcoming</span>`:`<span class="badge closed">Closed</span>`;
   const itin=t.itin.length?t.itin.map(i=>`<div class="iitem"><div class="iic">${i.ic}</div><div class="iwhen">${i.when}</div><div><div class="iwhat">${i.what}</div><div class="isub">${i.sub}</div></div></div>`).join(""):`<div class="iitem"><div class="isub" style="padding:4px 0">No itinerary items yet.</div></div>`;
-  const exprows=t.exps.length?t.exps.map(e=>`<div class="iitem"><div class="iic">${e.ic}</div><div class="iwhen">${e.sub.split('·').pop().trim()}</div><div><div class="iwhat">${e.what}</div><div class="isub">${e.gl}</div></div><div class="iamt">${money(e.amt)}</div></div>`).join(""):`<div class="iitem"><div class="isub" style="padding:4px 0">No expenses attributed yet.</div></div>`;
+  const exprows=t.exps.length?t.exps.map(e=>`<div class="iitem"><div class="iic">${e.ic}</div><div class="iwhen">${e.sub.split('·').pop().trim()}</div><div><div class="iwhat">${e.what}</div><div class="isub">${e.gl} · <a class="viewdoc" onclick="alert('Receipt preview — ${e.what}')">📄 view</a></div></div><div class="iamt">${money(e.amt)}</div></div>`).join(""):`<div class="iitem"><div class="isub" style="padding:4px 0">No expenses attributed yet.</div></div>`;
   document.getElementById("detail-body").innerHTML=`
     <div class="dtl-head"><div><div class="dest">${t.dest}</div><div class="meta">${ENT[t.ent]} · ${t.dates}</div></div><div>${badge}</div></div>
+    <div class="kv" style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;margin-bottom:6px"><span class="k">Purpose</span><span class="v">${t.purpose||'—'}</span></div>
     <div class="itin"><div class="ihead">Itinerary — what's scheduled</div>${itin}</div>
-    <div class="itin"><div class="ihead" style="display:flex;justify-content:space-between"><span>Trip expenses (${t.exps.length})</span><span>${money(t.total)}</span></div>${exprows}</div>
+    <div class="itin"><div class="ihead" style="display:flex;justify-content:space-between;align-items:center"><span>Trip expenses (${t.exps.length})</span><span style="display:flex;gap:12px;align-items:center"><span>${money(t.total)}</span><button class="chip" onclick="alert('Exporting ${t.dest} — receipts + summary as .zip')">⬇ Export (.zip)</button></span></div>${exprows}</div>
     <div class="qbsum">Posts to QuickBooks under one vendor — <b>${t.id==='den'?TRIPVEND:'Travel '+t.dates+' — '+ENT[t.ent]+' '+t.dest}</b>. Each merchant is a memo line, never its own vendor.</div>`;
   showView('detail');
   document.getElementById("title").textContent=t.dest;

@@ -1,7 +1,8 @@
 import { getLedger } from "@/lib/data/bookkeeper";
-import Bookkeeper from "@/components/bookkeeper/Bookkeeper";
+import { getBcReimbursement, BC_HISTORY } from "@/lib/data/bc";
+import BookkeeperModule from "@/components/bookkeeper/BookkeeperModule";
 
 export default async function BookkeeperPage() {
-  const rows = await getLedger();
-  return <Bookkeeper initial={rows} />;
+  const [ledger, bc] = await Promise.all([getLedger(), getBcReimbursement()]);
+  return <BookkeeperModule ledger={ledger} bc={bc} bcHistory={BC_HISTORY} />;
 }

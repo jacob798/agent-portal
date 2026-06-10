@@ -1,7 +1,7 @@
-import { getBcReimbursement, BC_HISTORY } from "@/lib/data/bc";
-import BcReimbursement from "@/components/bc/BcReimbursement";
+import { redirect } from "next/navigation";
 
-export default async function BcReimbursementPage() {
-  const rows = await getBcReimbursement();
-  return <BcReimbursement initial={rows} history={BC_HISTORY} />;
+// BC reimbursement is now a sub-view of Bookkeeper (it's a bookkeeping function:
+// the Loan – Builders Capital balance-sheet account cleared by the Paylocity deposit).
+export default function BcReimbursementRedirect() {
+  redirect("/bookkeeper");
 }

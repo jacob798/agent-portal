@@ -134,8 +134,20 @@ order, each mockup → a real route:
 4. **BC reimbursement** (`/bc-reimbursement`) — Paylocity XLSX generator + receipt packager
    (`agent-system/agents/payables/bc/` already scaffolded per CLAUDE.md).
 
-## Open backend threads (unchanged, still blocking real wiring)
-- `agent-system` branch **`portal/operator-bridge`** still not merged (worktree at `/private/tmp/
-  val-phase1` + `agents/valuation/state/repository.py` conflict). Also holds the CLAUDE.md amendment.
+## Open backend threads
+- ✅ **MERGED 2026-06-10 PM:** `portal/operator-bridge` → **`valuation/phase-1`** (merge `622cf7a`,
+  pushed). The repository.py conflict was gone (branches advanced) — clean merge; verified
+  `agents.valuation.state.repository`, `shared.operator.*`, and `agents.valuation.web.app` all import
+  and the FastAPI app boots. The push triggers the Azure valuation deploy (CI is image-only, env
+  preserved). NB: merging the *code* is necessary but not sufficient for operator-action data to
+  flow into the Inbox — the bridge loop `python -m shared.operator --loop` must be *running* on the
+  backend with `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
 - `agents/bookkeeper/core/qbo_zapier.py` needs repointing to the QBO OAuth API client.
 - Azure prod: set `ALLOW_FULL_PARSER_MULTIMODAL_FALLBACK=true` for PDF vision.
+
+## Live portal data (2026-06-10 PM)
+The four agent modules now read **live Supabase**: migration `agent-portal/supabase/migrations/
+0006_agent_modules.sql` created + seeded `payables_queue`, `trips`, `travel_queue`,
+`bookkeeper_ledger`, `bc_reimbursement` (applied via `SUPABASE_DB_URL`); data layers map
+snake_case→camelCase with mock fallback. Authenticated users see real rows (the seed). The
+agent-system backend can upsert over the seed by id.

@@ -222,24 +222,29 @@ function entityCell(it){
   if(it.entity) return `<span class="badge b-ok">${it.entity}</span>`;
   return `<span class="badge b-unk">UNK</span>`;
 }
+const OPEN_TRIPS=["BC Denver","FC Seattle"];
+let travelMode={};
+function travelBtn(it){return `<button class="chip" style="border-color:#cfe3f2;color:var(--blue)" title="Reclassify as a travel expense" onclick="event.stopPropagation();travelMode[${it.id}]=true;render()">🧳 Travel</button>`;}
 function actionCell(it){
-  if(it.resolved) return `<span class="resolved">✓ Coded ${it.resolvedTo||""}</span>`;
+  if(it.resolved) return `<span class="resolved">✓ ${it.resolvedTo||""}</span>`;
   if(it.auto) return `<span class="auto-msg">✓ Auto-coded · ${it.gl}</span>`;
+  if(travelMode[it.id]){
+    const tchips=OPEN_TRIPS.map(t=>`<button class="chip" onclick="resolveInline(event,${it.id},'→ ${t} trip')">${t}</button>`).join("");
+    return `<span style="color:var(--muted);font-size:12px;margin-right:2px">Which trip?</span>${tchips}<button class="chip" onclick="resolveInline(event,${it.id},'→ Travel queue (agent suggests)')">Let Travel suggest</button><a class="src" onclick="event.stopPropagation();travelMode[${it.id}]=false;render()">cancel</a>`;
+  }
   if(it.ex==="entity"){
     const chips = ENTITIES.map(e=>`<button class="chip ${e===it.rec?'rec':''}" onclick="resolveInline(event,${it.id},'${e}')">${e}</button>`).join("");
-    return `${chips}<button class="chip more" onclick="openDrawer(event,${it.id})">more ▾</button>`;
+    return `${chips}<button class="chip more" onclick="openDrawer(event,${it.id})">⋯</button>${travelBtn(it)}`;
   }
   if(it.ex==="vendor"){
-    return `<button class="miniact" onclick="resolveInline(event,${it.id},'learn')">Learn vendor</button>
-            <a class="src" onclick="openDrawer(event,${it.id})">details</a>`;
+    return `<button class="miniact" onclick="resolveInline(event,${it.id},'learn')">Learn vendor</button>${travelBtn(it)}`;
   }
   if(it.ex==="split"){
-    return `<button class="miniact" onclick="resolveInline(event,${it.id},'accept')">Accept split</button>
-            <a class="src" onclick="openDrawer(event,${it.id})">edit</a>`;
+    return `<button class="miniact" onclick="resolveInline(event,${it.id},'accept')">Accept split</button>${travelBtn(it)}`;
   }
   if(it.ex==="dup"){
     return `<button class="miniact ghost" onclick="resolveInline(event,${it.id},'discard')">Discard</button>
-            <button class="miniact" onclick="resolveInline(event,${it.id},'keep')">Keep both</button>`;
+            <button class="miniact" onclick="resolveInline(event,${it.id},'keep')">Keep both</button>${travelBtn(it)}`;
   }
 }
 function render(){
@@ -266,7 +271,7 @@ function resolveInline(e,id,choice){
   e.stopPropagation();
   const it=data.find(x=>x.id===id);
   it.resolved=true; it.auto=true;
-  it.resolvedTo = choice==='learn'?'(vendor learned)':choice==='accept'?'(split accepted)':choice==='keep'?'(kept)':choice==='discard'?'(discarded)':"→ "+choice;
+  it.resolvedTo = choice==='learn'?'(vendor learned)':choice==='accept'?'(split accepted)':choice==='keep'?'(kept)':choice==='discard'?'(discarded)':choice.startsWith('→')?choice:"→ "+choice;
   it.entity = ENTITIES.includes(choice)?choice:it.entity;
   render();
 }

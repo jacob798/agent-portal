@@ -172,6 +172,7 @@ export default function Payables({
   type DrawerLine = { desc: string; amount: number; gl: string; entity: string; bcCategory?: string };
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [alwaysCode, setAlwaysCode] = useState(false);
+  const [autoApprove, setAutoApprove] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
   const [postType, setPostType] = useState<"charge" | "bill">("charge");
   const [posting, setPosting] = useState(false);
@@ -228,6 +229,7 @@ export default function Payables({
         : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
     setAlwaysCode(false);
+    setAutoApprove(false);
     setPostType(r.posting === "bill" ? "bill" : "charge");
     setPayFrom(payDefault(r));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,23 +516,30 @@ export default function Payables({
     const gl = lines[0]?.gl ?? r.gl ?? "";
     const bcCat = lines.find((l) => l.entity === "BC")?.bcCategory ?? null;
     const snapshot = new Map(rows.filter((x) => x.vendor === r.vendor && !x.resolved).map((x) => [x.id, x]));
+    const approveAll = autoApprove;
     setRows((rs) =>
-      rs.map((x) =>
-        x.vendor === r.vendor && !x.resolved
-          ? { ...x, entity, gl, auto: false, exception: undefined, reason: "Coded from vendor rule — review & post" }
-          : x,
-      ),
+      approveAll
+        ? rs.filter((x) => !(x.vendor === r.vendor && !x.resolved)) // auto-approved → leave the queue
+        : rs.map((x) =>
+            x.vendor === r.vendor && !x.resolved
+              ? { ...x, entity, gl, auto: false, exception: undefined, reason: "Coded from vendor rule — review & post" }
+              : x,
+          ),
     );
     setDrawerId(null);
     try {
       const res = await fetch("/api/payables/code-vendor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vendor: r.vendor, entity, gl, bcCategory: bcCat }),
+        body: JSON.stringify({ vendor: r.vendor, entity, gl, bcCategory: bcCat, autoApprove: approveAll }),
       });
       if (!res.ok) throw new Error();
       const { count } = (await res.json()) as { count: number };
-      toast(`✓ ${r.vendor} remembered · ${count} invoice${count === 1 ? "" : "s"} coded — review & post when ready`);
+      toast(
+        approveAll
+          ? `✓ ${r.vendor} auto-approved going forward · ${count} invoice${count === 1 ? "" : "s"} posted`
+          : `✓ ${r.vendor} remembered · ${count} invoice${count === 1 ? "" : "s"} coded — review & post when ready`,
+      );
     } catch {
       setRows((rs) => rs.map((x) => snapshot.get(x.id) ?? x));
       toast(`Couldn't save ${r.vendor} — try again`);
@@ -1284,6 +1293,25 @@ export default function Payables({
               leg per entity (intercompany where needed).
             </p>
           )}
+        </Section>
+
+        <Section title="Trust this vendor?">
+          <label className="flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/[0.04] px-3.5 py-2.5 text-[13px] text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-brand"
+              checked={autoApprove}
+              onChange={(e) => setAutoApprove(e.target.checked)}
+            />
+            <span>
+              <b>Auto-approve future {r.vendor} invoices</b> — code <i>and</i> post them
+              automatically, no review.
+              <span className="mt-0.5 block text-[11.5px] text-slate-500">
+                Leave unchecked to keep auto-coding but review each charge before it posts.
+                {autoApprove && " Saving now also approves the queued invoices."}
+              </span>
+            </span>
+          </label>
         </Section>
 
         {!r.auto && r.exception === "entity" && (

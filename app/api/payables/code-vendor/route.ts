@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { vendor?: string; entity?: string; gl?: string; bcCategory?: string | null };
+  let body: { vendor?: string; entity?: string; gl?: string; bcCategory?: string | null; autoApprove?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -29,17 +29,18 @@ export async function POST(req: NextRequest) {
   const vendor = (body.vendor ?? "").trim();
   const entity = body.entity ?? null;
   const gl = body.gl ?? null;
+  const autoApprove = body.autoApprove === true;
   if (!vendor) return NextResponse.json({ error: "vendor required" }, { status: 400 });
 
   const admin = createAdminClient();
 
-  // 1) Code every still-open row for this vendor (case-insensitive). NOT auto:
-  // the coding is pre-filled but the operator still reviews + posts each charge.
-  const rowUpdate: Record<string, unknown> = {
-    auto: false,
-    exception: null,
-    reason: "Coded from vendor rule — review & post",
-  };
+  // 1) Apply the coding to every still-open row for this vendor. When the
+  // operator chose "approve all going forward", also approve (stage) them now;
+  // otherwise they stay in the queue for per-charge review + post.
+  const now = new Date().toISOString();
+  const rowUpdate: Record<string, unknown> = autoApprove
+    ? { auto: true, exception: null, reason: null, status: "approved", approved_at: now }
+    : { auto: false, exception: null, reason: "Coded from vendor rule — review & post" };
   if (entity) rowUpdate.entity = entity;
   if (gl) rowUpdate.gl = gl;
   if (body.bcCategory !== undefined) rowUpdate.bc_category = body.bcCategory;
@@ -52,12 +53,13 @@ export async function POST(req: NextRequest) {
     .select("id");
   if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
 
-  // 2) Remember it: standing vendor rule (override layer the processor reads).
+  // 2) Remember it: standing vendor rule. auto_approve=true makes FUTURE invoices
+  // auto-approve (skip review); otherwise they auto-code but await review.
   const { error: e2 } = await admin.from("vendor_rules").upsert(
-    { vendor, entity_code: entity, gl_full_name: gl, source: "portal", updated_at: new Date().toISOString() },
+    { vendor, entity_code: entity, gl_full_name: gl, auto_approve: autoApprove, source: "portal", updated_at: now },
     { onConflict: "vendor" },
   );
   if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, count: coded?.length ?? 0 });
+  return NextResponse.json({ ok: true, count: coded?.length ?? 0, autoApprove });
 }

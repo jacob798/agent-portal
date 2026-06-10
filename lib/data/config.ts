@@ -99,18 +99,44 @@ export async function getGlAccounts(): Promise<GlAccount[]> {
   }
 }
 
+const FALLBACK_BC_CATS = [
+  "Meals - General",
+  "Travel : General",
+  "Software subscriptions expense",
+  "Office Supplies",
+  "Misc / Other",
+];
+
+/** BC (Builders Capital) Paylocity expense categories — captured per BC expense. */
+export async function getBcCategories(): Promise<string[]> {
+  if (!isSupabaseConfigured()) return FALLBACK_BC_CATS;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("bc_categories").select("name").order("ord");
+    if (error || !data || data.length === 0) return FALLBACK_BC_CATS;
+    return data.map((r) => r.name as string);
+  } catch {
+    return FALLBACK_BC_CATS;
+  }
+}
+
 /** Everything the coding drawers need, fetched once on the server. */
 export interface CodingConfig {
   accounts: PaymentMethod[]; // active pay-from accounts only
   gls: GlAccount[]; // all active GL accounts, callers filter by entity
+  bcCategories: string[]; // BC Paylocity expense categories
 }
 
 export async function getCodingConfig(): Promise<CodingConfig> {
-  const [methods, gls] = await Promise.all([getPaymentMethods(), getGlAccounts()]);
+  const [methods, gls, bcCategories] = await Promise.all([
+    getPaymentMethods(),
+    getGlAccounts(),
+    getBcCategories(),
+  ]);
   // Pay-from list excludes closed/archived accounts (e.g. Wells Fargo) and
   // the non-spending account types (investment/retirement/cash placeholders).
   const accounts = methods.filter(
     (m) => m.status === "active" && m.type !== "investment_account" && m.type !== "retirement_account",
   );
-  return { accounts, gls };
+  return { accounts, gls, bcCategories };
 }

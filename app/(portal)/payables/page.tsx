@@ -4,5 +4,12 @@ import Payables from "@/components/payables/Payables";
 
 export default async function PayablesPage() {
   const [rows, config] = await Promise.all([getPayablesQueue(), getCodingConfig()]);
-  return <Payables initial={rows} accounts={config.accounts} gls={config.gls} />;
+  return (
+    <Payables
+      initial={rows}
+      accounts={config.accounts}
+      gls={config.gls}
+      bcCategories={config.bcCategories}
+    />
+  );
 }

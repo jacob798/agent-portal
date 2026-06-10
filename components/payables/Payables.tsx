@@ -34,10 +34,12 @@ export default function Payables({
   initial,
   accounts,
   gls,
+  bcCategories,
 }: {
   initial: PayableRow[];
   accounts: PayAccount[];
   gls: GlOption[];
+  bcCategories: string[];
 }) {
   const [rows, setRows] = useState<Row[]>(initial);
   // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
@@ -60,22 +62,24 @@ export default function Payables({
   // Editable coding lines for the open drawer. Each line carries its own entity
   // so one invoice can split across entities (QB invoices). Initialized when the
   // drawer opens; "combine" collapses, the +/× controls split.
-  type DrawerLine = { desc: string; amount: number; gl: string; entity: string };
+  type DrawerLine = { desc: string; amount: number; gl: string; entity: string; bcCategory?: string };
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [alwaysCode, setAlwaysCode] = useState(false);
   useEffect(() => {
     const r = rows.find((x) => x.id === drawerId);
     if (!r) return;
     const ent = r.entity ?? r.recommended ?? "PER";
+    const bc = ent === "BC" ? bcCategories[0] : undefined;
     const base =
       r.lines && r.lines.length
         ? r.lines.map((l) => ({
             desc: l.desc,
             amount: l.amount,
-            gl: l.gl ?? firstGl(ent),
+            gl: ent === "BC" ? BC_ROUTE.gl : l.gl ?? firstGl(ent),
             entity: ent,
+            bcCategory: bc,
           }))
-        : [{ desc: r.sub || r.vendor, amount: r.amount, gl: r.gl ?? firstGl(ent), entity: ent }];
+        : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
     setAlwaysCode(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,12 +89,19 @@ export default function Payables({
     setLines((ls) =>
       ls.map((l, j) =>
         j === i
-          ? { ...l, entity, gl: entity === "BC" ? BC_ROUTE.gl : firstGl(entity) }
+          ? {
+              ...l,
+              entity,
+              gl: entity === "BC" ? BC_ROUTE.gl : firstGl(entity),
+              bcCategory: entity === "BC" ? l.bcCategory ?? bcCategories[0] : undefined,
+            }
           : l,
       ),
     );
   const setLineGl = (i: number, gl: string) =>
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, gl } : l)));
+  const setLineBcCategory = (i: number, bcCategory: string) =>
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, bcCategory } : l)));
   const combineLines = () =>
     setLines((ls) => {
       if (ls.length < 2) return ls;
@@ -659,9 +670,23 @@ export default function Payables({
                     ))}
                   </select>
                   {l.entity === "BC" ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-semibold text-amber-700">
-                      → PER QB · {BC_ROUTE.gl}
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-semibold text-amber-700">
+                        → PER QB · {BC_ROUTE.gl}
+                      </span>
+                      <select
+                        value={l.bcCategory ?? bcCategories[0] ?? ""}
+                        onChange={(e) => setLineBcCategory(i, e.target.value)}
+                        title="Paylocity expense category (for the BC reimbursement report)"
+                        className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-amber-800"
+                      >
+                        {bcCategories.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </>
                   ) : (
                     <select
                       value={glLabels(l.entity).includes(l.gl) ? l.gl : ""}
@@ -684,7 +709,8 @@ export default function Payables({
           </div>
           {lines.some((l) => l.entity === "BC") && (
             <p className="mt-2 text-[11.5px] leading-relaxed text-amber-700">
-              ⓘ {BC_ROUTE.note}
+              ⓘ {BC_ROUTE.note} The <b>Paylocity category</b> you pick is captured for
+              the BC expense report.
             </p>
           )}
           {multiEntity && (

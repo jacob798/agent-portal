@@ -65,6 +65,13 @@ export default function Payables({
   // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
   // upstream in getCodingConfig). GL options are filtered per line by entity.
   const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
+  // Default Pay-from for a row: the account resolved from the invoice card
+  // (paymentMethodId) wins; else a label match; else the first account.
+  const payDefault = (r: Row) => {
+    const byId = accounts.find((a) => a.id === r.paymentMethodId);
+    if (byId) return byId.label;
+    return acctLabels.includes(r.account) ? r.account : acctLabels[0];
+  };
   const glLabels = (entity?: string | null) =>
     glsForEntity(gls, entity).map((g) => g.fullName);
   const firstGl = (entity?: string | null) => glLabels(entity)[0] ?? "";
@@ -244,6 +251,28 @@ export default function Payables({
     setDrawerId(null);
   }
 
+  // Bulk: send auto-coded rows back to review when they share a systemic issue
+  // (e.g. the same wrong card/entity on every one).
+  function moveAllToReview() {
+    const n = rows.filter((r) => r.auto && !r.resolved).length;
+    if (!n) return;
+    setRows((rs) =>
+      rs.map((r) =>
+        r.auto && !r.resolved
+          ? {
+              ...r,
+              auto: false,
+              exception: r.exception ?? "entity",
+              reason: r.reason ?? "Returned to review (bulk)",
+              recommended: r.recommended ?? r.entity,
+            }
+          : r,
+      ),
+    );
+    setFilter("need");
+    toast(`↩ Moved ${n} auto-coded item${n > 1 ? "s" : ""} back to review`);
+  }
+
   function resolveDoc(id: string, how: "attach" | "waive") {
     const r = rows.find((x) => x.id === id);
     if (!r) return;
@@ -357,6 +386,16 @@ export default function Payables({
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Bulk action — when the auto-coded batch shares a systemic issue. */}
+      {filter === "auto" && counts.auto > 0 && (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-[13px] text-amber-800">
+          <span>Spot a systemic problem across these? Send the whole batch back to review.</span>
+          <Button size="sm" variant="secondary" onClick={moveAllToReview}>
+            ↩ Move all to review
+          </Button>
         </div>
       )}
 
@@ -680,18 +719,35 @@ export default function Payables({
     return (
       <div className="space-y-5">
         <Section title="Source document">
-          <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
-            {r.docUrl ? "📄 Filed to Dropbox" : "📄 No document attached"}
-          </div>
-          {r.docUrl && (
+          {r.docUrl ? (
             <a
               href={r.docUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-brand hover:bg-brand/[0.03]"
             >
-              Open document in Dropbox ↗
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-lg">
+                📄
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-slate-900">
+                  {r.vendor} — invoice
+                </span>
+                <span className="block truncate text-[12px] text-slate-500">
+                  Filed to Dropbox · {r.sub}
+                </span>
+              </span>
+              <span className="shrink-0 text-[12.5px] font-semibold text-brand group-hover:underline">
+                Open ↗
+              </span>
             </a>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px] text-slate-500">
+              <span>📎 No document attached yet</span>
+              <Button size="sm" variant="ghost" onClick={() => resolveDoc(r.id, "attach")}>
+                Attach receipt
+              </Button>
+            </div>
           )}
         </Section>
 
@@ -706,7 +762,7 @@ export default function Payables({
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-500">Pay from</span>
-            <select defaultValue={acctLabels.includes(r.account) ? r.account : acctLabels[0]} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
+            <select defaultValue={payDefault(r)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
               {acctLabels.map((a) => (
                 <option key={a}>{a}</option>
               ))}

@@ -40,6 +40,8 @@ export interface PayableRow {
   nodoc?: boolean;
   /** Link to the filed source document (Dropbox share link). */
   docUrl?: string | null;
+  /** Resolved payment method id (matches a PayAccount.id) — drives Pay-from default. */
+  paymentMethodId?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -157,6 +159,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       auto: r.auto ?? false,
       nodoc: r.nodoc ?? false,
       docUrl: r.doc_url ?? null,
+      paymentMethodId: r.payment_method_id ?? null,
     }));
   } catch {
     return MOCK;

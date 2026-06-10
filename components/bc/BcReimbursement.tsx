@@ -6,6 +6,7 @@ import type { BcExpense, BcHistory } from "@/lib/data/bc";
 import { money } from "@/lib/data/entities";
 import PageHeader from "@/components/ui/PageHeader";
 import Stat from "@/components/ui/Stat";
+import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
 const BCX = { navy: "#10102e", green: "#177245" };
@@ -50,13 +51,9 @@ export default function BcReimbursement({
         title="BC Reimbursement — June 2026"
         subtitle="Builders Capital · employer reimbursement (Paylocity)."
         action={
-          <button
-            onClick={generate}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            style={{ background: BCX.green }}
-          >
+          <Button variant="primary" style={{ background: BCX.green }} onClick={generate}>
             <Package className="h-4 w-4" /> Generate Paylocity package
-          </button>
+          </Button>
         }
       />
 

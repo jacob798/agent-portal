@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
 import FilterTabs from "@/components/ui/FilterTabs";
 import Modal from "@/components/ui/Modal";
+import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
 const BRANDS = {
@@ -94,20 +95,17 @@ export default function Travel({ trips, queue }: { trips: Trip[]; queue: QueueEx
         width="max-w-3xl"
         footer={
           <>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            >
+            <Button onClick={() => window.print()}>
               <Printer className="h-4 w-4" /> Print / Save as PDF
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => {
                 if (reportTrip) toast(`Exporting ${reportTrip.dest} as a ${brandFor(reportTrip.ent).mark}-branded .zip`);
               }}
-              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               Download .zip
-            </button>
+            </Button>
           </>
         }
       >
@@ -149,12 +147,7 @@ function ExpenseQueue({
             <h2 className="text-sm font-semibold text-slate-900">Trip expenses to confirm</h2>
             <p className="text-[12.5px] text-slate-500">{pending} suggested · 1 home → Payables</p>
           </div>
-          <button
-            onClick={onConfirmAll}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-          >
-            ✓ Confirm all
-          </button>
+          <Button variant="success" onClick={onConfirmAll}>✓ Confirm all</Button>
         </div>
         {queue.map((q) => {
           if (done[q.id])
@@ -331,12 +324,12 @@ function TripDetail({ trip, onBack, onReport }: { trip: Trip; onBack: () => void
             {trip.status === "open" ? "Open for expenses" : trip.status === "up" ? "Upcoming" : "Closed"}
           </Badge>
           <div className="mt-3 flex justify-end gap-2">
-            <button onClick={onReport} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-semibold text-slate-700 hover:border-brand hover:bg-brand/5">
+            <Button variant="secondary" size="sm" onClick={onReport}>
               <Printer className="h-3.5 w-3.5" /> Print / Save PDF
-            </button>
-            <button onClick={onReport} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12.5px] font-semibold text-slate-700 hover:border-brand hover:bg-brand/5">
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onReport}>
               <Download className="h-3.5 w-3.5" /> Export (.zip)
-            </button>
+            </Button>
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
             Exports as <b className="text-brand-navy">{b.mark}</b> branded report

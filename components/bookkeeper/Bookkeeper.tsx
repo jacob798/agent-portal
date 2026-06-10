@@ -8,6 +8,7 @@ import { Badge, type Tone } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
 import Stat from "@/components/ui/Stat";
 import FilterTabs from "@/components/ui/FilterTabs";
+import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
 const TYPE_TONE: Record<TxnType, Tone> = {
@@ -83,12 +84,9 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> QuickBooks connected
             </span>
-            <button
-              onClick={() => toast("Refreshing posting status from QuickBooks…")}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-navy px-3.5 py-2 text-sm font-semibold text-white hover:opacity-90"
-            >
+            <Button onClick={() => toast("Refreshing posting status from QuickBooks…")}>
               <RefreshCw className="h-4 w-4" /> Refresh
-            </button>
+            </Button>
           </div>
         }
       />
@@ -109,9 +107,7 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
               tab to spot-check first.
             </div>
           </div>
-          <button onClick={postAll} className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90">
-            ✓ Post all to QuickBooks
-          </button>
+          <Button variant="success" onClick={postAll}>✓ Post all to QuickBooks</Button>
         </div>
       )}
 
@@ -121,9 +117,7 @@ export default function Bookkeeper({ initial }: { initial: LedgerRow[] }) {
             <div className="font-semibold text-red-700">⚠️ {counts.err} transaction failed to post to QuickBooks</div>
             <div className="mt-0.5 text-[12.5px] text-red-900/80">{rows.find((r) => r.status === "err")?.err}</div>
           </div>
-          <button onClick={retryAll} className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
-            Retry failed
-          </button>
+          <Button variant="danger" onClick={retryAll}>Retry failed</Button>
         </div>
       )}
 
@@ -248,7 +242,7 @@ function Mini({ children, onClick, tone }: { children: React.ReactNode; onClick:
         ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
         : "border-slate-200 bg-white text-slate-700 hover:border-brand hover:bg-brand/5";
   return (
-    <button onClick={onClick} className={`inline-flex h-7 items-center rounded-lg border px-3 text-[12px] font-semibold ${t}`}>
+    <button onClick={onClick} className={`inline-flex h-8 items-center rounded-lg border px-3 text-[12.5px] font-semibold ${t}`}>
       {children}
     </button>
   );

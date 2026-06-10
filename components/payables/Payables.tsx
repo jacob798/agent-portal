@@ -10,6 +10,7 @@ import Stat from "@/components/ui/Stat";
 import FilterTabs from "@/components/ui/FilterTabs";
 import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
+import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
 type Row = PayableRow & {
@@ -127,24 +128,15 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         subtitle="Exception queue — you only touch what the agent can't resolve confidently."
         action={
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => toast("Plaid: pulling new transactions… +14 new")}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-navy px-3.5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-            >
+            <Button onClick={() => toast("Plaid: pulling new transactions… +14 new")}>
               <Zap className="h-4 w-4" /> Get from Plaid
-            </button>
-            <button
-              onClick={() => setShowUpload(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-navy transition hover:border-brand hover:bg-brand/5"
-            >
+            </Button>
+            <Button variant="secondary" onClick={() => setShowUpload(true)}>
               <Upload className="h-4 w-4" /> Upload CSV / QBO
-            </button>
-            <button
-              onClick={() => setShowInvoices(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-navy transition hover:border-brand hover:bg-brand/5"
-            >
+            </Button>
+            <Button variant="secondary" onClick={() => setShowInvoices(true)}>
               <FileText className="h-4 w-4" /> Upload invoices
-            </button>
+            </Button>
           </div>
         }
       />
@@ -268,18 +260,8 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         width="max-w-xl"
         footer={
           <>
-            <button
-              onClick={confirmLearn}
-              className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              Confirm &amp; save
-            </button>
-            <button
-              onClick={() => setLearnId(null)}
-              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            <Button onClick={confirmLearn}>Confirm &amp; save</Button>
+            <Button variant="ghost" onClick={() => setLearnId(null)}>Cancel</Button>
           </>
         }
       >
@@ -293,22 +275,16 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         title="Upload transactions"
         footer={
           <>
-            <button
+            <Button
               onClick={() => {
                 setShowUpload(false);
                 setFilter("docs");
                 toast("✓ Imported 18 transactions · 14 auto-coded · 3 missing a receipt");
               }}
-              className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
             >
               Import &amp; parse
-            </button>
-            <button
-              onClick={() => setShowUpload(false)}
-              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            </Button>
+            <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
           </>
         }
       >
@@ -346,22 +322,18 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         title="Upload invoices (batch)"
         footer={
           <>
-            <button
-              onClick={uploadInvoices}
-              disabled={uploading}
-              className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-            >
+            <Button onClick={uploadInvoices} disabled={uploading}>
               {uploading ? "Uploading…" : invFiles.length ? `Upload ${invFiles.length} file${invFiles.length > 1 ? "s" : ""}` : "Upload & process"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => {
                 setShowInvoices(false);
                 setInvFiles([]);
               }}
-              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
-            </button>
+            </Button>
           </>
         }
       >
@@ -572,43 +544,32 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
     if (r.auto)
       return (
         <>
-          <button className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90">
-            Approve &amp; post to QuickBooks
-          </button>
-          <button onClick={() => setDrawerId(null)} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Close
-          </button>
+          <Button>Approve &amp; post to QuickBooks</Button>
+          <Button variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
         </>
       );
     if (r.exception === "dup")
       return (
         <>
-          <button onClick={() => { resolveSimple(r.id, "(discarded)"); setDrawerId(null); }} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Discard
-          </button>
-          <button onClick={() => { resolveSimple(r.id, "(kept)"); setDrawerId(null); }} className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">
-            Keep both
-          </button>
+          <Button variant="ghost" onClick={() => { resolveSimple(r.id, "(discarded)"); setDrawerId(null); }}>Discard</Button>
+          <Button onClick={() => { resolveSimple(r.id, "(kept)"); setDrawerId(null); }}>Keep both</Button>
         </>
       );
     return (
       <>
-        <button
+        <Button
           onClick={() => {
             if (r.exception === "vendor") setLearnId(r.id);
             else if (r.recommended) resolveEntity(r.id, r.recommended);
             else resolveSimple(r.id, "(accepted)");
             setDrawerId(null);
           }}
-          className="rounded-lg bg-brand-navy px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
         >
           {r.exception === "vendor"
             ? "Learn vendor"
             : `Confirm${r.recommended ? " " + entName(r.recommended) : ""} & post`}
-        </button>
-        <button onClick={() => setDrawerId(null)} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-          Skip
-        </button>
+        </Button>
+        <Button variant="ghost" onClick={() => setDrawerId(null)}>Skip</Button>
       </>
     );
   }

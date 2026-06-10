@@ -142,10 +142,13 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
+    // Payables is the coding queue: only rows still being coded (status open or
+    // null). Once approved/posted they hand off to the Bookkeeper; discarded are
+    // gone. So the queue shows only un-posted work.
     const { data, error } = await supabase
       .from("payables_queue")
       .select("*")
-      .neq("status", "discarded")
+      .or("status.is.null,status.eq.open")
       .order("ord");
     if (error || !data) return MOCK;
     return data.map((r): PayableRow => ({

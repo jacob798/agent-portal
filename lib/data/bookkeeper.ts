@@ -58,10 +58,48 @@ const MOCK: LedgerRow[] = [
   { id: "7", status: "err", vendor: "The Clean-Up Crew", memo: "Cleaning services · invoice 690", type: "Bill", file: "Builders Capital", sub: "vendor not found in QB file", amount: 540.0, ref: "not posted", gap: true, err: "Vendor “The Clean-Up Crew” does not exist in the Builders Capital QuickBooks file. Create the vendor or remap, then retry." },
 ];
 
+/** Which QuickBooks company file a payables row posts to (BC routes to PER). */
+function qbFileFor(entity?: string | null): string {
+  if (!entity || entity === "PER" || entity === "BC") return "Jacob Wolbach (PER)";
+  const names: Record<string, string> = {
+    FC: "Foundry Capital LLC",
+    WJW: "WJW Investments Idaho",
+    IOTA: "Iota Street Garden City",
+    PC: "Prestwick Capital LLC",
+    SEL: "Selkirk Management LLC",
+    WB12: "Waterbrook 1 and 12",
+  };
+  return names[entity] ?? entity;
+}
+
 export async function getLedger(): Promise<LedgerRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
+    // The real ledger = payables the operator sent here to post (approved =
+    // staged this cycle, posted = written to QuickBooks).
+    const { data: pay } = await supabase
+      .from("payables_queue")
+      .select("*")
+      .in("status", ["approved", "posted"])
+      .order("approved_at", { ascending: false });
+    if (pay && pay.length) {
+      return pay.map((r): LedgerRow => ({
+        id: r.id,
+        status: r.status === "posted" ? "posted" : "ready",
+        vendor: r.vendor,
+        memo: r.category ?? "",
+        type: r.posting === "bill" ? "Bill" : "Purchase",
+        file: qbFileFor(r.entity),
+        sub:
+          r.entity === "BC"
+            ? "BC — balance sheet (Loan - Builders Capital)"
+            : r.account ?? "",
+        amount: Number(r.amount),
+        ref: r.status === "posted" ? (r.posted_at ? "posted" : "posted") : "staged · ready to post",
+        gap: !r.doc_url,
+      }));
+    }
     const { data, error } = await supabase.from("bookkeeper_ledger").select("*").order("ord");
     if (error || !data) return MOCK;
     return data.map((r): LedgerRow => ({

@@ -104,13 +104,10 @@ export default function Payables({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
       const set = new Set(ids);
-      setRows((rs) =>
-        rs.map((r) =>
-          set.has(r.id) ? { ...r, resolved: true, auto: true, resolvedTo: "→ posted to QuickBooks" } : r,
-        ),
-      );
+      setRows((rs) => rs.filter((r) => !set.has(r.id))); // handed off to Bookkeeper
       clearSel();
-      toast(`✓ Staged ${json.staged ?? ids.length} invoice${(json.staged ?? ids.length) === 1 ? "" : "s"} for QuickBooks`);
+      const n = json.staged ?? ids.length;
+      toast(`✓ Sent ${n} invoice${n === 1 ? "" : "s"} to Bookkeeper to post`);
     } catch (e) {
       toast(`Batch post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -340,7 +337,7 @@ export default function Payables({
     [rows],
   );
   const displayReason = (r: Row): string | undefined => {
-    if (!r.reason) return undefined;
+    if (r.auto || r.resolved || !r.reason) return undefined; // coded → no review note
     if (/first invoice/i.test(r.reason) && knownVendors.has(r.vendor.toLowerCase()))
       return "Confirm coding";
     return r.reason;
@@ -499,9 +496,9 @@ export default function Payables({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
       if (alwaysCode && lines[0]?.entity) await saveVendorRule(r.vendor, lines[0].entity, lines[0].gl);
-      patch(r.id, { resolved: true, auto: true, resolvedTo: "→ posted to QuickBooks" });
+      setRows((rs) => rs.filter((x) => x.id !== r.id)); // handed off to Bookkeeper
       setDrawerId(null);
-      toast(`✓ ${r.vendor} approved & staged for QuickBooks`);
+      toast(`✓ ${r.vendor} sent to Bookkeeper to post`);
     } catch (e) {
       toast(`Post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -733,7 +730,7 @@ export default function Payables({
               onClick={() => postBatch([...selected])}
               disabled={posting || selected.size === 0}
             >
-              {posting ? "Posting…" : `Post ${selected.size || ""} to QuickBooks`}
+              {posting ? "Sending…" : `Send ${selected.size || ""} to Bookkeeper`}
             </Button>
           </div>
         </div>
@@ -1331,7 +1328,7 @@ export default function Payables({
       return (
         <>
           <Button onClick={() => approveAndPost(r)} disabled={posting}>
-            {posting ? "Posting…" : "Approve & post to QuickBooks"}
+            {posting ? "Sending…" : "Approve → send to Bookkeeper"}
           </Button>
           <Button variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
         </>

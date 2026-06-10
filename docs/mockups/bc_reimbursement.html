@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Builders Capital — Employer Reimbursement (Mockup)</title>
+<style>
+  /* BCX brand: Roboto, navy #10102e, greens #177245 / #7bbf43 (BCX styleguide) */
+  :root{--navy:#10102e;--green:#177245;--lime:#7bbf43;--ink:#13131f;--muted:#6b7280;--line:#e6e7ec;--bg:#f3f4f7;--card:#fff;
+    --amber:#b7791f;--amber-bg:#fdf3e3;--red:#c0392b;--red-bg:#fdecea;--green-bg:#e9f4ee;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Roboto',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;display:flex;min-height:100vh}
+  a{cursor:pointer}
+  /* sidebar */
+  .side{width:232px;flex:0 0 232px;background:var(--navy);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:11px;padding:20px 18px 14px}
+  .brand .mark{font-weight:800;font-size:22px;letter-spacing:1px}.brand .mark .b{color:var(--lime)}
+  .brand .s{font-size:11px;color:#9a9ab5;margin-top:1px}
+  .nav{padding:8px 12px;flex:1}
+  .nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;color:#c3c3d6;font-size:13.5px;font-weight:500;text-decoration:none;margin-bottom:2px}
+  .nav a:hover{background:rgba(255,255,255,.07);color:#fff}
+  .nav a.on{background:var(--green);color:#fff}
+  .nav a .b{margin-left:auto;border-radius:999px;font-size:11px;padding:1px 8px;font-weight:600;background:rgba(255,255,255,.16)}
+  .nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:#6c6c8a;padding:14px 12px 6px;font-weight:600}
+  /* main */
+  .main{flex:1;min-width:0;overflow:auto}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:18px 26px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .bar h1{font-size:18px;margin:0;font-weight:700}.bar .crumb{font-size:12.5px;color:var(--muted);margin-bottom:3px}
+  .cta{background:var(--green);color:#fff;border:0;border-radius:9px;height:40px;padding:0 18px;display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}.cta:hover{opacity:.93}
+  .pad{padding:24px 26px;max-width:1000px}
+  .explain{background:var(--green-bg);border:1px solid #c4e3d1;border-left:4px solid var(--green);border-radius:12px;padding:13px 16px;font-size:13px;color:#16432c;line-height:1.55;margin-bottom:16px}
+  /* summary */
+  .summary{display:flex;gap:14px;margin-bottom:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1}
+  .stat .n{font-size:23px;font-weight:700}.stat .l{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+  .stat.tot .n{color:var(--navy)}.stat.gap .n{color:var(--amber)}
+  /* period card */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:18px}
+  .chead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);background:#faf7f1}
+  .chead h2{margin:0;font-size:15px;font-weight:700}.chead .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .grouplbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9a9ab5;font-weight:700;padding:11px 18px 5px;background:#fcfbf9}
+  .erow{display:grid;grid-template-columns:30px 26px 2.3fr 1.4fr 1fr 1.1fr;gap:12px;padding:12px 18px;border-bottom:1px solid #f3f1ee;align-items:center}
+  .erow:hover{background:#fbfaf8}
+  .cbx{width:21px;height:21px;border-radius:6px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;color:#fff;font-weight:800;font-size:12px}
+  .cbx.on{background:var(--green);border-color:var(--green)}
+  .ic{font-size:17px;text-align:center}
+  .v{font-weight:600}.vs{color:var(--muted);font-size:12.5px;margin-top:1px}
+  .gl{font-size:12.5px;color:var(--navy);font-weight:600}.glsub{color:var(--muted);font-size:11.5px}
+  .rcpt{font-size:12px;font-weight:600}.rcpt.ok{color:var(--green)}.rcpt.no{color:var(--amber)}
+  .viewdoc{color:var(--green);font-size:12px;text-decoration:none}.viewdoc:hover{text-decoration:underline}
+  .amt{font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:8px;height:30px;padding:0 11px;display:inline-flex;align-items:center;font:inherit;font-size:12px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap}
+  .mini:hover{border-color:var(--green);background:var(--green-bg)}
+  .mini.gap{border-color:#f3dcae;color:var(--amber);background:var(--amber-bg)}
+  .cfoot{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;background:#faf7f1;border-top:1px solid var(--line)}
+  .cfoot .tt{font-size:12.5px;color:var(--muted)}.cfoot .tn{font-size:20px;font-weight:700;color:var(--navy)}
+  /* history */
+  .hrow{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f3f1ee}
+  .hrow:last-child{border-bottom:0}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+  .pill.done{background:var(--green-bg);color:var(--green)}.pill.sub{background:#eef2f7;color:#64748b}
+  .hsub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(16,16,46,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<!-- Sidebar (BCX) -->
+<div class="side">
+  <div class="brand"><div><div class="mark"><span class="b">B</span>CX</div><div class="s">Employer reimbursement</div></div></div>
+  <div class="nav">
+    <a href="travel_exceptions.html">📊 Dashboard</a>
+    <a class="on">💵 Reimbursement <span class="b" id="nav-n">4</span></a>
+    <div class="grp">Other agents</div>
+    <a href="travel_exceptions.html">🧳 Travel</a>
+    <a href="payables_exceptions.html">💳 Payables</a>
+    <a href="bookkeeper_status.html">📒 Bookkeeper</a>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="bar">
+    <div><div class="crumb">Builders Capital · employer reimbursement</div><h1>Reimbursement — June 2026</h1></div>
+    <button class="cta" onclick="generate()">📦 Generate Paylocity package</button>
+  </div>
+  <div class="pad">
+    <div class="explain">✓ <b>Builders Capital expenses never hit P&amp;L.</b> They post to your <b>Personal</b> QuickBooks as <b>Loan – Builders Capital</b> (balance sheet) and clear when Paylocity reimburses you. This workspace bundles <b>both travel and non-travel</b> BC expenses into one Paylocity package — a <b>BCX-branded XLSX + the receipt PDFs</b>.</div>
+
+    <div class="summary">
+      <div class="stat tot"><div class="n" id="s-tot">$2,646.39</div><div class="l">This period</div></div>
+      <div class="stat"><div class="n" id="s-trav">$1,403.02</div><div class="l">Travel</div></div>
+      <div class="stat"><div class="n" id="s-non">$1,243.37</div><div class="l">Non-travel</div></div>
+      <div class="stat gap"><div class="n" id="s-gap">1</div><div class="l">Missing receipt</div></div>
+    </div>
+
+    <div class="card">
+      <div class="chead"><div><h2>Current period — June 2026</h2><div class="sub">Select what to include, then generate the package. Open until submitted.</div></div></div>
+      <div class="grouplbl">🧳 Travel (trip-attributed)</div>
+      <div id="rows-travel"></div>
+      <div class="grouplbl">🧾 Non-travel (payables)</div>
+      <div id="rows-non"></div>
+      <div class="cfoot"><div class="tt">Included in this Paylocity submission</div><div class="tn" id="foot-tot">$2,646.39</div></div>
+    </div>
+
+    <div class="card">
+      <div class="chead"><div><h2>Reimbursement history</h2><div class="sub">Submitted periods and how they cleared the balance sheet.</div></div></div>
+      <div class="hrow">
+        <div><div class="v">May 2026 <span class="pill done">● Reimbursed</span></div><div class="hsub">Submitted May 31 · paid Jun 5 — Deposit cleared <b>Loan – Builders Capital</b> in Personal QB</div></div>
+        <div class="amt">$2,110.40</div>
+      </div>
+      <div class="hrow">
+        <div><div class="v">April 2026 <span class="pill done">● Reimbursed</span></div><div class="hsub">Submitted Apr 30 · paid May 6 — cleared on the balance sheet</div></div>
+        <div class="amt">$1,884.10</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const money=n=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const data=[
+  {id:"den", grp:"travel", ic:"🧳", v:"Denver site visit", vs:"Jun 4–7 · 7 receipts", gl:"Travel (Airfare/Lodging/Meals/Ground)", glsub:"trip rollup", amt:1403.02, rcpt:true, inc:true},
+  {id:"de", grp:"non", ic:"💻", v:"Data Engine, LLC", vs:"RealEstateAPI subscription · Jun 9", gl:"6200 Software", glsub:"AMEX WJW ••1004", amt:616.97, rcpt:true, inc:true},
+  {id:"cc", grp:"non", ic:"🧹", v:"The Clean-Up Crew", vs:"Office cleaning · invoice 690 · Jun 8", gl:"6300 Repairs & Maint", glsub:"Bill", amt:540.00, rcpt:true, inc:true},
+  {id:"st", grp:"non", ic:"🖇️", v:"Staples", vs:"Office supplies · Jun 5 · from CSV", gl:"6900 Office / Admin", glsub:"AMEX WJW ••1004", amt:86.40, rcpt:false, inc:true},
+];
+function receiptCell(it){
+  return it.rcpt
+    ? `<span class="rcpt ok">✓ receipt</span> · <a class="viewdoc" onclick="toast('Receipt preview — ${it.v}')">📄 view</a>`
+    : `<span class="rcpt no">⚠ no receipt</span> <a class="viewdoc" onclick="attach('${it.id}')">attach</a>`;
+}
+function row(it){
+  return `<div class="erow">
+    <div><div class="cbx ${it.inc?'on':''}" onclick="toggle('${it.id}')">${it.inc?'✓':''}</div></div>
+    <div class="ic">${it.ic}</div>
+    <div><div class="v">${it.v}</div><div class="vs">${it.vs}</div></div>
+    <div><div class="gl">${it.gl}</div><div class="glsub">${it.glsub}</div></div>
+    <div>${receiptCell(it)}</div>
+    <div class="amt">${money(it.amt)}</div>
+  </div>`;
+}
+function render(){
+  document.getElementById("rows-travel").innerHTML=data.filter(x=>x.grp==="travel").map(row).join("");
+  document.getElementById("rows-non").innerHTML=data.filter(x=>x.grp==="non").map(row).join("");
+  const inc=data.filter(x=>x.inc);
+  const tot=inc.reduce((s,x)=>s+x.amt,0);
+  const trav=inc.filter(x=>x.grp==="travel").reduce((s,x)=>s+x.amt,0);
+  const non=inc.filter(x=>x.grp==="non").reduce((s,x)=>s+x.amt,0);
+  const gap=inc.filter(x=>!x.rcpt).length;
+  document.getElementById("s-tot").textContent=money(tot);
+  document.getElementById("s-trav").textContent=money(trav);
+  document.getElementById("s-non").textContent=money(non);
+  document.getElementById("s-gap").textContent=gap;
+  document.getElementById("foot-tot").textContent=money(tot);
+  document.getElementById("nav-n").textContent=inc.length;
+}
+function toggle(id){const it=data.find(x=>x.id===id);it.inc=!it.inc;render();}
+function attach(id){const it=data.find(x=>x.id===id);it.rcpt=true;toast(`📎 Receipt attached to ${it.v}`);render();}
+let toastT;
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),3400);}
+function generate(){
+  const inc=data.filter(x=>x.inc);
+  const gap=inc.filter(x=>!x.rcpt).length;
+  if(gap){toast(`⚠ ${gap} included item has no receipt — attach it or uncheck it before generating`);return;}
+  toast(`📦 Generated BCX Paylocity package — XLSX + ${inc.length} receipts (${money(inc.reduce((s,x)=>s+x.amt,0))})`);
+}
+render();
+</script>
+</body>
+</html>

@@ -113,8 +113,12 @@
   .modal .mh .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}.modal .mb{padding:20px 22px}
   .drop{border:2px dashed #cfe3f2;border-radius:12px;padding:26px;text-align:center;color:var(--muted);font-size:13.5px;background:#f8fbff;margin-bottom:16px}.drop b{color:var(--navy)}
   .fld{margin-bottom:15px}.fld label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;margin-bottom:6px}
-  .fld select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;background:#fff}
+  .fld select,.fld input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px;background:#fff}
   .fld .qbnote{font-size:11.5px;color:#94a3b8;margin-top:4px}
+  .two{display:flex;gap:12px}.two .fld{flex:1}
+  .lsec{border:1px solid var(--line);border-radius:11px;padding:13px 14px 4px;margin-bottom:14px}
+  .lsec-h{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:7px}
+  .lsec-h .pin{font-size:10px;font-weight:600;color:var(--blue);background:#eaf1f8;border-radius:5px;padding:1px 7px;text-transform:none;letter-spacing:0}
   /* doc-gap badge */
   .docgap{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:var(--amber-bg);color:var(--amber);border:1px solid #f3dcae;margin-left:6px}
   .docok{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;background:#eef2f7;color:#64748b;border:1px solid #e2e8f0;margin-left:6px}
@@ -178,6 +182,38 @@
       <div class="qbnote" style="font-size:12.5px;color:var(--muted);line-height:1.5">↳ No account/entity needed — the agent OCRs each document, classifies <b>entity · GL · vendor</b>, and queues it. Only the ones it can't resolve land in this exception queue.</div>
     </div>
     <div class="dfoot"><button class="btn primary" onclick="closeInv()">Upload &amp; process</button><button class="btn ghost" onclick="closeInv()">Cancel</button></div>
+  </div>
+</div>
+
+<!-- Learn vendor approval modal -->
+<div class="modal-scrim" id="learnScrim">
+  <div class="modal" style="width:540px">
+    <div class="mh"><h2>Learn vendor — review before saving</h2><button class="x" onclick="closeLearn()">×</button></div>
+    <div class="mb">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.5" id="learn-intro"></div>
+      <div class="lsec">
+        <div class="lsec-h">🧾 QuickBooks vendor <span class="pin">new record</span></div>
+        <div class="fld"><label>Vendor name</label><input id="lv-name"></div>
+        <div class="two">
+          <div class="fld"><label>Default entity (QB file)</label><select id="lv-entity"></select></div>
+          <div class="fld"><label>Default GL account</label><select id="lv-gl"></select></div>
+        </div>
+        <div class="fld"><label>Terms</label><select id="lv-terms"><option>Net 30</option><option>Due on receipt</option><option>Net 15</option><option>Net 60</option></select></div>
+      </div>
+      <div class="lsec">
+        <div class="lsec-h">👤 Contact (Outlook) <span class="pin">added to jacob@foundry-capital.co</span></div>
+        <div class="two">
+          <div class="fld"><label>Display name</label><input id="lc-name"></div>
+          <div class="fld"><label>Company</label><input id="lc-co"></div>
+        </div>
+        <div class="two">
+          <div class="fld"><label>Email</label><input id="lc-email"></div>
+          <div class="fld"><label>Phone</label><input id="lc-phone" placeholder="—"></div>
+        </div>
+        <div class="qbnote">File-as: <b id="lc-fileas"></b> · so Outlook indexes it correctly</div>
+      </div>
+    </div>
+    <div class="dfoot"><button class="btn primary" onclick="confirmLearn()">Confirm &amp; save</button><button class="btn ghost" onclick="closeLearn()">Cancel</button></div>
   </div>
 </div>
 
@@ -275,7 +311,7 @@ function actionCell(it){
     return `${chips}<button class="chip more" onclick="openDrawer(event,${it.id})">⋯</button>${travelBtn(it)}`;
   }
   if(it.ex==="vendor"){
-    return `<button class="miniact" onclick="resolveInline(event,${it.id},'learn')">Learn vendor</button>${travelBtn(it)}`;
+    return `<button class="miniact" onclick="openLearn(event,${it.id})">Learn vendor</button>${travelBtn(it)}`;
   }
   if(it.ex==="split"){
     return `<button class="miniact" onclick="resolveInline(event,${it.id},'accept')">Accept split</button>${travelBtn(it)}`;
@@ -398,6 +434,36 @@ function drawerTravelPick(id){
 function closeDrawer(){document.getElementById("scrim").classList.remove("open");document.getElementById("drawer").classList.remove("open");}
 
 /* ---- Intake: Plaid + Upload ---- */
+/* ---- Learn vendor approval ---- */
+let learnId=null;
+function fillSel(id,opts,cur){document.getElementById(id).innerHTML=opts.map(([v,l])=>`<option value="${v}" ${v===cur?'selected':''}>${l}</option>`).join("");}
+function openLearn(e,id){
+  if(e) e.stopPropagation();
+  const it=data.find(x=>x.id===id); if(!it) return; learnId=id;
+  const email=((it.sub||"").match(/\S+@\S+/)||[""])[0].replace(/[·,].*$/,"").trim();
+  const gl=(it.lines&&it.lines[0]?it.lines[0].gl:it.gl)||GLS[2];
+  const same=data.filter(x=>x.vendor===it.vendor && !x.resolved && !x.auto).length;
+  document.getElementById("learn-intro").innerHTML=`Saving will auto-code <b>${same}</b> queued invoice${same>1?"s":""} from <b>${it.vendor}</b> (and future ones). Review what the agent writes to <b>QuickBooks</b> and your <b>Outlook contacts</b> before it saves.`;
+  document.getElementById("lv-name").value=it.vendor;
+  fillSel("lv-entity",ENTITIES.map(c=>[c,entName(c)]),it.entity||it.rec);
+  fillSel("lv-gl",GLS.map(g=>[g,g]),gl);
+  document.getElementById("lc-name").value=it.vendor;
+  document.getElementById("lc-co").value=it.vendor;
+  document.getElementById("lc-email").value=email;
+  document.getElementById("lc-phone").value="";
+  document.getElementById("lc-fileas").textContent=it.vendor;
+  document.getElementById("learnScrim").classList.add("open");
+}
+function closeLearn(){document.getElementById("learnScrim").classList.remove("open");}
+function confirmLearn(){
+  const it=data.find(x=>x.id===learnId); if(!it){closeLearn();return;}
+  const entity=document.getElementById("lv-entity").value;
+  const same=data.filter(x=>x.vendor===it.vendor && !x.resolved && !x.auto);
+  same.forEach(x=>{x.resolved=true;x.auto=true;x.resolvedTo="(vendor learned)";x.entity=entity;});
+  closeLearn();
+  toast(`✓ Saved ${it.vendor} → ${entName(entity)} · QB vendor created · Outlook contact added · ${same.length} invoice${same.length>1?"s":""} coded`);
+  render();
+}
 function openUpload(){document.getElementById("uploadScrim").classList.add("open");}
 function closeUpload(){document.getElementById("uploadScrim").classList.remove("open");}
 function importCsv(){closeUpload();setFilter('docs');toast("✓ Imported 18 transactions · 14 auto-coded · 3 missing a receipt — shown below");}

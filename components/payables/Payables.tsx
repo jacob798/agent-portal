@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Zap, Upload, FileText, Plane } from "lucide-react";
 import type { PayableRow } from "@/lib/data/payables";
+import type { IngestionJob } from "@/lib/data/ingestion";
 import {
   ENTITIES,
   entName,
@@ -35,13 +36,32 @@ export default function Payables({
   accounts,
   gls,
   bcCategories,
+  ingestion,
 }: {
   initial: PayableRow[];
   accounts: PayAccount[];
   gls: GlOption[];
   bcCategories: string[];
+  ingestion: IngestionJob[];
 }) {
   const [rows, setRows] = useState<Row[]>(initial);
+  const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
+  const ingestErrors = useMemo(() => jobs.filter((j) => j.outcome === "error").length, [jobs]);
+  async function reprocessJob(id: string) {
+    try {
+      const res = await fetch("/api/ingest/reprocess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
+      setJobs((js) => js.map((j) => (j.id === id ? { ...j, outcome: "pending", detail: "queued for retry" } : j)));
+      toast("↻ Re-queued for processing");
+    } catch (e) {
+      toast(`Reprocess failed: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+  }
   // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
   // upstream in getCodingConfig). GL options are filtered per line by entity.
   const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
@@ -277,11 +297,71 @@ export default function Payables({
             { key: "docs", label: "Missing docs", count: counts.docs },
             { key: "all", label: "All", count: rows.length },
             { key: "auto", label: "Auto-coded", count: counts.auto },
+            { key: "log", label: "Ingestion log", count: ingestErrors || jobs.length },
           ]}
         />
       </div>
 
+      {/* Ingestion log — what entered the pipeline and what happened (nothing
+          is silently dropped: errors + skipped duplicates are visible here). */}
+      {filter === "log" && (
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <span>Document · outcome</span>
+            <span>{jobs.length} recent · {ingestErrors} error{ingestErrors === 1 ? "" : "s"}</span>
+          </div>
+          {jobs.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-slate-400">No documents ingested yet.</div>
+          ) : (
+            jobs.map((j) => (
+              <div key={j.id} className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0">
+                <span
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    j.outcome === "error"
+                      ? "bg-red-500"
+                      : j.outcome === "duplicate"
+                        ? "bg-slate-400"
+                        : j.outcome === "filed"
+                          ? "bg-emerald-500"
+                          : "bg-amber-400"
+                  }`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-slate-900">
+                    {j.filename} <span className="text-[11px] font-normal text-slate-400">· {j.source}</span>
+                  </div>
+                  {j.detail && (
+                    <div className={`truncate text-[12px] ${j.outcome === "error" ? "text-red-600" : "text-slate-500"}`}>
+                      {j.detail}
+                    </div>
+                  )}
+                </div>
+                <Badge
+                  tone={
+                    j.outcome === "error"
+                      ? "red"
+                      : j.outcome === "duplicate"
+                        ? "slate"
+                        : j.outcome === "filed"
+                          ? "green"
+                          : "amber"
+                  }
+                >
+                  {j.outcome === "filed" ? "filed ✓" : j.outcome === "duplicate" ? "duplicate" : j.outcome}
+                </Badge>
+                {j.outcome === "error" && (
+                  <Button size="sm" variant="secondary" onClick={() => reprocessJob(j.id)}>
+                    ↻ Reprocess
+                  </Button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Queue */}
+      {filter !== "log" && (
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="grid grid-cols-[16px_2.3fr_1.3fr_1fr_2.4fr] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           <div />
@@ -363,9 +443,12 @@ export default function Payables({
           ))
         )}
       </div>
+      )}
+      {filter !== "log" && (
       <p className="mt-3 text-right text-[11px] text-slate-400">
         Resolve simple exceptions inline. Click a row for the full coding view.
       </p>
+      )}
 
       {/* Drawer */}
       <Drawer

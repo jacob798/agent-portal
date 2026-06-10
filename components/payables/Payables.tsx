@@ -52,6 +52,39 @@ export default function Payables({
     ),
   );
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSel = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  const clearSel = () => setSelected(new Set());
+  async function postBatch(ids: string[]) {
+    if (!ids.length) return;
+    setPosting(true);
+    try {
+      const res = await fetch("/api/payables/post-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
+      const set = new Set(ids);
+      setRows((rs) =>
+        rs.map((r) =>
+          set.has(r.id) ? { ...r, resolved: true, auto: true, resolvedTo: "→ posted to QuickBooks" } : r,
+        ),
+      );
+      clearSel();
+      toast(`✓ Staged ${json.staged ?? ids.length} invoice${(json.staged ?? ids.length) === 1 ? "" : "s"} for QuickBooks`);
+    } catch (e) {
+      toast(`Batch post failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setPosting(false);
+    }
+  }
   const ingestErrors = useMemo(() => jobs.filter((j) => j.outcome === "error").length, [jobs]);
   async function reprocessJob(id: string) {
     try {
@@ -100,6 +133,15 @@ export default function Payables({
   const [alwaysCode, setAlwaysCode] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
   const [posting, setPosting] = useState(false);
+  // Unified vendor record for the Learn-vendor modal — one set of fields written
+  // to BOTH the QuickBooks vendor and the Outlook contact.
+  type VendorForm = {
+    vendor: string; display: string; email: string; phone: string; website: string;
+    street: string; city: string; state: string; zip: string;
+    entity: string; gl: string; terms: string; accountNumber: string;
+  };
+  const [learnForm, setLearnForm] = useState<VendorForm | null>(null);
+  const setLF = (patch: Partial<VendorForm>) => setLearnForm((f) => (f ? { ...f, ...patch } : f));
   // Entity codes offered as buttons in the coding section: the standard four
   // plus any entity that actually has GL accounts (so splits to WB12/IOTA/etc.
   // are possible). Common ones first.
@@ -129,6 +171,30 @@ export default function Payables({
     setPayFrom(payDefault(r));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerId]);
+
+  useEffect(() => {
+    const r = rows.find((x) => x.id === learnId);
+    if (!r) return;
+    const ent = r.entity ?? r.recommended ?? "PER";
+    const email = (r.sub.match(/\S+@\S+/) || [""])[0].replace(/[·,].*$/, "").trim();
+    const gl0 = r.lines?.[0]?.gl ?? r.gl ?? firstGl(ent);
+    setLearnForm({
+      vendor: r.vendor,
+      display: r.vendor,
+      email,
+      phone: "",
+      website: email.includes("@") ? email.split("@")[1] : "",
+      street: "",
+      city: "",
+      state: "",
+      zip: "",
+      entity: ent,
+      gl: gl0,
+      terms: r.posting === "bill" ? "Net 30" : "Due on receipt",
+      accountNumber: "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learnId]);
 
   const setLineEntity = (i: number, entity: string) =>
     setLines((ls) =>
@@ -214,13 +280,9 @@ export default function Payables({
     setDrawerId(null);
   }
   async function confirmLearn() {
-    if (!learnRow) return;
-    const entity =
-      (document.getElementById("lv-entity") as HTMLSelectElement)?.value ||
-      learnRow.entity ||
-      learnRow.recommended ||
-      "BC";
-    const gl = (document.getElementById("lv-gl") as HTMLSelectElement)?.value || "";
+    if (!learnRow || !learnForm) return;
+    const f = learnForm;
+    const entity = f.entity || learnRow.entity || learnRow.recommended || "BC";
     const same = rows.filter((r) => r.vendor === learnRow.vendor && !r.resolved && !r.auto);
     setRows((rs) =>
       rs.map((r) =>
@@ -231,9 +293,33 @@ export default function Payables({
     );
     const vendorName = learnRow.vendor;
     setLearnId(null);
-    const saved = await saveVendorRule(vendorName, entity, gl);
+    let saved = false;
+    try {
+      const res = await fetch("/api/vendor-rule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendor: vendorName,
+          entity_code: entity,
+          gl_full_name: f.gl,
+          display_name: f.display,
+          email: f.email,
+          phone: f.phone,
+          website: f.website,
+          street: f.street,
+          city: f.city,
+          state: f.state,
+          zip: f.zip,
+          terms: f.terms,
+          account_number: f.accountNumber,
+        }),
+      });
+      saved = res.ok;
+    } catch {
+      saved = false;
+    }
     toast(
-      `✓ Saved ${vendorName} → ${entName(entity)} · ${saved ? "standing rule saved · " : ""}QB vendor created · Outlook contact added · ${same.length} invoice${same.length > 1 ? "s" : ""} coded`,
+      `✓ Saved ${vendorName} → ${entName(entity)} · ${saved ? "rule + QB vendor + Outlook contact saved · " : ""}${same.length} invoice${same.length > 1 ? "s" : ""} coded`,
     );
   }
   // Persist an "always code this vendor this way" rule. Writes to the
@@ -439,6 +525,37 @@ export default function Payables({
         </div>
       )}
 
+      {/* Batch select + post — the QuickBooks checkpoint. */}
+      {filter !== "log" && visible.length > 0 && (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] shadow-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-slate-600">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-brand"
+              checked={visible.length > 0 && visible.every((r) => selected.has(r.id))}
+              onChange={(e) =>
+                setSelected(e.target.checked ? new Set(visible.map((r) => r.id)) : new Set())
+              }
+            />
+            {selected.size > 0 ? `${selected.size} selected` : `Select all ${visible.length}`}
+          </label>
+          <div className="flex items-center gap-2">
+            {selected.size > 0 && (
+              <Button size="sm" variant="ghost" onClick={clearSel}>
+                Clear
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => postBatch([...selected])}
+              disabled={posting || selected.size === 0}
+            >
+              {posting ? "Posting…" : `Post ${selected.size || ""} to QuickBooks`}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Bulk action — when the auto-coded batch shares a systemic issue. */}
       {filter === "auto" && counts.auto > 0 && (
         <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-[13px] text-amber-800">
@@ -452,7 +569,8 @@ export default function Payables({
       {/* Queue */}
       {filter !== "log" && (
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[16px_2.3fr_1.3fr_1fr_2.4fr] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-[22px_16px_2.3fr_1.3fr_1fr_2.4fr] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <div />
           <div />
           <div>Vendor</div>
           <div>Posting</div>
@@ -468,8 +586,15 @@ export default function Payables({
             <div
               key={r.id}
               onClick={() => setDrawerId(r.id)}
-              className="grid cursor-pointer grid-cols-[16px_2.3fr_1.3fr_1fr_2.4fr] items-center gap-3 border-b border-slate-100 px-5 py-3.5 last:border-0 hover:bg-brand/[0.03]"
+              className="grid cursor-pointer grid-cols-[22px_16px_2.3fr_1.3fr_1fr_2.4fr] items-center gap-3 border-b border-slate-100 px-5 py-3.5 last:border-0 hover:bg-brand/[0.03]"
             >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-brand"
+                checked={selected.has(r.id)}
+                onClick={(e) => e.stopPropagation()}
+                onChange={() => toggleSel(r.id)}
+              />
               <span
                 className={`h-2.5 w-2.5 rounded-full ${
                   r.auto || r.resolved
@@ -1002,81 +1127,112 @@ export default function Payables({
 
   // ---------- learn body ----------
   function learnBody(r: Row) {
-    const email = (r.sub.match(/\S+@\S+/) || [""])[0].replace(/[·,].*$/, "").trim();
-    const lvEntity = r.entity ?? r.recommended ?? "BC";
-    const lvGls = glLabels(lvEntity);
-    const gl = r.lines?.[0]?.gl ?? r.gl ?? lvGls[0] ?? "";
     const same = rows.filter((x) => x.vendor === r.vendor && !x.resolved && !x.auto).length;
+    const f = learnForm;
+    if (!f) return null;
+    const fGls = glLabels(f.entity);
+    const inp = "w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-brand focus:outline-none";
     return (
-      <div>
-        <p className="mb-4 text-[12.5px] leading-relaxed text-slate-500">
-          Saving will auto-code <b>{same}</b> queued invoice{same > 1 ? "s" : ""} from{" "}
-          <b>{r.vendor}</b> (and future ones). Review what the agent writes to{" "}
-          <b>QuickBooks</b> and your <b>Outlook contacts</b> before it saves.
+      <div className="space-y-4">
+        <p className="text-[12.5px] leading-relaxed text-slate-500">
+          One record, written to <b>both</b> your <b>QuickBooks vendor list</b> and your{" "}
+          <b>Outlook contacts</b>. Saving also confirms the vendor, so its{" "}
+          <b>{same}</b> queued invoice{same === 1 ? "" : "s"} (and future ones) auto-code.
         </p>
 
-        <div className="mb-4 rounded-xl border border-slate-200 p-3.5">
-          <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-brand-navy">
-            🧾 QuickBooks vendor
-            <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-brand">
-              new record
-            </span>
-          </div>
-          <Field label="Vendor name">
-            <input defaultValue={r.vendor} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
-          </Field>
-          <div className="flex gap-3">
-            <Field label="Default entity (QB file)">
-              <select id="lv-entity" defaultValue={r.entity ?? r.recommended ?? "BC"} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                {ENTITIES.map((c) => (
-                  <option key={c} value={c}>{entName(c)}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Default GL account">
-              <select id="lv-gl" defaultValue={lvGls.includes(gl) ? gl : lvGls[0]} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                {(lvGls.includes(gl) ? lvGls : [gl, ...lvGls]).map((g) => (
-                  <option key={g}>{g}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="Terms">
-            <select className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-              <option>Net 30</option>
-              <option>Due on receipt</option>
-              <option>Net 15</option>
-              <option>Net 60</option>
-            </select>
-          </Field>
-        </div>
-
+        {/* Identity — shared by QB vendor + Outlook contact */}
         <div className="rounded-xl border border-slate-200 p-3.5">
           <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-brand-navy">
-            👤 Contact (Outlook)
+            Vendor record
             <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-brand">
-              added to jacob@foundry-capital.co
+              → QuickBooks vendor · → Outlook contact
             </span>
           </div>
           <div className="flex gap-3">
-            <Field label="Display name">
-              <input defaultValue={r.vendor} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+            <Field label="Company / vendor name">
+              <input value={f.vendor} onChange={(e) => setLF({ vendor: e.target.value })} className={inp} />
             </Field>
-            <Field label="Company">
-              <input defaultValue={r.vendor} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+            <Field label="Display name (file-as)">
+              <input value={f.display} onChange={(e) => setLF({ display: e.target.value })} className={inp} />
             </Field>
           </div>
           <div className="flex gap-3">
             <Field label="Email">
-              <input defaultValue={email} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+              <input value={f.email} onChange={(e) => setLF({ email: e.target.value })} className={inp} />
             </Field>
             <Field label="Phone">
-              <input placeholder="—" className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm" />
+              <input value={f.phone} onChange={(e) => setLF({ phone: e.target.value })} placeholder="(208) 555-0142" className={inp} />
+            </Field>
+            <Field label="Website">
+              <input value={f.website} onChange={(e) => setLF({ website: e.target.value })} placeholder="example.com" className={inp} />
             </Field>
           </div>
-          <p className="mt-1 text-[11.5px] text-slate-400">
-            File-as: <b>{r.vendor}</b> · so Outlook indexes it correctly
+          <Field label="Street address">
+            <input value={f.street} onChange={(e) => setLF({ street: e.target.value })} placeholder="11921 Freedom Dr, Suite 550" className={inp} />
+          </Field>
+          <div className="flex gap-3">
+            <Field label="City">
+              <input value={f.city} onChange={(e) => setLF({ city: e.target.value })} className={inp} />
+            </Field>
+            <Field label="State">
+              <input value={f.state} onChange={(e) => setLF({ state: e.target.value })} placeholder="VA" className={inp} />
+            </Field>
+            <Field label="ZIP">
+              <input value={f.zip} onChange={(e) => setLF({ zip: e.target.value })} className={inp} />
+            </Field>
+          </div>
+          <p className="text-[11.5px] text-slate-400">
+            File-as: <b>{f.display || f.vendor}</b> — so Outlook indexes it correctly.
           </p>
+        </div>
+
+        {/* Coding defaults — QuickBooks */}
+        <div className="rounded-xl border border-slate-200 p-3.5">
+          <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-navy">
+            Default coding (QuickBooks)
+          </div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Entity</div>
+          <div className="mb-3 flex flex-wrap gap-1">
+            {entityCodes.map((c) => (
+              <button
+                key={c}
+                title={entName(c)}
+                onClick={() => setLF({ entity: c, gl: c === "BC" ? BC_ROUTE.gl : glLabels(c)[0] ?? "" })}
+                className={`inline-flex h-7 min-w-[2.4rem] items-center justify-center rounded-md px-2 text-[12px] font-bold transition ${
+                  f.entity === c ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-3">
+            <Field label="Default GL account">
+              {f.entity === "BC" ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700">
+                  PER QB · {BC_ROUTE.gl}
+                </div>
+              ) : (
+                <select value={fGls.includes(f.gl) ? f.gl : ""} onChange={(e) => setLF({ gl: e.target.value })} className={inp}>
+                  {!fGls.includes(f.gl) && <option value="">Select GL account…</option>}
+                  {fGls.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label="Payment terms">
+              <select value={f.terms} onChange={(e) => setLF({ terms: e.target.value })} className={inp}>
+                <option>Due on receipt</option>
+                <option>Net 15</option>
+                <option>Net 30</option>
+                <option>Net 60</option>
+              </select>
+            </Field>
+            <Field label="Our account # (optional)">
+              <input value={f.accountNumber} onChange={(e) => setLF({ accountNumber: e.target.value })} className={inp} />
+            </Field>
+          </div>
         </div>
       </div>
     );

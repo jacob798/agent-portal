@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { vendor?: string; entity_code?: string; gl_full_name?: string; pay_method_id?: string };
+  let body: Record<string, string | undefined>;
   try {
     body = await req.json();
   } catch {
@@ -34,6 +34,17 @@ export async function POST(req: NextRequest) {
       entity_code: body.entity_code ?? null,
       gl_full_name: body.gl_full_name ?? null,
       pay_method_id: body.pay_method_id ?? null,
+      // Full vendor record — written to both QuickBooks vendor + Outlook contact.
+      display_name: body.display_name ?? null,
+      email: body.email ?? null,
+      phone: body.phone ?? null,
+      website: body.website ?? null,
+      street: body.street ?? null,
+      city: body.city ?? null,
+      state: body.state ?? null,
+      zip: body.zip ?? null,
+      terms: body.terms ?? null,
+      account_number: body.account_number ?? null,
       source: "portal",
       updated_at: new Date().toISOString(),
     },

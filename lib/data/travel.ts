@@ -130,7 +130,7 @@ export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[
       supabase.from("travel_queue").select("*").order("ord"),
     ]);
     const trips: Trip[] =
-      t && t.length
+      t
         ? t.map((r) => ({
             id: r.id,
             ent: r.ent,
@@ -145,7 +145,7 @@ export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[
           }))
         : TRIPS;
     const queue: QueueExpense[] =
-      q && q.length
+      q
         ? q.map((r) => ({
             id: r.id,
             ic: r.ic,

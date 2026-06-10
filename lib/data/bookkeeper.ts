@@ -63,7 +63,7 @@ export async function getLedger(): Promise<LedgerRow[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.from("bookkeeper_ledger").select("*").order("ord");
-    if (error || !data || data.length === 0) return MOCK;
+    if (error || !data) return MOCK;
     return data.map((r): LedgerRow => ({
       id: r.id,
       status: r.status,

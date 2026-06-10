@@ -45,7 +45,7 @@ export async function getBcReimbursement(): Promise<BcExpense[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.from("bc_reimbursement").select("*").order("ord");
-    if (error || !data || data.length === 0) return MOCK;
+    if (error || !data) return MOCK;
     return data.map((r): BcExpense => ({
       id: r.id,
       grp: r.grp,

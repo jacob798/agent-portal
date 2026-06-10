@@ -139,7 +139,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.from("payables_queue").select("*").order("ord");
-    if (error || !data || data.length === 0) return MOCK;
+    if (error || !data) return MOCK;
     return data.map((r): PayableRow => ({
       id: r.id,
       vendor: r.vendor,

@@ -12,7 +12,6 @@ import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
-import { createClient } from "@/lib/supabase/client";
 
 type Row = PayableRow & {
   resolved?: boolean;
@@ -43,24 +42,12 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
     }
     setUploading(true);
     try {
-      // Upload straight from the browser session → Storage + a job row (RLS-gated),
-      // so no serverless/service-role hop is involved.
-      const supabase = createClient();
-      let ok = 0;
-      for (const file of invFiles) {
-        const safe = file.name.replace(/[^\w.\-]+/g, "_");
-        const path = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
-        const up = await supabase.storage
-          .from("documents")
-          .upload(path, file, { contentType: file.type || "application/octet-stream" });
-        if (up.error) throw new Error(up.error.message);
-        const ins = await supabase
-          .from("ingestion_jobs")
-          .insert({ source: "upload", storage_path: path, original_filename: file.name });
-        if (ins.error) throw new Error(ins.error.message);
-        ok++;
-      }
-      toast(`✓ Uploaded ${ok} document${ok > 1 ? "s" : ""} — queued for OCR + classify`);
+      const fd = new FormData();
+      invFiles.forEach((f) => fd.append("files", f));
+      const res = await fetch("/api/ingest", { method: "POST", body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `upload failed (${res.status})`);
+      toast(`✓ Uploaded ${json.jobs.length} document${json.jobs.length > 1 ? "s" : ""} — queued for OCR + classify`);
       setInvFiles([]);
       setShowInvoices(false);
     } catch (e) {

@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (!files.length) return NextResponse.json({ error: "no files provided" }, { status: 400 });
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { error: "Server not configured: SUPABASE_SERVICE_ROLE_KEY missing in Vercel env" },
+      { status: 500 },
+    );
+  }
   const admin = createAdminClient();
   const uploadedBy = UUID.test(profile.id) ? profile.id : null;
   const jobs: string[] = [];

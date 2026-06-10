@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import Placeholder from "@/components/Placeholder";
+import ValuationFrame from "@/components/valuation/ValuationFrame";
 import { requireCapability } from "@/lib/auth/guard";
 import { mintValuationToken, valuationBaseUrl } from "@/lib/valuation/portalToken";
 
@@ -60,10 +61,6 @@ export default async function ValuationPage() {
 
   const token = mintValuationToken(profile);
   return (
-    <iframe
-      src={`${base}/portal-enter?t=${encodeURIComponent(token)}`}
-      title="Valuation"
-      className="block h-[calc(100vh-4rem)] w-full border-0"
-    />
+    <ValuationFrame src={`${base}/portal-enter?t=${encodeURIComponent(token)}`} />
   );
 }

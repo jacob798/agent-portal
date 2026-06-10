@@ -44,7 +44,13 @@ export default function Payables({
   bcCategories: string[];
   ingestion: IngestionJob[];
 }) {
-  const [rows, setRows] = useState<Row[]>(initial);
+  const [rows, setRows] = useState<Row[]>(() =>
+    initial.map((r) =>
+      r.status === "approved" || r.status === "posted"
+        ? { ...r, auto: true, resolved: true, resolvedTo: r.status === "posted" ? "→ posted to QuickBooks" : "→ staged for QuickBooks" }
+        : r,
+    ),
+  );
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
   const ingestErrors = useMemo(() => jobs.filter((j) => j.outcome === "error").length, [jobs]);
   async function reprocessJob(id: string) {
@@ -92,6 +98,17 @@ export default function Payables({
   type DrawerLine = { desc: string; amount: number; gl: string; entity: string; bcCategory?: string };
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [alwaysCode, setAlwaysCode] = useState(false);
+  const [payFrom, setPayFrom] = useState<string>("");
+  const [posting, setPosting] = useState(false);
+  // Entity codes offered as buttons in the coding section: the standard four
+  // plus any entity that actually has GL accounts (so splits to WB12/IOTA/etc.
+  // are possible). Common ones first.
+  const entityCodes = useMemo(() => {
+    const fromGls = Array.from(new Set(gls.map((g) => g.entity)));
+    const order = ["BC", "FC", "PER", "WJW"];
+    const rest = fromGls.filter((c) => !order.includes(c)).sort();
+    return [...order, ...rest];
+  }, [gls]);
   useEffect(() => {
     const r = rows.find((x) => x.id === drawerId);
     if (!r) return;
@@ -109,6 +126,7 @@ export default function Payables({
         : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
     setAlwaysCode(false);
+    setPayFrom(payDefault(r));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerId]);
 
@@ -232,6 +250,38 @@ export default function Payables({
       return true;
     } catch {
       return false;
+    }
+  }
+
+  // Approve a row from the drawer: persist the confirmed coding + stage for the
+  // QuickBooks batch post. Real QBO write happens in the backend post_runner.
+  async function approveAndPost(r: Row) {
+    setPosting(true);
+    try {
+      const acct = accounts.find((a) => a.label === payFrom);
+      const res = await fetch("/api/payables/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: r.id,
+          entity: lines[0]?.entity ?? r.entity,
+          account: payFrom,
+          paymentMethodId: acct?.id ?? r.paymentMethodId ?? null,
+          gl: lines[0]?.gl ?? r.gl,
+          bcCategory: lines.find((l) => l.entity === "BC")?.bcCategory ?? null,
+          lines,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
+      if (alwaysCode && lines[0]?.entity) await saveVendorRule(r.vendor, lines[0].entity, lines[0].gl);
+      patch(r.id, { resolved: true, auto: true, resolvedTo: "→ posted to QuickBooks" });
+      setDrawerId(null);
+      toast(`✓ ${r.vendor} approved & staged for QuickBooks`);
+    } catch (e) {
+      toast(`Post failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setPosting(false);
     }
   }
 
@@ -762,7 +812,7 @@ export default function Payables({
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-500">Pay from</span>
-            <select defaultValue={payDefault(r)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
+            <select value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
               {acctLabels.map((a) => (
                 <option key={a}>{a}</option>
               ))}
@@ -796,18 +846,23 @@ export default function Payables({
                     {money(l.amount)}
                   </span>
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  {entityCodes.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setLineEntity(i, c)}
+                      title={entName(c)}
+                      className={`inline-flex h-7 min-w-[2.4rem] items-center justify-center rounded-md px-2 text-[12px] font-bold transition ${
+                        l.entity === c
+                          ? "bg-brand-navy text-white"
+                          : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select
-                    value={l.entity}
-                    onChange={(e) => setLineEntity(i, e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-brand-navy"
-                  >
-                    {ENTITIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c} — {entName(c)}
-                      </option>
-                    ))}
-                  </select>
                   {l.entity === "BC" ? (
                     <>
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-semibold text-amber-700">
@@ -918,7 +973,9 @@ export default function Payables({
     if (r.auto)
       return (
         <>
-          <Button>Approve &amp; post to QuickBooks</Button>
+          <Button onClick={() => approveAndPost(r)} disabled={posting}>
+            {posting ? "Posting…" : "Approve & post to QuickBooks"}
+          </Button>
           <Button variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
         </>
       );
@@ -931,18 +988,13 @@ export default function Payables({
       );
     return (
       <>
-        <Button
-          onClick={() => {
-            if (r.exception === "vendor") setLearnId(r.id);
-            else if (r.recommended) resolveEntity(r.id, r.recommended);
-            else resolveSimple(r.id, "(accepted)");
-            setDrawerId(null);
-          }}
-        >
-          {r.exception === "vendor"
-            ? "Learn vendor"
-            : `Confirm${r.recommended ? " " + entName(r.recommended) : ""} & post`}
-        </Button>
+        {r.exception === "vendor" ? (
+          <Button onClick={() => setLearnId(r.id)}>Learn vendor</Button>
+        ) : (
+          <Button onClick={() => approveAndPost(r)} disabled={posting}>
+            {posting ? "Posting…" : `Confirm ${entName(lines[0]?.entity ?? r.recommended ?? r.entity)} & post`}
+          </Button>
+        )}
         <Button variant="ghost" onClick={() => setDrawerId(null)}>Skip</Button>
       </>
     );

@@ -42,6 +42,8 @@ export interface PayableRow {
   docUrl?: string | null;
   /** Resolved payment method id (matches a PayAccount.id) — drives Pay-from default. */
   paymentMethodId?: string | null;
+  /** Lifecycle: open | approved (staged for QBO) | posted. */
+  status?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -160,6 +162,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       nodoc: r.nodoc ?? false,
       docUrl: r.doc_url ?? null,
       paymentMethodId: r.payment_method_id ?? null,
+      status: r.status ?? "open",
     }));
   } catch {
     return MOCK;

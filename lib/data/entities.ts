@@ -18,27 +18,44 @@ export const ENT: Record<string, string> = {
 export const entName = (c?: string | null): string =>
   (c && ENT[c]) || (c ?? "Unknown");
 
-export const ACCTS = [
-  "AMEX WJW Business ••1004",
-  "AMEX Foundry Business ••1005",
-  "AMEX Delta Reserve ••5001",
-  "Citibank ••4658",
-  "Wells Fargo Checking",
-  "Charles Schwab Checking",
-];
+/**
+ * BC (Builders Capital) is an employer reimbursement, not a P&L entity. Its
+ * expenses post to the PER QuickBooks file against the balance-sheet account
+ * "Loan - Builders Capital", cleared later by the Paylocity deposit. The
+ * operator can't retag a BC charge to a different *expense* GL — coding for BC
+ * is fixed by this route. (Two-QB intercompany rule, CLAUDE.md.)
+ */
+export const BC_ROUTE = {
+  qbEntity: "PER",
+  gl: "Loan - Builders Capital",
+  note: "BC expense → posts to Personal (PER) QB as Loan – Builders Capital (balance sheet). Cleared by the Paylocity reimbursement.",
+} as const;
 
-export const GLS = [
-  "6120 Materials",
-  "6140 Sm Tools",
-  "6200 Software",
-  "6300 Repairs & Maint",
-  "6420 Internet",
-  "6710 Travel — Meals",
-  "6720 Travel — Ground",
-  "6730 Travel — Airfare",
-  "6900 Office / Admin",
-  "7800 Personal",
-];
+/** Client-safe shapes for the config the drawers receive as props. */
+export interface PayAccount {
+  id: string;
+  label: string;
+  type: string | null;
+  status: string;
+  entity: string | null;
+  lastFour: string | null;
+}
+export interface GlOption {
+  id: string;
+  entity: string;
+  number: string | null;
+  name: string | null;
+  fullName: string;
+  type: string | null;
+}
+
+/** GL options for a given entity. BC borrows PER's chart (it posts into PER). */
+export function glsForEntity(gls: GlOption[], entity?: string | null): GlOption[] {
+  const code = entity === "BC" ? "PER" : entity;
+  if (!code) return gls;
+  const scoped = gls.filter((g) => g.entity === code);
+  return scoped.length ? scoped : gls;
+}
 
 export const money = (n: number): string =>
   "$" +

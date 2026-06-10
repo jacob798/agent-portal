@@ -1,9 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Zap, Upload, FileText, Plane } from "lucide-react";
 import type { PayableRow } from "@/lib/data/payables";
-import { ENTITIES, entName, ACCTS, GLS, money } from "@/lib/data/entities";
+import {
+  ENTITIES,
+  entName,
+  money,
+  glsForEntity,
+  BC_ROUTE,
+  type PayAccount,
+  type GlOption,
+} from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
 import Stat from "@/components/ui/Stat";
@@ -22,8 +30,22 @@ type Row = PayableRow & {
 const OPEN_TRIPS = ["Builders Capital · Denver", "Foundry Capital · Seattle"];
 const missingDoc = (r: Row) => !!r.nodoc && !r.doc_waived;
 
-export default function Payables({ initial }: { initial: PayableRow[] }) {
+export default function Payables({
+  initial,
+  accounts,
+  gls,
+}: {
+  initial: PayableRow[];
+  accounts: PayAccount[];
+  gls: GlOption[];
+}) {
   const [rows, setRows] = useState<Row[]>(initial);
+  // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
+  // upstream in getCodingConfig). GL options are filtered per line by entity.
+  const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
+  const glLabels = (entity?: string | null) =>
+    glsForEntity(gls, entity).map((g) => g.fullName);
+  const firstGl = (entity?: string | null) => glLabels(entity)[0] ?? "";
   const [filter, setFilter] = useState("need");
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [travelRow, setTravelRow] = useState<string | null>(null);
@@ -34,6 +56,51 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const { message, toast } = useToast();
+
+  // Editable coding lines for the open drawer. Each line carries its own entity
+  // so one invoice can split across entities (QB invoices). Initialized when the
+  // drawer opens; "combine" collapses, the +/× controls split.
+  type DrawerLine = { desc: string; amount: number; gl: string; entity: string };
+  const [lines, setLines] = useState<DrawerLine[]>([]);
+  const [alwaysCode, setAlwaysCode] = useState(false);
+  useEffect(() => {
+    const r = rows.find((x) => x.id === drawerId);
+    if (!r) return;
+    const ent = r.entity ?? r.recommended ?? "PER";
+    const base =
+      r.lines && r.lines.length
+        ? r.lines.map((l) => ({
+            desc: l.desc,
+            amount: l.amount,
+            gl: l.gl ?? firstGl(ent),
+            entity: ent,
+          }))
+        : [{ desc: r.sub || r.vendor, amount: r.amount, gl: r.gl ?? firstGl(ent), entity: ent }];
+    setLines(base);
+    setAlwaysCode(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerId]);
+
+  const setLineEntity = (i: number, entity: string) =>
+    setLines((ls) =>
+      ls.map((l, j) =>
+        j === i
+          ? { ...l, entity, gl: entity === "BC" ? BC_ROUTE.gl : firstGl(entity) }
+          : l,
+      ),
+    );
+  const setLineGl = (i: number, gl: string) =>
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, gl } : l)));
+  const combineLines = () =>
+    setLines((ls) => {
+      if (ls.length < 2) return ls;
+      const sum = ls.reduce((s, l) => s + l.amount, 0);
+      return [{ desc: `Combined (${ls.length} lines)`, amount: sum, gl: ls[0].gl, entity: ls[0].entity }];
+    });
+  const multiEntity = useMemo(
+    () => new Set(lines.map((l) => l.entity)).size > 1,
+    [lines],
+  );
 
   async function uploadInvoices() {
     if (!invFiles.length) {
@@ -90,13 +157,14 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
     patch(id, { resolved: true, auto: true, resolvedTo: label });
     setDrawerId(null);
   }
-  function confirmLearn() {
+  async function confirmLearn() {
     if (!learnRow) return;
     const entity =
       (document.getElementById("lv-entity") as HTMLSelectElement)?.value ||
       learnRow.entity ||
       learnRow.recommended ||
       "BC";
+    const gl = (document.getElementById("lv-gl") as HTMLSelectElement)?.value || "";
     const same = rows.filter((r) => r.vendor === learnRow.vendor && !r.resolved && !r.auto);
     setRows((rs) =>
       rs.map((r) =>
@@ -105,11 +173,46 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
           : r,
       ),
     );
+    const vendorName = learnRow.vendor;
     setLearnId(null);
+    const saved = await saveVendorRule(vendorName, entity, gl);
     toast(
-      `✓ Saved ${learnRow.vendor} → ${entName(entity)} · QB vendor created · Outlook contact added · ${same.length} invoice${same.length > 1 ? "s" : ""} coded`,
+      `✓ Saved ${vendorName} → ${entName(entity)} · ${saved ? "standing rule saved · " : ""}QB vendor created · Outlook contact added · ${same.length} invoice${same.length > 1 ? "s" : ""} coded`,
     );
   }
+  // Persist an "always code this vendor this way" rule. Writes to the
+  // vendor_rules table (service role) which the agent-system processor reads as
+  // an override layer over vendor_master.json.
+  async function saveVendorRule(vendor: string, entity: string, gl: string) {
+    try {
+      const res = await fetch("/api/vendor-rule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendor, entity_code: entity, gl_full_name: gl }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Confirm the entity (and coding) for a row from the drawer, optionally
+  // saving the "always" rule.
+  async function confirmEntityFromDrawer(r: Row, code: string) {
+    resolveEntity(r.id, code);
+    const gl = lines[0]?.gl ?? r.gl ?? "";
+    if (alwaysCode) {
+      const ok = await saveVendorRule(r.vendor, code, gl);
+      toast(
+        ok
+          ? `✓ ${r.vendor} → ${entName(code)} · saved as the standing rule`
+          : `Coded ${r.vendor} → ${entName(code)} (rule not saved — retry)`,
+      );
+    }
+    setDrawerId(null);
+  }
+
   function resolveDoc(id: string, how: "attach" | "waive") {
     const r = rows.find((x) => x.id === id);
     if (!r) return;
@@ -306,7 +409,7 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         </div>
         <Field label="Account">
           <select className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-            {ACCTS.map((a) => (
+            {acctLabels.map((a) => (
               <option key={a}>{a}</option>
             ))}
           </select>
@@ -480,7 +583,6 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
 
   // ---------- drawer ----------
   function drawerBody(r: Row) {
-    const lines = r.lines ?? [{ desc: r.sub, amount: r.amount, gl: r.gl ?? GLS[0] }];
     return (
       <div className="space-y-5">
         <Section title="Source document">
@@ -510,8 +612,8 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-500">Pay from</span>
-            <select defaultValue={ACCTS.includes(r.account) ? r.account : ACCTS[0]} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
-              {ACCTS.map((a) => (
+            <select defaultValue={acctLabels.includes(r.account) ? r.account : acctLabels[0]} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
+              {acctLabels.map((a) => (
                 <option key={a}>{a}</option>
               ))}
             </select>
@@ -519,23 +621,78 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
         </Section>
 
         <Section title="Coding">
-          <table className="w-full text-[13px]">
-            <tbody>
-              {lines.map((l, i) => (
-                <tr key={i} className="border-b border-slate-100 last:border-0">
-                  <td className="py-2">{l.desc}</td>
-                  <td className="py-2 text-right tabular-nums">{money(l.amount)}</td>
-                  <td className="py-2 pl-3">
-                    <select defaultValue={GLS.includes(l.gl) ? l.gl : GLS[0]} className="rounded-lg border border-slate-200 px-2 py-1.5 text-[12.5px] font-semibold text-brand">
-                      {[l.gl, ...GLS.filter((g) => g !== l.gl)].map((g) => (
-                        <option key={g}>{g}</option>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[12px] text-slate-500">
+              Each line has its own entity &amp; GL — split a QB invoice across entities here.
+            </p>
+            {lines.length > 1 && (
+              <button
+                onClick={combineLines}
+                className="rounded-md border border-slate-200 px-2 py-1 text-[11.5px] font-semibold text-slate-600 hover:border-brand hover:text-brand"
+              >
+                ⤺ Combine into 1 line
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {lines.map((l, i) => (
+              <div
+                key={i}
+                className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[13px] text-slate-700">{l.desc}</span>
+                  <span className="shrink-0 tabular-nums text-[13px] font-semibold text-slate-900">
+                    {money(l.amount)}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select
+                    value={l.entity}
+                    onChange={(e) => setLineEntity(i, e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-brand-navy"
+                  >
+                    {ENTITIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c} — {entName(c)}
+                      </option>
+                    ))}
+                  </select>
+                  {l.entity === "BC" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-semibold text-amber-700">
+                      → PER QB · {BC_ROUTE.gl}
+                    </span>
+                  ) : (
+                    <select
+                      value={glLabels(l.entity).includes(l.gl) ? l.gl : ""}
+                      onChange={(e) => setLineGl(i, e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-brand"
+                    >
+                      {!glLabels(l.entity).includes(l.gl) && (
+                        <option value="">Select GL account…</option>
+                      )}
+                      {glLabels(l.entity).map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
                       ))}
                     </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {lines.some((l) => l.entity === "BC") && (
+            <p className="mt-2 text-[11.5px] leading-relaxed text-amber-700">
+              ⓘ {BC_ROUTE.note}
+            </p>
+          )}
+          {multiEntity && (
+            <p className="mt-2 text-[11.5px] text-slate-500">
+              This invoice splits across multiple entities — the bookkeeper posts one
+              leg per entity (intercompany where needed).
+            </p>
+          )}
         </Section>
 
         {!r.auto && r.exception === "entity" && (
@@ -545,14 +702,21 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
             </p>
             <div className="flex flex-wrap gap-2">
               {ENTITIES.map((e) => (
-                <Chip key={e} rec={e === r.recommended} onClick={() => { resolveEntity(r.id, e); setDrawerId(null); }}>
+                <Chip key={e} rec={e === r.recommended} onClick={() => confirmEntityFromDrawer(r, e)}>
                   {entName(e)}
                 </Chip>
               ))}
             </div>
             <label className="mt-3 flex items-center gap-2.5 rounded-lg border border-brand/20 bg-brand/[0.04] px-3.5 py-2.5 text-[13px] text-slate-700">
-              <input type="checkbox" className="h-4 w-4 accent-brand" /> Always code{" "}
-              <b>{r.vendor}</b> → <b>{entName(r.recommended)}</b>
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-brand"
+                checked={alwaysCode}
+                onChange={(e) => setAlwaysCode(e.target.checked)}
+              />{" "}
+              Always code <b>{r.vendor}</b> → <b>{entName(lines[0]?.entity ?? r.recommended)}</b>
+              {" · "}
+              <span className="text-slate-500">{lines[0]?.gl}</span>
             </label>
           </Section>
         )}
@@ -622,7 +786,9 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
   // ---------- learn body ----------
   function learnBody(r: Row) {
     const email = (r.sub.match(/\S+@\S+/) || [""])[0].replace(/[·,].*$/, "").trim();
-    const gl = r.lines?.[0]?.gl ?? r.gl ?? GLS[2];
+    const lvEntity = r.entity ?? r.recommended ?? "BC";
+    const lvGls = glLabels(lvEntity);
+    const gl = r.lines?.[0]?.gl ?? r.gl ?? lvGls[0] ?? "";
     const same = rows.filter((x) => x.vendor === r.vendor && !x.resolved && !x.auto).length;
     return (
       <div>
@@ -651,8 +817,8 @@ export default function Payables({ initial }: { initial: PayableRow[] }) {
               </select>
             </Field>
             <Field label="Default GL account">
-              <select defaultValue={GLS.includes(gl) ? gl : GLS[2]} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
-                {[gl, ...GLS.filter((g) => g !== gl)].map((g) => (
+              <select id="lv-gl" defaultValue={lvGls.includes(gl) ? gl : lvGls[0]} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm">
+                {(lvGls.includes(gl) ? lvGls : [gl, ...lvGls]).map((g) => (
                   <option key={g}>{g}</option>
                 ))}
               </select>

@@ -62,9 +62,25 @@ export async function getLedger(): Promise<LedgerRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("bookkeeper_ledger").select("*");
+    const { data, error } = await supabase.from("bookkeeper_ledger").select("*").order("ord");
     if (error || !data || data.length === 0) return MOCK;
-    return data as LedgerRow[];
+    return data.map((r): LedgerRow => ({
+      id: r.id,
+      status: r.status,
+      vendor: r.vendor,
+      memo: r.memo ?? "",
+      type: r.type,
+      file: r.file ?? "",
+      sub: r.sub ?? "",
+      amount: Number(r.amount),
+      ref: r.ref ?? "",
+      gap: r.gap ?? false,
+      legs: r.legs
+        ? (r.legs as Leg[]).map((l) => ({ ...l, amount: Number(l.amount) }))
+        : undefined,
+      balnote: r.balnote ?? undefined,
+      err: r.err ?? undefined,
+    }));
   } catch {
     return MOCK;
   }

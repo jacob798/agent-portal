@@ -136,12 +136,25 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("payables_queue")
-      .select("*")
-      .order("created_at", { ascending: true });
+    const { data, error } = await supabase.from("payables_queue").select("*").order("ord");
     if (error || !data || data.length === 0) return MOCK;
-    return data as PayableRow[];
+    return data.map((r): PayableRow => ({
+      id: r.id,
+      vendor: r.vendor,
+      sub: r.sub ?? "",
+      amount: Number(r.amount),
+      posting: r.posting,
+      account: r.account ?? "",
+      entity: r.entity ?? null,
+      recommended: r.recommended ?? null,
+      exception: r.exception ?? undefined,
+      reason: r.reason ?? undefined,
+      category: r.category ?? undefined,
+      lines: r.lines ?? undefined,
+      gl: r.gl ?? undefined,
+      auto: r.auto ?? false,
+      nodoc: r.nodoc ?? false,
+    }));
   } catch {
     return MOCK;
   }

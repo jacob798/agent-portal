@@ -126,13 +126,42 @@ export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[
   try {
     const supabase = await createClient();
     const [{ data: t }, { data: q }] = await Promise.all([
-      supabase.from("trips").select("*"),
-      supabase.from("travel_queue").select("*"),
+      supabase.from("trips").select("*").order("ord"),
+      supabase.from("travel_queue").select("*").order("ord"),
     ]);
-    return {
-      trips: t && t.length ? (t as Trip[]) : TRIPS,
-      queue: q && q.length ? (q as QueueExpense[]) : QUEUE,
-    };
+    const trips: Trip[] =
+      t && t.length
+        ? t.map((r) => ({
+            id: r.id,
+            ent: r.ent,
+            dest: r.dest,
+            dates: r.dates,
+            status: r.status,
+            grace: r.grace ?? undefined,
+            purpose: r.purpose ?? undefined,
+            total: Number(r.total),
+            itin: r.itin ?? [],
+            exps: (r.exps ?? []).map((e: TripExpense) => ({ ...e, amount: Number(e.amount) })),
+          }))
+        : TRIPS;
+    const queue: QueueExpense[] =
+      q && q.length
+        ? q.map((r) => ({
+            id: r.id,
+            ic: r.ic,
+            merchant: r.merchant,
+            sub: r.sub ?? "",
+            loc: r.loc ?? "",
+            home: r.home ?? false,
+            category: r.category ?? "",
+            amount: Number(r.amount),
+            trip: r.trip ?? null,
+            suggested: r.suggested ?? false,
+            postTrip: r.post_trip ?? false,
+            gl: r.gl ?? "",
+          }))
+        : QUEUE;
+    return { trips, queue };
   } catch {
     return { trips: TRIPS, queue: QUEUE };
   }

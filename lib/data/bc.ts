@@ -44,9 +44,20 @@ export async function getBcReimbursement(): Promise<BcExpense[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("bc_reimbursement").select("*");
+    const { data, error } = await supabase.from("bc_reimbursement").select("*").order("ord");
     if (error || !data || data.length === 0) return MOCK;
-    return data as BcExpense[];
+    return data.map((r): BcExpense => ({
+      id: r.id,
+      grp: r.grp,
+      ic: r.ic ?? "",
+      vendor: r.vendor,
+      sub: r.sub ?? "",
+      gl: r.gl ?? "",
+      glsub: r.glsub ?? "",
+      amount: Number(r.amount),
+      receipt: r.receipt ?? false,
+      included: r.included ?? true,
+    }));
   } catch {
     return MOCK;
   }

@@ -51,6 +51,8 @@ export interface PayableRow {
   } | null;
   /** accepted (operator-confirmed / curated) | on_file (in vendor_master, unconfirmed) | new. */
   vendorStatus?: string | null;
+  /** QBO memo (computed at ingest, operator-editable) — shown in queue + drawer, posted to QB. */
+  memo?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -179,6 +181,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       status: r.status ?? "open",
       vendorContact: r.vendor_contact ?? null,
       vendorStatus: r.vendor_status ?? "new",
+      memo: r.memo ?? null,
     }));
   } catch {
     return MOCK;

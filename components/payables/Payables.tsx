@@ -225,6 +225,7 @@ export default function Payables({
   // drawer opens; "combine" collapses, the +/× controls split.
   type DrawerLine = { desc: string; amount: number; gl: string; entity: string; bcCategory?: string };
   const [lines, setLines] = useState<DrawerLine[]>([]);
+  const [memo, setMemo] = useState<string>("");
   const [alwaysCode, setAlwaysCode] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
@@ -282,6 +283,7 @@ export default function Payables({
           }))
         : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
+    setMemo(r.memo ?? "");
     setAlwaysCode(false);
     setAutoApprove(false);
     setPostType(r.posting === "bill" ? "bill" : "charge");
@@ -388,7 +390,10 @@ export default function Payables({
   }, [rows]);
 
   const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
-  const rowCategory = (r: Row) => r.category ?? glShort(r.gl) ?? "";
+  // Show what it's actually CODED to (the GL leaf, e.g. "Communication"), not the
+  // parser's loose invoice_category ("Utilities" isn't a real account) — so the queue
+  // matches the drawer's coding line.
+  const rowCategory = (r: Row) => glShort(r.gl) || r.category || "";
   // Vendors we've already coded somewhere in the queue — so we don't keep
   // calling every one of their invoices a "first invoice".
   const knownVendors = useMemo(
@@ -600,6 +605,23 @@ export default function Payables({
     } catch {
       setRows((rs) => rs.map((x) => snapshot.get(x.id) ?? x));
       toast(`Couldn't save ${r.vendor} — try again`);
+    }
+  }
+
+  // Persist an operator edit to the QBO memo (optimistic; the row keeps it locally
+  // so the queue reflects it immediately).
+  async function persistMemo(id: string, value: string) {
+    const vendor = rows.find((x) => x.id === id)?.vendor ?? "";
+    setRows((rs) => rs.map((x) => (x.id === id ? { ...x, memo: value } : x)));
+    try {
+      await fetch("/api/payables/set-memo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // vendor → the backend learns this format for future invoices from them
+        body: JSON.stringify({ id, memo: value, vendor }),
+      });
+    } catch {
+      /* best-effort; the local value still shows and re-saves on next action */
     }
   }
 
@@ -875,6 +897,11 @@ export default function Payables({
                   )}
                   {displayReason(r) && <span className="truncate text-amber-600">{displayReason(r)}</span>}
                 </div>
+                {r.memo && (
+                  <div className="mt-0.5 truncate text-[11px] italic text-slate-400" title={r.memo}>
+                    memo: {r.memo}
+                  </div>
+                )}
               </div>
               {/* Date */}
               <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
@@ -1447,6 +1474,21 @@ export default function Payables({
               leg per entity (intercompany where needed).
             </p>
           )}
+        </Section>
+
+        <Section title="QuickBooks memo">
+          <p className="mb-2 text-[12px] text-slate-500">
+            Goes on the posted transaction (both legs of an intercompany pair). Auto-written
+            from the invoice — edit if needed.
+          </p>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
+            rows={2}
+            className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+            placeholder="e.g. Inv 6141094672 · Acct 742344330-00001 · 3/15-4/14 wireless service"
+          />
         </Section>
 
         <Section title="Trust this vendor?">

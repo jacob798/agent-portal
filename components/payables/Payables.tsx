@@ -31,6 +31,9 @@ type Row = PayableRow & {
 
 const missingDoc = (r: Row) => !!r.nodoc && !r.doc_waived;
 
+// compact section label used throughout the redesigned coding drawer
+const DLBL = "mb-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400";
+
 export default function Payables({
   initial,
   accounts,
@@ -1314,9 +1317,6 @@ export default function Payables({
   }
 
   // ---------- drawer ----------
-  // compact section label used throughout the redesigned drawer
-  const DLBL = "mb-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400";
-
   function drawerBody(r: Row) {
     return (
       <div className="space-y-3.5">

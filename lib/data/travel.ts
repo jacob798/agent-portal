@@ -24,7 +24,7 @@ const CAT_ICON: Record<string, string> = {
  *  the trip header, so the ledger shows the REAL payee (extracted.payee). */
 function payableToLedger(r: {
   id: string; vendor: string; memo: string | null; amount: number | string;
-  gl: string | null; category: string | null; status: string | null;
+  gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
   extracted: { payee?: string } | null;
 }): TripExpense {
@@ -37,6 +37,7 @@ function payableToLedger(r: {
     sub: r.memo || r.category || "",
     amount: Number(r.amount),
     gl: r.gl ?? "",
+    bcCategory: r.bc_category ?? undefined,
     status,
     needsDoc: !r.doc_url && !r.nodoc,
   };
@@ -60,6 +61,7 @@ export interface TripExpense {
   sub: string; // memo / date
   amount: number;
   gl: string;
+  bcCategory?: string; // BC Paylocity category ("Meals - General") — the code BC reports show
   status?: ExpenseStatus;
   needsDoc?: boolean; // attributed but no receipt on file yet (gap, not a blocker)
 }
@@ -156,7 +158,7 @@ export async function getTravel(): Promise<{
       // Real invoices attributed to a trip — the per-trip running ledger.
       supabase
         .from("payables_queue")
-        .select("id,vendor,memo,amount,gl,category,status,doc_url,nodoc,extracted,trip_id,created_at")
+        .select("id,vendor,memo,amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at")
         .not("trip_id", "is", null),
     ]);
     // Group attributed invoices by trip → ledger lines.

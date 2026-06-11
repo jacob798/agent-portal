@@ -30,6 +30,13 @@ const BRANDS = {
 };
 const brandFor = (ent: string) => (ent === "BC" ? BRANDS.BC : BRANDS._def);
 
+// BC reimburses via Paylocity, so BC expenses show the Builders Capital category
+// code (e.g. "Meals - General"), NOT the balance-sheet GL "Loan - Builders Capital".
+// Foundry/Personal show the real Travel GL account.
+const expenseCode = (ent: string, e: { gl: string; bcCategory?: string }) =>
+  ent === "BC" ? e.bcCategory || e.gl : e.gl;
+const codeLabel = (ent: string) => (ent === "BC" ? "BCX category" : "GL account");
+
 // The trip-rollup QB vendor every Denver charge posts under (build_trip_header_subject).
 const TRIPVEND = "Travel 2026-06 — Builders Capital · Denver Site Visit (6/4–6/7)";
 
@@ -779,7 +786,7 @@ function TripDetail({
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{e.what}</div>
                 <div className="truncate text-[12.5px] text-slate-500">
-                  {e.gl} · <span className="inline-flex items-center gap-0.5 text-brand"><FileText className="h-3 w-3" /> view</span>
+                  {expenseCode(trip.ent, e)} · <span className="inline-flex items-center gap-0.5 text-brand"><FileText className="h-3 w-3" /> view</span>
                 </div>
               </div>
               <ExpenseStatusChip e={e} />
@@ -841,7 +848,7 @@ function BrandedReport({ trip }: { trip: Trip }) {
           <tr style={{ color: b.accent }}>
             <th className="border-b-2 border-current py-1.5 pr-2 text-left text-[10.5px] font-bold uppercase tracking-wide">Date</th>
             <th className="border-b-2 border-current py-1.5 px-2 text-left text-[10.5px] font-bold uppercase tracking-wide">Vendor</th>
-            <th className="border-b-2 border-current py-1.5 px-2 text-left text-[10.5px] font-bold uppercase tracking-wide">GL account</th>
+            <th className="border-b-2 border-current py-1.5 px-2 text-left text-[10.5px] font-bold uppercase tracking-wide">{codeLabel(trip.ent)}</th>
             <th className="border-b-2 border-current py-1.5 px-2 text-center text-[10.5px] font-bold uppercase tracking-wide">Documentation</th>
             <th className="border-b-2 border-current py-1.5 pl-2 text-right text-[10.5px] font-bold uppercase tracking-wide">Amount</th>
           </tr>
@@ -851,7 +858,7 @@ function BrandedReport({ trip }: { trip: Trip }) {
             <tr key={k} className="border-b border-slate-100">
               <td className="py-2 pr-2">{e.sub.includes("·") ? e.sub.split("·").pop()!.trim() : trip.dates}</td>
               <td className="px-2 py-2">{e.what}</td>
-              <td className="px-2 py-2">{e.gl}</td>
+              <td className="px-2 py-2">{expenseCode(trip.ent, e)}</td>
               <td className="px-2 py-2 text-center" style={{ color: b.accent }}>✓ receipt</td>
               <td className="py-2 pl-2 text-right tabular-nums">{money(e.amount)}</td>
             </tr>

@@ -8,6 +8,7 @@ import {
   FileText,
   Search,
   Plus,
+  Pencil,
   ExternalLink,
   Check,
   X,
@@ -66,6 +67,7 @@ export default function Travel({
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [ovDone, setOvDone] = useState<Record<string, string>>({});
   const [newTripOpen, setNewTripOpen] = useState(false);
+  const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const { message, toast } = useToast();
   const router = useRouter();
 
@@ -134,6 +136,7 @@ export default function Travel({
           onBack={() => setOpenTripId(null)}
           onReport={() => setReportId(openTrip.id)}
           onPost={() => postTrip(openTrip)}
+          onEdit={() => setEditTrip(openTrip)}
         />
       ) : (
         <>
@@ -191,6 +194,15 @@ export default function Travel({
 
       {/* New trip */}
       <NewTripModal open={newTripOpen} onClose={() => setNewTripOpen(false)} onCreate={createTrip} />
+
+      {editTrip && (
+        <EditTripModal
+          trip={editTrip}
+          onClose={() => setEditTrip(null)}
+          onSaved={() => { setEditTrip(null); router.refresh(); }}
+          toast={toast}
+        />
+      )}
 
       {/* Branded report */}
       <Modal
@@ -576,6 +588,103 @@ function NewTripModal({
   );
 }
 
+// ---------- edit trip ----------
+function EditTripModal({
+  trip,
+  onClose,
+  onSaved,
+  toast,
+}: {
+  trip: Trip;
+  onClose: () => void;
+  onSaved: () => void;
+  toast: (m: string) => void;
+}) {
+  const [ent, setEnt] = useState(trip.ent);
+  const [dest, setDest] = useState(trip.dest);
+  const [start, setStart] = useState(trip.start);
+  const [end, setEnd] = useState(trip.end);
+  const [purpose, setPurpose] = useState(trip.purpose ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/travel/update-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: trip.id, ent, dest, start, end, purpose }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "save failed");
+      toast(`✓ Updated ${dest || "trip"}`);
+      onSaved();
+    } catch (e) {
+      toast(`Couldn't save: ${(e as Error).message}`);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit trip"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Entity">
+          <div className="flex flex-wrap gap-2">
+            {EDIT_TRIP_ENTITIES.map((e) => (
+              <button
+                key={e.code}
+                onClick={() => setEnt(e.code)}
+                className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+                  ent === e.code
+                    ? "border-brand-navy bg-brand-navy text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-brand"
+                }`}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Destination">
+          <input value={dest} onChange={(e) => setDest(e.target.value)} className={INPUT} />
+        </Field>
+        <div className="flex gap-3">
+          <Field label="Start date" className="flex-1">
+            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={INPUT} />
+          </Field>
+          <Field label="End date" className="flex-1">
+            <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className={INPUT} />
+          </Field>
+        </div>
+        <Field label="Purpose">
+          <input value={purpose} onChange={(e) => setPurpose(e.target.value)} className={INPUT} />
+        </Field>
+        <div className="rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-600">
+          Updates the trip record — the report, the QuickBooks vendor name, and how new invoices attribute to this trip.
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Travel entities (CLAUDE.md): FC, BC, PER, UNK.
+const EDIT_TRIP_ENTITIES: { code: string; label: string }[] = [
+  { code: "BC", label: "Builders Capital" },
+  { code: "FC", label: "Foundry Capital" },
+  { code: "PER", label: "Personal" },
+  { code: "UNK", label: "Unknown" },
+];
+
 const INPUT = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand focus:outline-none";
 
 function Field({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
@@ -709,11 +818,13 @@ function TripDetail({
   onBack,
   onReport,
   onPost,
+  onEdit,
 }: {
   trip: Trip;
   onBack: () => void;
   onReport: () => void;
   onPost: () => void;
+  onEdit: () => void;
 }) {
   const b = brandFor(trip.ent);
   const postable = trip.exps.filter((e) => e.id && e.status === "open").length;
@@ -724,8 +835,13 @@ function TripDetail({
       </button>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-brand-navy">{trip.dest}</h1>
-          <p className="mt-1 text-sm text-slate-500">{ENT[trip.ent]} · {trip.dates}</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-semibold tracking-tight text-brand-navy">{trip.dest}</h1>
+            <button onClick={onEdit} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[12px] font-semibold text-brand transition hover:border-brand hover:bg-brand/5">
+              <Pencil className="h-3 w-3" /> Edit
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{ENT[trip.ent] ?? trip.ent} · {trip.dates}</p>
           <p className="mt-2 text-[13.5px]">
             <span className="mr-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Purpose</span>
             {trip.purpose ?? "— (add one)"}

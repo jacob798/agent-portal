@@ -49,65 +49,49 @@ export interface QueueExpense {
   postTrip?: boolean;
   gl: string;
 }
+/**
+ * An itinerary/charge whose date lands inside TWO trip windows — the only case
+ * that needs the operator. Surfaced as a choice strip above the queue.
+ * Representative until a real overlap source lands in the backend.
+ */
+export interface OverlapException {
+  id: string;
+  ic: string;
+  title: string;
+  sub: string;
+  opts: string[];
+}
 
 const TRIPS: Trip[] = [
-  {
-    id: "den",
-    ent: "BC",
-    dest: "Denver, CO",
-    dates: "Jun 4 – 7",
-    status: "open",
-    grace: "grace thru Jul 7",
-    purpose: "Site visit — Iota St JV",
-    total: 1403.02,
-    itin: [
-      { ic: "✈️", when: "Jun 4 · 9:10a", what: "Delta DL892 — BOI → DEN", sub: "Confirmation #DL77H2" },
-      { ic: "🏨", when: "Jun 4–6", what: "Westin Denver Downtown", sub: "2 nights · conf #W8821" },
-      { ic: "🚗", when: "Jun 4–7", what: "Hertz — midsize", sub: "DEN airport pickup" },
-      { ic: "📍", when: "Jun 5 · 2:00p", what: "Site meeting — Iota St JV", sub: "On calendar" },
-      { ic: "✈️", when: "Jun 7 · 6:40p", what: "Delta DL1180 — DEN → BOI", sub: "Confirmation #DL77H2" },
-    ],
-    exps: [
-      { ic: "✈️", what: "Delta Air Lines", sub: "Airfare · Jun 4", amount: 410.0, gl: "6730 Travel — Airfare" },
-      { ic: "🚕", what: "Uber", sub: "Rideshare · Jun 4", amount: 28.5, gl: "6720 Travel — Ground" },
-      { ic: "🏨", what: "Westin Denver", sub: "Lodging · Jun 5", amount: 612.0, gl: "6700 Travel — Lodging" },
-      { ic: "🍽️", what: "Chandlers Steakhouse", sub: "Dining · Jun 5", amount: 84.2, gl: "6710 Travel — Meals" },
-      { ic: "☕", what: "Dutch Bros", sub: "Dining · Jun 6", amount: 9.15, gl: "6710 Travel — Meals" },
-      { ic: "🚕", what: "Uber", sub: "Rideshare · Jun 6", amount: 19.2, gl: "6720 Travel — Ground" },
-      { ic: "🚗", what: "Hertz", sub: "Ground · invoiced Jun 21 (post-trip)", amount: 240.0, gl: "6720 Travel — Ground" },
-    ],
-  },
-  {
-    id: "sea",
-    ent: "FC",
-    dest: "Seattle, WA",
-    dates: "Jun 18 – 20",
-    status: "up",
-    purpose: "Investor meetings",
-    total: 0,
-    itin: [
-      { ic: "✈️", when: "Jun 18 · 7:25a", what: "Delta DL1234 — BOI → SEA", sub: "Confirmation pending" },
-      { ic: "🏨", when: "Jun 18–20", what: "Hotel — TBD", sub: "Not booked yet" },
-    ],
-    exps: [],
-  },
-  {
-    id: "slc",
-    ent: "BC",
-    dest: "Salt Lake City, UT",
-    dates: "May 28 – 30",
-    status: "closed",
-    purpose: "Lender conference",
-    total: 2110.4,
-    itin: [],
-    exps: [
-      { ic: "🏨", what: "Marriott SLC", sub: "Lodging", amount: 1180.0, gl: "6700" },
-      { ic: "✈️", what: "Delta", sub: "Airfare", amount: 520.0, gl: "6730" },
-      { ic: "🍽️", what: "Meals (5)", sub: "Dining", amount: 410.4, gl: "6710" },
-    ],
-  },
-  { id: "pdx", ent: "FC", dest: "Portland, OR", dates: "Apr 14 – 16", status: "closed", purpose: "Property tour", total: 1640.0, itin: [], exps: [{ ic: "🏨", what: "Hotel", sub: "", amount: 980, gl: "6700" }, { ic: "✈️", what: "Air", sub: "", amount: 660, gl: "6730" }] },
-  { id: "phx", ent: "BC", dest: "Phoenix, AZ", dates: "Mar 3 – 5", status: "closed", purpose: "Builders Capital offsite", total: 1925.0, itin: [], exps: [] },
+  { id: "trip_manual_b3677933", ent: "UNK", dest: "Spokane", dates: "Jun 5 – 7", status: "open", grace: "grace thru Jul 7", purpose: "SP Volleyball", total: 0.0, itin: [], exps: [] },
+  { id: "trip_hist_024", ent: "BC", dest: "Paso Robles", dates: "May 20 – 21", status: "open", grace: "grace thru Jun 20", purpose: "Stg Vinedo with Peachtree", total: 358.2, itin: [], exps: [] },
+  { id: "trip_hist_023", ent: "PER", dest: "Boston", dates: "May 9 – 16", status: "open", grace: "grace thru Jun 15", purpose: "Nephew Visit", total: 1029.4, itin: [], exps: [] },
+  { id: "trip_hist_europe_2026", ent: "PER", dest: "Europe (Paris / Rome)", dates: "Mar 10 – 25", status: "closed", purpose: "Spring Break", total: 76.33, itin: [], exps: [] },
+  { id: "trip_hist_022", ent: "PER", dest: "Seattle", dates: "Mar 6 – 8", status: "closed", purpose: "Simon Volleyball", total: 256.96, itin: [], exps: [] },
+  { id: "trip_hist_san_diego_2026", ent: "PER", dest: "San Diego", dates: "Feb 26 – Mar 1", status: "closed", purpose: "Jacob Vacation", total: 11.2, itin: [], exps: [] },
+  { id: "trip_hist_021", ent: "BC", dest: "Greenville", dates: "Feb 16 – 20", status: "closed", purpose: "GLS / Churchill Mtg", total: 898.4, itin: [], exps: [] },
+  { id: "trip_hist_020", ent: "BC", dest: "Seattle", dates: "Feb 9 – 13", status: "closed", purpose: "Sales Summit", total: 636.81, itin: [], exps: [] },
+  { id: "trip_hist_019", ent: "BC", dest: "Fort Lauderdale", dates: "Jan 6 – 9", status: "closed", purpose: "Peachtree JV Mtg", total: 826.59, itin: [], exps: [] },
+  { id: "trip_hist_jj_xmas_2025", ent: "PER", dest: "Orange County", dates: "Dec 24 – 30", status: "closed", purpose: "J&J Xmas Trip", total: 0.0, itin: [], exps: [] },
+  { id: "trip_hist_018", ent: "PER", dest: "Louisville", dates: "Dec 11 – 15", status: "closed", purpose: "Simon Volleyball", total: 628.36, itin: [], exps: [] },
+  { id: "trip_hist_017", ent: "BC", dest: "Cleveland", dates: "Nov 30 – Dec 5", status: "closed", purpose: "Cleveland Mtg", total: 1029.37, itin: [], exps: [] },
+  { id: "trip_hist_025", ent: "BC", dest: "Atlanta", dates: "Nov 17 – 19", status: "closed", purpose: "JV Capital Mtg", total: 1436.96, itin: [], exps: [] },
+  { id: "trip_hist_016", ent: "BC", dest: "Newark", dates: "Oct 20", status: "closed", purpose: "SG Mtg", total: 399.19, itin: [], exps: [] },
+  { id: "trip_hist_015", ent: "BC", dest: "Cleveland", dates: "Oct 12 – 17", status: "closed", purpose: "Cleveland Mtg", total: 568.19, itin: [], exps: [] },
+  { id: "trip_hist_014", ent: "BC", dest: "Dallas", dates: "Sep 30 – Oct 3", status: "closed", purpose: "Robert / Val Texas Mtg", total: 642.37, itin: [], exps: [] },
+  { id: "trip_hist_013", ent: "BC", dest: "Minneapolis", dates: "Sep 9 – 11", status: "closed", purpose: "SAG Site Visits", total: 1226.67, itin: [], exps: [] },
+  { id: "trip_hist_012", ent: "BC", dest: "Cleveland", dates: "Aug 24 – Sep 2", status: "closed", purpose: "Cleveland Mtg", total: 710.36, itin: [], exps: [] },
+  { id: "trip_hist_011", ent: "BC", dest: "Seattle", dates: "Aug 11", status: "closed", purpose: "Curt / Robert Comp Mtg", total: 446.97, itin: [], exps: [] },
+  { id: "trip_hist_010", ent: "BC", dest: "Cleveland", dates: "Jul 28 – Aug 1", status: "closed", purpose: "Cleveland Mtg", total: 783.37, itin: [], exps: [] },
+  { id: "trip_hist_009", ent: "BC", dest: "Seattle", dates: "Jul 7 – 10", status: "closed", purpose: "Puyallyp Mtg", total: 546.97, itin: [], exps: [] },
+  { id: "trip_hist_008", ent: "BC", dest: "Houston", dates: "Jun 10 – 18", status: "closed", purpose: "Shae / Courtney Co-Travel", total: 1065.14, itin: [], exps: [] },
+  { id: "trip_hist_007", ent: "BC", dest: "Miami", dates: "May 18 – 23", status: "closed", purpose: "FLL Mtg + Trilogy Site Visit", total: 1109.16, itin: [], exps: [] },
+  { id: "trip_hist_006", ent: "BC", dest: "Spokane", dates: "May 4 – 9", status: "closed", purpose: "Shae Co-Travel", total: 1146.97, itin: [], exps: [] },
+  { id: "trip_hist_005", ent: "BC", dest: "Fort Lauderdale", dates: "Apr 14 – 18", status: "closed", purpose: "Sales Mtg", total: 868.75, itin: [], exps: [] },
+  { id: "trip_hist_004", ent: "BC", dest: "Salt Lake City", dates: "Mar 28", status: "closed", purpose: "Customer Mtg", total: 726.96, itin: [], exps: [] },
+  { id: "trip_hist_003", ent: "BC", dest: "Sacramento", dates: "Mar 22", status: "closed", purpose: "Customer Mtg", total: 128.49, itin: [], exps: [] },
+  { id: "trip_hist_002", ent: "BC", dest: "Houston", dates: "Mar 8 – 14", status: "closed", purpose: "Shae / Courtney Co-Travel", total: 810.45, itin: [], exps: [] },
+  { id: "trip_hist_001", ent: "BC", dest: "Las Vegas", dates: "Feb 24 – 28", status: "closed", purpose: "Broker Conference", total: 562.37, itin: [], exps: [] },
 ];
 
 const QUEUE: QueueExpense[] = [
@@ -121,16 +105,32 @@ const QUEUE: QueueExpense[] = [
   { id: "e6", ic: "🍽️", merchant: "Goldy's Breakfast", sub: "AMEX WJW ••1004 · Jun 12 · Dining", loc: "Boise, ID", home: true, category: "Dining", amount: 31.4, trip: null, suggested: false, gl: "7800 Personal" },
 ];
 
-export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[] }> {
-  if (!isSupabaseConfigured()) return { trips: TRIPS, queue: QUEUE };
+const OVERLAPS: OverlapException[] = [
+  {
+    id: "ov1",
+    ic: "🏨",
+    title: "Hotel — Hyatt Denver, Jun 6→8",
+    sub: "Dates overlap two BC trips (Denver Jun 4–7 and Denver Jun 6–9). Which trip?",
+    opts: ["Denver Jun 4–7", "Denver Jun 6–9"],
+  },
+];
+
+export async function getTravel(): Promise<{
+  trips: Trip[];
+  queue: QueueExpense[];
+  overlaps: OverlapException[];
+}> {
+  if (!isSupabaseConfigured()) return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS };
   try {
     const supabase = await createClient();
     const [{ data: t }, { data: q }] = await Promise.all([
       supabase.from("trips").select("*").order("ord"),
       supabase.from("travel_queue").select("*").order("ord"),
     ]);
+    // Fall back to the mock when the table is empty (not just null/error), so
+    // the page is never blank against an unseeded backend.
     const trips: Trip[] =
-      t
+      t && t.length
         ? t.map((r) => ({
             id: r.id,
             ent: r.ent,
@@ -145,7 +145,7 @@ export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[
           }))
         : TRIPS;
     const queue: QueueExpense[] =
-      q
+      q && q.length
         ? q.map((r) => ({
             id: r.id,
             ic: r.ic,
@@ -161,8 +161,10 @@ export async function getTravel(): Promise<{ trips: Trip[]; queue: QueueExpense[
             gl: r.gl ?? "",
           }))
         : QUEUE;
-    return { trips, queue };
+    // Overlaps are representative until a real backend source exists; the
+    // queue/trips above come from Supabase, the overlap strip from the constant.
+    return { trips, queue, overlaps: OVERLAPS };
   } catch {
-    return { trips: TRIPS, queue: QUEUE };
+    return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS };
   }
 }

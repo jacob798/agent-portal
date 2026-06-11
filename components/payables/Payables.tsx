@@ -54,6 +54,60 @@ export default function Payables({
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [entityPickRow, setEntityPickRow] = useState<string | null>(null);
+  // Mass-edit selected invoices (posting type, entity, pay-from, GL).
+  type Bulk = { posting?: "charge" | "bill"; entity?: string; paymentMethodId?: string; gl?: string };
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulk, setBulk] = useState<Bulk>({});
+  async function applyBulkEdit() {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const acct = bulk.paymentMethodId ? accounts.find((a) => a.id === bulk.paymentMethodId) : undefined;
+    const patch: Record<string, unknown> = {};
+    if (bulk.posting) patch.posting = bulk.posting;
+    if (bulk.entity) patch.entity = bulk.entity;
+    if (bulk.gl) patch.gl = bulk.gl;
+    if (bulk.paymentMethodId) {
+      patch.paymentMethodId = bulk.paymentMethodId;
+      patch.account = acct?.label;
+    }
+    if (!Object.keys(patch).length) {
+      setShowBulkEdit(false);
+      return;
+    }
+    const set = new Set(ids);
+    setRows((rs) =>
+      rs.map((r) =>
+        set.has(r.id)
+          ? {
+              ...r,
+              ...(bulk.entity ? { entity: bulk.entity } : {}),
+              ...(bulk.posting ? { posting: bulk.posting } : {}),
+              ...(bulk.gl ? { gl: bulk.gl } : {}),
+              ...(acct ? { account: acct.label, paymentMethodId: acct.id } : {}),
+              auto: false,
+              resolved: false,
+              exception: undefined,
+              reason: "Coded — review & post",
+            }
+          : r,
+      ),
+    );
+    setShowBulkEdit(false);
+    try {
+      const res = await fetch("/api/payables/bulk-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, ...patch }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || String(res.status));
+      toast(`✓ Updated ${j.updated ?? ids.length} invoice${(j.updated ?? ids.length) === 1 ? "" : "s"}`);
+      setBulk({});
+      clearSel();
+    } catch (e) {
+      toast(`Bulk edit failed: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+  }
   // Set a row's entity directly from the queue (entity drives the GL). Updates
   // the row in place (it stays in the queue, now coded), saves the coding, and
   // reverts on failure. Posting happens later via the batch "Post" button.
@@ -732,6 +786,9 @@ export default function Payables({
                 <Button size="sm" variant="ghost" onClick={clearSel}>
                   Clear
                 </Button>
+                <Button size="sm" variant="secondary" onClick={() => { setBulk({}); setShowBulkEdit(true); }}>
+                  ✎ Edit {selected.size}
+                </Button>
                 <Button size="sm" variant="secondary" onClick={moveAllToReview} disabled={posting}>
                   ↩ Move to review
                 </Button>
@@ -1028,6 +1085,95 @@ export default function Payables({
           No account/entity needed — each document is stored, OCR’d, classified (entity · GL · vendor),
           and queued. Only the ones the agent can’t resolve land in this exception queue.
         </p>
+      </Modal>
+
+      {/* Mass edit selected invoices */}
+      <Modal
+        open={showBulkEdit}
+        onClose={() => setShowBulkEdit(false)}
+        title={`Edit ${selected.size} invoice${selected.size === 1 ? "" : "s"}`}
+        width="max-w-lg"
+        footer={
+          <>
+            <Button onClick={applyBulkEdit}>Apply to {selected.size}</Button>
+            <Button variant="ghost" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-[12.5px] text-slate-500">
+          Only the fields you set change; the rest stay as they are. Applies to all
+          selected rows.
+        </p>
+        <Field label="Posting">
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {[
+              { k: undefined, label: "No change" },
+              { k: "charge" as const, label: "Charge (card)" },
+              { k: "bill" as const, label: "Bill (A/P)" },
+            ].map((o) => (
+              <button
+                key={o.label}
+                onClick={() => setBulk((b) => ({ ...b, posting: o.k }))}
+                className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-semibold transition ${bulk.posting === o.k ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Entity">
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setBulk((b) => ({ ...b, entity: undefined, gl: undefined }))}
+              className={`inline-flex h-7 items-center justify-center rounded-md px-2 text-[12px] font-bold ${!bulk.entity ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand"}`}
+            >
+              No change
+            </button>
+            {entityCodes.map((c) => (
+              <button
+                key={c}
+                title={entName(c)}
+                onClick={() => setBulk((b) => ({ ...b, entity: c, gl: c === "BC" ? BC_ROUTE.gl : undefined }))}
+                className={`inline-flex h-7 min-w-[2.4rem] items-center justify-center rounded-md px-2 text-[12px] font-bold ${bulk.entity === c ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Pay from">
+          <select
+            value={bulk.paymentMethodId ?? ""}
+            onChange={(e) => setBulk((b) => ({ ...b, paymentMethodId: e.target.value || undefined }))}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+          >
+            <option value="">No change</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </Field>
+        {bulk.entity !== "BC" && (
+          <Field label="GL account">
+            <select
+              value={bulk.gl ?? ""}
+              onChange={(e) => setBulk((b) => ({ ...b, gl: e.target.value || undefined }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+            >
+              <option value="">No change</option>
+              {glGroups(bulk.entity).map((grp) => (
+                <optgroup key={grp.label} label={grp.label}>
+                  {grp.options.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+        )}
+        {bulk.entity === "BC" && (
+          <p className="text-[12px] text-amber-700">BC → posts to PER QB as {BC_ROUTE.gl}.</p>
+        )}
       </Modal>
 
       <Toast message={message} />

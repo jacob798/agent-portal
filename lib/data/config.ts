@@ -28,30 +28,12 @@ export interface GlAccount {
   type: string | null;
 }
 
-const FALLBACK_ACCTS: PaymentMethod[] = [
-  { id: "pm_000006", label: "AMEX - WJW Business ••1004", type: "credit_card", status: "active", entity: "PER", lastFour: "1004" },
-  { id: "pm_000008", label: "AMEX - Foundry Business ••1005", type: "credit_card", status: "active", entity: "PER", lastFour: "1005" },
-  { id: "pm_000007", label: "AMEX - Delta Reserve ••5001", type: "credit_card", status: "active", entity: "PER", lastFour: "5001" },
-  { id: "pm_000009", label: "Citibank ••4658", type: "credit_card", status: "active", entity: "PER", lastFour: "4658" },
-];
+// NO fake accounts: bank/card/GL options come ONLY from the live QuickBooks chart
+// of accounts (Supabase gl_accounts). If the cloud is unreachable we show nothing
+// rather than invented accounts you can't actually post to.
+const FALLBACK_ACCTS: PaymentMethod[] = [];
+const FALLBACK_GLS: GlAccount[] = [];
 
-const FALLBACK_GLS: GlAccount[] = [
-  { id: "x1", entity: "FC", number: "6200", name: "Software", fullName: "6200 Software", type: "Expense" },
-  { id: "x2", entity: "FC", number: "6420", name: "Internet", fullName: "6420 Internet", type: "Expense" },
-  { id: "x3", entity: "PER", number: "7800", name: "Personal", fullName: "7800 Personal", type: "Expense" },
-  { id: "x4", entity: "WJW", number: "6120", name: "Materials", fullName: "6120 Materials", type: "Expense" },
-  { id: "x5", entity: "WJW", number: "6140", name: "Small Tools", fullName: "6140 Sm Tools", type: "Expense" },
-];
-
-function labelFor(displayName: string, lastFour: string | null): string {
-  // payment_methods display_name already reads e.g. "AMEX - WJW Business (1004)".
-  // Normalize the trailing (1004) to •• form for consistency with the queue.
-  if (lastFour && displayName.includes(`(${lastFour})`)) {
-    return displayName.replace(`(${lastFour})`, `••${lastFour}`).replace(/\s+/g, " ").trim();
-  }
-  if (lastFour && !displayName.includes(lastFour)) return `${displayName} ••${lastFour}`;
-  return displayName;
-}
 
 // Pay-from accounts come straight from the QuickBooks chart of accounts (the PER
 // payment hub) — bank / checking / credit-card / cash. No separately-maintained

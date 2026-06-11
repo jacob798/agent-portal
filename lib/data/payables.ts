@@ -53,6 +53,8 @@ export interface PayableRow {
   vendorStatus?: string | null;
   /** QBO memo (computed at ingest, operator-editable) — shown in queue + drawer, posted to QB. */
   memo?: string | null;
+  /** Invoice number (operator-editable) → posted to the QB invoice-number field (DocNumber). */
+  invoiceNumber?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -182,6 +184,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       vendorContact: r.vendor_contact ?? null,
       vendorStatus: r.vendor_status ?? "new",
       memo: r.memo ?? null,
+      invoiceNumber: r.invoice_number ?? null,
     }));
   } catch {
     return MOCK;

@@ -226,6 +226,7 @@ export default function Payables({
   type DrawerLine = { desc: string; amount: number; gl: string; entity: string; bcCategory?: string };
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [memo, setMemo] = useState<string>("");
+  const [invoiceNumber, setInvoiceNumber] = useState<string>("");
   const [alwaysCode, setAlwaysCode] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
@@ -284,6 +285,7 @@ export default function Payables({
         : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
     setLines(base);
     setMemo(r.memo ?? "");
+    setInvoiceNumber(r.invoiceNumber ?? "");
     setAlwaysCode(false);
     setAutoApprove(false);
     setPostType(r.posting === "bill" ? "bill" : "charge");
@@ -625,6 +627,20 @@ export default function Payables({
     }
   }
 
+  // Persist an operator edit to the invoice number (→ QB invoice-number field).
+  async function persistInvoice(id: string, value: string) {
+    setRows((rs) => rs.map((x) => (x.id === id ? { ...x, invoiceNumber: value } : x)));
+    try {
+      await fetch("/api/payables/set-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, invoiceNumber: value }),
+      });
+    } catch {
+      /* best-effort; local value still shows */
+    }
+  }
+
   // Confirm the entity (and coding) for a row from the drawer, optionally
   // saving the "always" rule.
   async function confirmEntityFromDrawer(r: Row, code: string) {
@@ -897,11 +913,14 @@ export default function Payables({
                   )}
                   {displayReason(r) && <span className="truncate text-amber-600">{displayReason(r)}</span>}
                 </div>
-                {r.memo && (
-                  <div className="mt-0.5 truncate text-[11px] italic text-slate-400" title={r.memo}>
-                    memo: {r.memo}
-                  </div>
-                )}
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
+                  <span className={r.invoiceNumber ? "" : "italic text-amber-600"}>
+                    inv: {r.invoiceNumber || "—"}
+                  </span>
+                  {r.memo && (
+                    <span className="truncate italic" title={r.memo}>· {r.memo}</span>
+                  )}
+                </div>
               </div>
               {/* Date */}
               <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
@@ -1476,8 +1495,25 @@ export default function Payables({
           )}
         </Section>
 
-        <Section title="QuickBooks memo">
-          <p className="mb-2 text-[12px] text-slate-500">
+        <Section title="QuickBooks">
+          <label className="mb-1 block text-[11.5px] font-semibold uppercase tracking-wide text-slate-400">
+            Invoice number
+          </label>
+          <p className="mb-1.5 text-[12px] text-slate-500">
+            Posts to the QuickBooks invoice-number field (Bill no. / Ref no.). Edit if it&apos;s
+            missing or wrong.
+          </p>
+          <input
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            onBlur={() => { if (invoiceNumber !== (r.invoiceNumber ?? "")) persistInvoice(r.id, invoiceNumber); }}
+            className="mb-3.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+            placeholder="e.g. 6141094672"
+          />
+          <label className="mb-1 block text-[11.5px] font-semibold uppercase tracking-wide text-slate-400">
+            Memo
+          </label>
+          <p className="mb-1.5 text-[12px] text-slate-500">
             Goes on the posted transaction (both legs of an intercompany pair). Auto-written
             from the invoice — edit if needed.
           </p>
@@ -1487,7 +1523,7 @@ export default function Payables({
             onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
             rows={2}
             className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
-            placeholder="e.g. Inv 6141094672 · Acct 742344330-00001 · 3/15-4/14 wireless service"
+            placeholder="e.g. 3/15-4/14 wireless service"
           />
         </Section>
 

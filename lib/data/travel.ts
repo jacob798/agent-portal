@@ -94,26 +94,11 @@ const TRIPS: Trip[] = [
   { id: "trip_hist_001", ent: "BC", dest: "Las Vegas", dates: "Feb 24 – 28", status: "closed", purpose: "Broker Conference", total: 562.37, itin: [], exps: [] },
 ];
 
-const QUEUE: QueueExpense[] = [
-  { id: "e1", ic: "🏨", merchant: "Westin Denver", sub: "AMEX WJW ••1004 · Jun 5 · Lodging", loc: "Denver, CO", home: false, category: "Lodging", amount: 612.0, trip: "Builders Capital · Denver", suggested: true, gl: "6700 Travel — Lodging" },
-  { id: "e2", ic: "🍽️", merchant: "Chandlers Steakhouse", sub: "AMEX WJW ••1004 · Jun 5 · Dining", loc: "Denver, CO", home: false, category: "Dining", amount: 84.2, trip: "Builders Capital · Denver", suggested: true, gl: "6710 Travel — Meals" },
-  { id: "e3", ic: "🚗", merchant: "Hertz", sub: "Invoiced Jun 21 · Jun 4–7 rental", loc: "Denver, CO", home: false, category: "Transport", amount: 240.0, trip: "Builders Capital · Denver", suggested: true, postTrip: true, gl: "6720 Travel — Ground" },
-  { id: "e4", ic: "✈️", merchant: "Delta Air Lines", sub: "AMEX Delta ••5001 · Jun 4 · Airfare", loc: "—", home: false, category: "Airfare", amount: 410.0, trip: "Builders Capital · Denver", suggested: true, gl: "6730 Travel — Airfare" },
-  { id: "e5", ic: "☕", merchant: "Dutch Bros", sub: "AMEX WJW ••1004 · Jun 6 · Dining", loc: "Denver, CO", home: false, category: "Dining", amount: 9.15, trip: "Builders Capital · Denver", suggested: true, gl: "6710 Travel — Meals" },
-  { id: "eu1", ic: "🚕", merchant: "Uber", sub: "AMEX WJW ••1004 · Jun 4 · Rideshare (DEN→hotel)", loc: "Denver, CO", home: false, category: "Transport", amount: 28.5, trip: "Builders Capital · Denver", suggested: true, gl: "6720 Travel — Ground" },
-  { id: "eu2", ic: "🚕", merchant: "Uber", sub: "AMEX WJW ••1004 · Jun 6 · Rideshare (site visit)", loc: "Denver, CO", home: false, category: "Transport", amount: 19.2, trip: "Builders Capital · Denver", suggested: true, gl: "6720 Travel — Ground" },
-  { id: "e6", ic: "🍽️", merchant: "Goldy's Breakfast", sub: "AMEX WJW ••1004 · Jun 12 · Dining", loc: "Boise, ID", home: true, category: "Dining", amount: 31.4, trip: null, suggested: false, gl: "7800 Personal" },
-];
+// Queue + overlaps come from the live backend (Supabase public.travel_queue /
+// real attribution state). No demo fallback — an empty backend shows empty.
+const QUEUE: QueueExpense[] = [];
 
-const OVERLAPS: OverlapException[] = [
-  {
-    id: "ov1",
-    ic: "🏨",
-    title: "Hotel — Hyatt Denver, Jun 6→8",
-    sub: "Dates overlap two BC trips (Denver Jun 4–7 and Denver Jun 6–9). Which trip?",
-    opts: ["Denver Jun 4–7", "Denver Jun 6–9"],
-  },
-];
+const OVERLAPS: OverlapException[] = [];
 
 export async function getTravel(): Promise<{
   trips: Trip[];

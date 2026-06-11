@@ -211,6 +211,7 @@ function ExpenseQueue({
   onResolveOverlap: (id: string, opt: string) => void;
 }) {
   const pending = queue.filter((q) => !q.home && !done[q.id]).length;
+  const homeCount = queue.filter((q) => q.home).length;
   return (
     <>
       {/* Overlap exceptions — the only thing the operator is forced to resolve */}
@@ -249,10 +250,19 @@ function ExpenseQueue({
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Trip expenses to confirm</h2>
-            <p className="text-[12.5px] text-slate-500">{pending} suggested · 1 home → Payables</p>
+            <p className="text-[12.5px] text-slate-500">
+              {pending} suggested{homeCount ? ` · ${homeCount} home → Payables` : ""}
+            </p>
           </div>
-          <Button variant="success" onClick={onConfirmAll}>✓ Confirm all</Button>
+          {pending > 0 && (
+            <Button variant="success" onClick={onConfirmAll}>✓ Confirm all</Button>
+          )}
         </div>
+        {queue.length === 0 && (
+          <div className="px-5 py-10 text-center text-sm text-slate-400">
+            No trip expenses waiting — new receipts appear here as the agent attributes them.
+          </div>
+        )}
         {queue.map((q) => {
           if (done[q.id])
             return (

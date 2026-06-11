@@ -9,6 +9,7 @@ export default function Drawer({
   onClose,
   title,
   subtitle,
+  headerRight,
   footer,
   children,
   width = "max-w-xl",
@@ -17,6 +18,7 @@ export default function Drawer({
   onClose: () => void;
   title: ReactNode;
   subtitle?: ReactNode;
+  headerRight?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
   width?: string;
@@ -40,6 +42,7 @@ export default function Drawer({
             <h2 className="truncate text-base font-semibold text-slate-900">{title}</h2>
             {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
           </div>
+          {headerRight && <div className="ml-auto shrink-0 text-right">{headerRight}</div>}
           <button
             onClick={onClose}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"

@@ -979,8 +979,25 @@ export default function Payables({
       <Drawer
         open={!!drawerRow}
         onClose={() => setDrawerId(null)}
-        title={drawerRow?.vendor ?? ""}
-        subtitle={drawerRow ? `${drawerRow.sub} · ${money(drawerRow.amount)}` : ""}
+        title={
+          drawerRow ? (
+            <span className="flex items-center gap-2">
+              <span className={drawerRow.vendorStatus === "new" ? "text-red-500" : "text-emerald-600"}>
+                {drawerRow.vendorStatus === "new" ? "✗" : "✓"}
+              </span>
+              {drawerRow.vendor}
+            </span>
+          ) : ""
+        }
+        subtitle={drawerRow?.sub ?? ""}
+        headerRight={
+          drawerRow ? (
+            <>
+              <div className="text-xl font-bold tabular-nums text-slate-900">{money(drawerRow.amount)}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount</div>
+            </>
+          ) : null
+        }
         footer={drawerRow && drawerFooter(drawerRow)}
       >
         {drawerRow && drawerBody(drawerRow)}
@@ -1297,86 +1314,77 @@ export default function Payables({
   }
 
   // ---------- drawer ----------
+  // compact section label used throughout the redesigned drawer
+  const DLBL = "mb-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400";
+
   function drawerBody(r: Row) {
     return (
-      <div className="space-y-5">
-        <Section title="Source document">
-          {r.docUrl ? (
-            <a
-              href={r.docUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 py-3 transition hover:border-brand hover:bg-brand/[0.03]"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-lg">
-                📄
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-semibold text-slate-900">
-                  {r.vendor} — invoice
-                </span>
-                <span className="block truncate text-[12px] text-slate-500">
-                  Filed to Dropbox · {r.sub}
-                </span>
-              </span>
-              <span className="shrink-0 text-[12.5px] font-semibold text-brand group-hover:underline">
-                Open ↗
-              </span>
-            </a>
-          ) : (
-            <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3.5 py-3 text-[13px] text-slate-500">
-              <span>📎 No document attached yet</span>
-              <Button size="sm" variant="ghost" onClick={() => resolveDoc(r.id, "attach")}>
-                Attach receipt
-              </Button>
-            </div>
-          )}
-        </Section>
-
-        <Section title="Posting">
-          <div className="flex w-full gap-1 rounded-lg bg-slate-100 p-1">
-            <button
-              onClick={() => setPostType("charge")}
-              className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition ${postType === "charge" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Charge (card)
-            </button>
-            <button
-              onClick={() => setPostType("bill")}
-              className={`flex-1 rounded-md px-4 py-1.5 text-sm font-semibold transition ${postType === "bill" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Bill (A/P)
-            </button>
+      <div className="space-y-3.5">
+        {/* source — one line */}
+        {r.docUrl ? (
+          <a
+            href={r.docUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-brand hover:bg-brand/[0.03]"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand/10 text-[14px]">📄</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12.5px] font-semibold text-slate-900">{r.vendor} — invoice</span>
+              <span className="block truncate text-[11.5px] text-slate-500">Filed to Dropbox · {r.sub}</span>
+            </span>
+            <span className="shrink-0 text-[12px] font-semibold text-brand group-hover:underline">Open ↗</span>
+          </a>
+        ) : (
+          <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[12.5px] text-slate-500">
+            <span>📎 No document attached</span>
+            <Button size="sm" variant="ghost" onClick={() => resolveDoc(r.id, "attach")}>Attach receipt</Button>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-            <span className="text-slate-500">Pay from</span>
-            <select value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] font-semibold text-brand-navy">
+        )}
+
+        {/* posting + pay-from, two-up */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className={DLBL}>Posting</div>
+            <div className="flex w-full gap-1 rounded-lg bg-slate-100 p-1">
+              <button
+                onClick={() => setPostType("charge")}
+                className={`flex-1 rounded-md py-1.5 text-[12.5px] font-semibold transition ${postType === "charge" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Charge
+              </button>
+              <button
+                onClick={() => setPostType("bill")}
+                className={`flex-1 rounded-md py-1.5 text-[12.5px] font-semibold transition ${postType === "bill" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Bill
+              </button>
+            </div>
+          </div>
+          <div>
+            <div className={DLBL}>Pay from</div>
+            <select value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[12.5px] font-semibold text-brand-navy">
               {acctLabels.map((a) => (
                 <option key={a}>{a}</option>
               ))}
             </select>
           </div>
-        </Section>
+        </div>
 
-        <Section title="Coding">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[12px] text-slate-500">
-              Each line has its own entity &amp; GL — split a QB invoice across entities here.
-            </p>
+        <div className="pt-0.5">
+          <div className="mb-1 flex items-center justify-between">
+            <div className={DLBL}>
+              Coding <span className="font-medium normal-case tracking-normal text-slate-400">· split across entities/GLs by line</span>
+            </div>
             {lines.length > 1 && (
-              <button
-                onClick={combineLines}
-                className="rounded-md border border-slate-200 px-2 py-1 text-[11.5px] font-semibold text-slate-600 hover:border-brand hover:text-brand"
-              >
-                ⤺ Combine into 1 line
-              </button>
+              <button onClick={combineLines} className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:border-brand hover:text-brand">⤺ Combine</button>
             )}
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/40 p-2.5">
             {lines.map((l, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5"
+                className={lines.length > 1 ? "rounded-lg border border-slate-200 bg-white p-2" : ""}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 flex-1 truncate text-[13px] text-slate-700">{l.desc}</span>
@@ -1454,159 +1462,121 @@ export default function Payables({
                 </div>
               </div>
             ))}
+            <div className="flex items-center justify-between pt-0.5">
+              <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">
+                + Add coding line
+              </button>
+              {(() => {
+                const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+                const off = Math.abs(sum - r.amount) > 0.01;
+                return (
+                  <span className={`text-[11.5px] tabular-nums ${off ? "font-semibold text-red-600" : "text-slate-400"}`}>
+                    Lines {money(sum)} {off ? `≠ ${money(r.amount)}` : "= invoice ✓"}
+                  </span>
+                );
+              })()}
+            </div>
           </div>
-          <div className="mt-2 flex items-center justify-between">
-            <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">
-              + Add coding line
-            </button>
-            {(() => {
-              const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
-              const off = Math.abs(sum - r.amount) > 0.01;
-              return (
-                <span className={`text-[11.5px] tabular-nums ${off ? "font-semibold text-red-600" : "text-slate-400"}`}>
-                  Lines {money(sum)} {off ? `≠ ${money(r.amount)}` : "✓"}
-                </span>
-              );
-            })()}
-          </div>
-          {lines.some((l) => l.entity === "BC") && (
-            <p className="mt-2 text-[11.5px] leading-relaxed text-amber-700">
-              ⓘ {BC_ROUTE.note} The <b>Paylocity category</b> you pick is captured for
-              the BC expense report.
-            </p>
-          )}
           {multiEntity && (
-            <p className="mt-2 text-[11.5px] text-slate-500">
-              This invoice splits across multiple entities — the bookkeeper posts one
-              leg per entity (intercompany where needed).
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Splits across entities — the bookkeeper posts one leg per entity (intercompany where needed).
             </p>
           )}
-        </Section>
+        </div>
 
-        <Section title="QuickBooks">
-          <label className="mb-1 block text-[11.5px] font-semibold uppercase tracking-wide text-slate-400">
-            Invoice number
-          </label>
-          <p className="mb-1.5 text-[12px] text-slate-500">
-            Posts to the QuickBooks invoice-number field (Bill no. / Ref no.). Edit if it&apos;s
-            missing or wrong.
-          </p>
-          <input
-            value={invoiceNumber}
-            onChange={(e) => setInvoiceNumber(e.target.value)}
-            onBlur={() => { if (invoiceNumber !== (r.invoiceNumber ?? "")) persistInvoice(r.id, invoiceNumber); }}
-            className="mb-3.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
-            placeholder="e.g. 6141094672"
-          />
-          <label className="mb-1 block text-[11.5px] font-semibold uppercase tracking-wide text-slate-400">
-            Memo
-          </label>
-          <p className="mb-1.5 text-[12px] text-slate-500">
-            Goes on the posted transaction (both legs of an intercompany pair). Auto-written
-            from the invoice — edit if needed.
-          </p>
-          <textarea
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
-            rows={2}
-            className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
-            placeholder="e.g. 3/15-4/14 wireless service"
-          />
-        </Section>
-
-        <Section title="Trust this vendor?">
-          <label className="flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/[0.04] px-3.5 py-2.5 text-[13px] text-slate-700">
+        {/* QuickBooks — invoice # + memo, two-up */}
+        <div>
+          <div className={DLBL}>QuickBooks</div>
+          <div className="grid grid-cols-[130px_1fr] gap-2.5">
             <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-brand"
-              checked={autoApprove}
-              onChange={(e) => setAutoApprove(e.target.checked)}
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              onBlur={() => { if (invoiceNumber !== (r.invoiceNumber ?? "")) persistInvoice(r.id, invoiceNumber); }}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+              placeholder="Invoice #"
             />
-            <span>
-              <b>Auto-approve future {r.vendor} invoices</b> — code <i>and</i> post them
-              automatically, no review.
-              <span className="mt-0.5 block text-[11.5px] text-slate-500">
-                Leave unchecked to keep auto-coding but review each charge before it posts.
-                {autoApprove && " Saving now also approves the queued invoices."}
-              </span>
-            </span>
-          </label>
-        </Section>
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
+              rows={2}
+              className="resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+              placeholder="Memo — auto-written, edit if needed"
+            />
+          </div>
+        </div>
+
+        {/* trust vendor */}
+        <label className="flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-brand"
+            checked={autoApprove}
+            onChange={(e) => setAutoApprove(e.target.checked)}
+          />
+          <span><b>Auto-approve future {r.vendor} invoices</b> — code &amp; post, no review.</span>
+        </label>
 
         {!r.auto && r.exception === "entity" && (
-          <Section title="Which entity pays this?">
-            <p className="mb-2.5 text-[12.5px] text-slate-500">
-              {r.reason}. Last 3 from this sender → <b>{entName(r.recommended)}</b>.
-            </p>
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+            <div className={DLBL}>Which entity pays this?</div>
+            <p className="mb-2 text-[12px] text-slate-600">{r.reason}. Last 3 → <b>{entName(r.recommended)}</b>.</p>
             <div className="flex flex-wrap gap-2">
               {entityCodes.map((e) => (
-                <Chip key={e} rec={e === r.recommended} onClick={() => confirmEntityFromDrawer(r, e)}>
-                  {e}
-                </Chip>
+                <Chip key={e} rec={e === r.recommended} onClick={() => confirmEntityFromDrawer(r, e)}>{e}</Chip>
               ))}
             </div>
-            <label className="mt-3 flex items-center gap-2.5 rounded-lg border border-brand/20 bg-brand/[0.04] px-3.5 py-2.5 text-[13px] text-slate-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-brand"
-                checked={alwaysCode}
-                onChange={(e) => setAlwaysCode(e.target.checked)}
-              />{" "}
-              Always code <b>{r.vendor}</b> → <b>{entName(lines[0]?.entity ?? r.recommended)}</b>
-              {" · "}
-              <span className="text-slate-500">{glShort(lines[0]?.gl)}</span>
+            <label className="mt-2.5 flex items-center gap-2 rounded-lg border border-brand/20 bg-white px-3 py-2 text-[12px] text-slate-700">
+              <input type="checkbox" className="h-4 w-4 accent-brand" checked={alwaysCode} onChange={(e) => setAlwaysCode(e.target.checked)} />
+              Always code <b>{r.vendor}</b> → <b>{entName(lines[0]?.entity ?? r.recommended)}</b> · <span className="text-slate-500">{glShort(lines[0]?.gl)}</span>
             </label>
-          </Section>
+          </div>
         )}
 
         {!r.auto && r.exception === "dup" && (
-          <Section title="Possible duplicate">
-            <p className="text-[12.5px] text-slate-500">{r.reason}. Same vendor + amount.</p>
-          </Section>
+          <div className="rounded-lg border border-red-200 bg-red-50/50 p-3">
+            <div className={DLBL}>Possible duplicate</div>
+            <p className="text-[12px] text-slate-600">{r.reason}. Same vendor + amount.</p>
+          </div>
         )}
 
         {!r.auto && r.exception !== "dup" && (
-          <Section title="Not a payable?">
-            <p className="mb-2.5 text-[12.5px] text-slate-500">
-              If this charge belongs to a trip, reclassify it to Travel — the Travel agent
-              attaches it to the matching trip and it posts under the trip vendor.
-            </p>
-            <Chip className="border-brand/30 text-brand" onClick={() => travelTo(r.id, "→ Travel")}>
-              <Plane className="h-3.5 w-3.5" /> Reclassify to Travel
-            </Chip>
-          </Section>
+          <button
+            onClick={() => travelTo(r.id, "→ Travel")}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-brand hover:underline"
+          >
+            <Plane className="h-3.5 w-3.5" /> Not a payable? Reclassify to Travel
+          </button>
         )}
       </div>
     );
   }
 
   function drawerFooter(r: Row) {
+    // equal-width footer buttons (flex-1)
     if (r.auto)
       return (
         <>
-          <Button onClick={() => approveAndPost(r)} disabled={posting}>
-            {posting ? "Posting…" : "Post to QuickBooks"}
+          <Button className="flex-1" variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
+          <Button className="flex-1 !bg-brand hover:!opacity-90" onClick={() => approveAndPost(r)} disabled={posting}>
+            {posting ? "Posting…" : "Post"}
           </Button>
-          <Button variant="ghost" onClick={() => setDrawerId(null)}>Close</Button>
         </>
       );
     if (r.exception === "dup")
       return (
         <>
-          <Button variant="ghost" onClick={() => { discardRow(r.id); setDrawerId(null); }}>Discard</Button>
-          <Button onClick={() => { acceptRow(r.id, "(kept)"); setDrawerId(null); }}>Keep both</Button>
+          <Button className="flex-1" variant="ghost" onClick={() => { discardRow(r.id); setDrawerId(null); }}>Discard</Button>
+          <Button className="flex-1" onClick={() => { acceptRow(r.id, "(kept)"); setDrawerId(null); }}>Keep both</Button>
         </>
       );
     return (
       <>
-        <Button onClick={() => saveAndRemember(r)} disabled={posting}>
-          Save &amp; remember
+        <Button className="flex-1" onClick={() => saveAndRemember(r)} disabled={posting}>Save</Button>
+        <Button className="flex-1" variant="secondary" onClick={() => setLearnId(r.id)}>Add vendor…</Button>
+        <Button className="flex-1 !bg-brand !text-white hover:!opacity-90" onClick={() => approveAndPost(r)} disabled={posting}>
+          {posting ? "Posting…" : "Post"}
         </Button>
-        <Button variant="secondary" onClick={() => setLearnId(r.id)}>
-          Add vendor details…
-        </Button>
-        <Button variant="ghost" onClick={() => setDrawerId(null)}>Skip</Button>
       </>
     );
   }

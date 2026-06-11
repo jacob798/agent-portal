@@ -29,15 +29,40 @@ export async function POST(req: NextRequest) {
   const vendor = (body.vendor ?? "").trim();
 
   const admin = createAdminClient();
+  // Fetch the edited row's invoice values so the backend can deterministically swap
+  // them for the next invoice's values (template learning, no LLM).
+  const { data: rowData } = await admin
+    .from("payables_queue")
+    .select("invoice_number, extracted, vendor_contact, sub")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await admin.from("payables_queue").update({ memo }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Learn the FORMAT for this vendor: next ingest of one of their invoices reproduces
-  // this style with the new invoice's data (handled by the backend reformat step).
+  // Learn the FORMAT for this vendor: store the literal edited memo + the field values
+  // of THIS invoice; the backend reproduces the format by swapping old→new values on
+  // the next invoice from this vendor.
   if (vendor && memo.trim()) {
-    await admin
-      .from("vendor_memo_formats")
-      .upsert({ vendor, memo_format: memo, updated_at: new Date().toISOString() }, { onConflict: "vendor" });
+    const ex = (rowData?.extracted ?? {}) as Record<string, unknown>;
+    const vc = (rowData?.vendor_contact ?? {}) as Record<string, unknown>;
+    const dateMatch = String(rowData?.sub ?? "").match(/\d{4}-\d{2}-\d{2}/);
+    const sample: Record<string, string> = {};
+    const put = (k: string, v: unknown) => {
+      if (v !== null && v !== undefined && String(v).trim()) sample[k] = String(v);
+    };
+    put("service_period", ex.service_period);
+    put("invoice_number", rowData?.invoice_number);
+    put("account_number", vc.account_number);
+    put("date", dateMatch ? dateMatch[0] : "");
+    put("line_count", ex.line_count);
+    put("usage", ex.usage);
+    put("payee", ex.payee ?? vendor);
+
+    await admin.from("vendor_memo_formats").upsert(
+      { vendor, memo_format: memo, sample_values: sample, updated_at: new Date().toISOString() },
+      { onConflict: "vendor" },
+    );
   }
 
   return NextResponse.json({ ok: true });

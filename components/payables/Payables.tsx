@@ -899,28 +899,16 @@ export default function Payables({
                     <Badge tone="amber">no receipt</Badge>
                   ) : null}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-slate-500">
-                  {r.docUrl && (
-                    <a
-                      href={r.docUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-semibold text-brand hover:underline"
-                    >
-                      📄 doc
-                    </a>
-                  )}
-                  {displayReason(r) && <span className="truncate text-amber-600">{displayReason(r)}</span>}
-                </div>
-                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-400">
-                  <span className={r.invoiceNumber ? "" : "italic text-amber-600"}>
-                    inv: {r.invoiceNumber || "—"}
+                <div className="mt-0.5 text-[11.5px] text-slate-500">
+                  <span className={r.invoiceNumber ? "" : "text-amber-600"}>
+                    Inv {r.invoiceNumber || "—"}
                   </span>
-                  {r.memo && (
-                    <span className="truncate italic" title={r.memo}>· {r.memo}</span>
-                  )}
                 </div>
+                {r.memo && (
+                  <div className="mt-0.5 line-clamp-2 text-[11.5px] italic text-slate-400" title={r.memo}>
+                    {r.memo}
+                  </div>
+                )}
               </div>
               {/* Date */}
               <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>

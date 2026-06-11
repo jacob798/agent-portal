@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Payables — Coding Drawer Redesign (Mockup)</title>
+<style>
+  :root{
+    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
+    --ink:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e2e8f0; --bg:#eef2f6; --card:#fff;
+    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);
+    display:flex;justify-content:flex-end;min-height:100vh}
+  .backdrop{position:fixed;inset:0;background:rgba(15,23,42,.28)}
+  /* the drawer panel */
+  .drawer{position:relative;width:460px;min-height:100vh;background:var(--card);box-shadow:-8px 0 30px rgba(2,18,38,.18);
+    display:flex;flex-direction:column}
+  .hd{display:flex;align-items:flex-start;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+  .hd .v{font-size:16px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .hd .tick{color:var(--green);font-weight:700}
+  .hd .meta{color:var(--muted);font-size:12px;margin-top:2px}
+  .hd .amt{margin-left:auto;text-align:right}
+  .hd .amt .n{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .hd .amt .l{color:var(--faint);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+  .hd .x{color:var(--faint);font-size:20px;cursor:pointer;margin-left:6px;line-height:1}
+
+  .body{padding:14px 18px;display:flex;flex-direction:column;gap:13px;flex:1}
+  .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:600;margin-bottom:5px}
+
+  /* source: one compact line */
+  .src{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:12.5px}
+  .src .ico{width:24px;height:24px;border-radius:6px;background:#eef4fa;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .src b{font-weight:600}
+  .src .sub{color:var(--muted);font-size:11.5px}
+  .src .open{margin-left:auto;color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+
+  /* two-up rows */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .seg{display:inline-flex;background:#f1f5f9;border-radius:9px;padding:3px;width:100%}
+  .seg button{flex:1;border:0;background:none;padding:7px 0;border-radius:7px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}
+  .seg button.on{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(2,18,38,.12)}
+  .sel,.inp{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:12.5px;color:var(--ink);background:#fff}
+  .sel{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+
+  /* coding card */
+  .code{border:1px solid var(--line);border-radius:11px;padding:11px;background:#fcfdfe}
+  .crow{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .crow .desc{flex:1;font-size:12.5px;color:#334155;font-weight:500}
+  .crow .amt{width:84px;text-align:right;font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:7px;padding:5px 7px;font-size:12.5px}
+  .ent{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+  .ent .e{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 9px;font-size:11.5px;font-weight:600;color:#475569;cursor:pointer}
+  .ent .e.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .glrow{display:flex;gap:8px;align-items:center}
+  .route{font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid #f3dcae;border-radius:7px;padding:6px 8px;white-space:nowrap}
+  .addline{margin-top:9px;display:flex;align-items:center;justify-content:space-between}
+  .addline a{color:var(--blue);font-weight:600;font-size:12px;cursor:pointer}
+  .addline .sum{color:var(--faint);font-size:11.5px}
+  .note{margin-top:8px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .note .k{font-weight:600;color:var(--amber)}
+
+  /* qb fields */
+  .qb{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:start}
+  textarea.inp{resize:vertical;min-height:42px;line-height:1.35}
+
+  /* trust toggle compact */
+  .trust{display:flex;align-items:center;gap:9px;border:1px solid #d7e6f4;background:#f4f9fd;border-radius:9px;padding:9px 11px;font-size:12px;color:#334155}
+  .trust input{width:16px;height:16px;accent-color:var(--blue)}
+
+  /* footer */
+  .ft{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#fff;position:sticky;bottom:0}
+  .btn{border:0;border-radius:9px;padding:10px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--navy);color:#fff;flex:1}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:#475569}
+  .btn.post{background:var(--blue);color:#fff}
+  .cap{font-size:10.5px;color:var(--faint);text-align:center;margin:-4px 0 2px}
+</style>
+</head>
+<body>
+<div class="backdrop"></div>
+<aside class="drawer">
+  <div class="hd">
+    <div>
+      <div class="v"><span class="tick">✓</span> Data Engine, LLC</div>
+      <div class="meta">2025-12-01 · from upload · invoice</div>
+    </div>
+    <div class="amt"><div class="n">$61.69</div><div class="l">amount</div></div>
+    <div class="x">×</div>
+  </div>
+
+  <div class="body">
+    <!-- source: one line -->
+    <div class="src">
+      <div class="ico">📄</div>
+      <div><b>Data Engine, LLC — invoice</b><div class="sub">Filed to Dropbox · 2025-12-01</div></div>
+      <div class="open">Open ↗</div>
+    </div>
+
+    <!-- posting + pay-from, two-up -->
+    <div class="grid2">
+      <div>
+        <div class="lbl">Posting</div>
+        <div class="seg"><button class="on">Charge</button><button>Bill</button></div>
+      </div>
+      <div>
+        <div class="lbl">Pay from</div>
+        <select class="sel"><option>AMEX 36009 – Delta Reserve</option></select>
+      </div>
+    </div>
+
+    <!-- coding -->
+    <div>
+      <div class="lbl">Coding <span style="text-transform:none;letter-spacing:0;color:var(--faint);font-weight:500">· split across entities/GLs by line</span></div>
+      <div class="code">
+        <div class="crow"><span class="desc">RealEstateAPI</span><span>$</span><input class="amt" value="61.69"></div>
+        <div class="ent">
+          <span class="e on">BC</span><span class="e">FC</span><span class="e">PER</span><span class="e">WJW</span>
+          <span class="e">IOTA</span><span class="e">PC</span><span class="e">SEL</span><span class="e">WB12</span>
+        </div>
+        <div class="glrow">
+          <span class="route">→ PER · Loan – Builders Capital</span>
+          <select class="sel"><option>Software subscriptions expense</option></select>
+        </div>
+        <div class="addline"><a>+ Add coding line</a><span class="sum">Lines $61.69 ✓</span></div>
+        <div class="note"><span class="k">BC</span> posts to PER as Loan – Builders Capital (balance sheet); cleared by Paylocity. Paylocity category = the GL above.</div>
+      </div>
+    </div>
+
+    <!-- quickbooks: invoice # + memo, tight -->
+    <div>
+      <div class="lbl">QuickBooks</div>
+      <div class="qb">
+        <div>
+          <input class="inp" placeholder="Invoice #">
+          <div style="font-size:10px;color:var(--faint);margin-top:3px">→ Ref / Bill no.</div>
+        </div>
+        <textarea class="inp" placeholder="Memo — auto-written, edit if needed">Dec 2025 · 1 Starter unit, 0 metered</textarea>
+      </div>
+    </div>
+
+    <!-- trust vendor -->
+    <label class="trust"><input type="checkbox"> <span><b>Auto-approve future Data Engine invoices</b> — code &amp; post, no review.</span></label>
+  </div>
+
+  <div class="ft">
+    <button class="btn primary">Save &amp; remember</button>
+    <button class="btn ghost">Add vendor…</button>
+    <button class="btn post">Post</button>
+  </div>
+</aside>
+</body>
+</html>

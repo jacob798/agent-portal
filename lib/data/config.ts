@@ -53,23 +53,30 @@ function labelFor(displayName: string, lastFour: string | null): string {
   return displayName;
 }
 
+// Pay-from accounts come straight from the QuickBooks chart of accounts (the PER
+// payment hub) — bank / checking / credit-card / cash. No separately-maintained
+// payment_methods table: you pay from a real QBO account, so it always resolves.
+const PAY_TYPES = new Set(["Bank", "Credit Card", "Cash", "Other Current Asset"]);
+
 export async function getPaymentMethods(): Promise<PaymentMethod[]> {
   if (!isSupabaseConfigured()) return FALLBACK_ACCTS;
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
-      .from("payment_methods")
-      .select("*")
-      .order("ord");
+      .from("gl_accounts")
+      .select("id, account_full_name, account_name, account_type, account_number")
+      .eq("entity_code", "PER")
+      .eq("is_active", true)
+      .order("account_type")
+      .order("account_number");
     if (error || !data || data.length === 0) return FALLBACK_ACCTS;
-    return data.map((r): PaymentMethod => ({
-      id: r.id,
-      label: labelFor(r.display_name, r.last_four ?? null),
-      type: r.type ?? null,
-      status: r.status ?? "active",
-      entity: r.qb_entity ?? null,
-      lastFour: r.last_four ?? null,
-    }));
+    return data
+      .filter((r) => PAY_TYPES.has(r.account_type))
+      .map((r): PaymentMethod => {
+        const leaf = String(r.account_full_name ?? r.account_name ?? r.id).split(":").pop()!;
+        const l4 = (leaf.match(/\d{4,}/g) || []).map((n: string) => n.slice(-4)).pop() ?? null;
+        return { id: r.id, label: leaf, type: r.account_type ?? null, status: "active", entity: "PER", lastFour: l4 };
+      });
   } catch {
     return FALLBACK_ACCTS;
   }

@@ -12,6 +12,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { tripVendor } from "@/lib/data/tripVendor";
 import type { Trip, QueueExpense, OverlapException } from "@/lib/data/travel";
 import { ENT, money } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
@@ -473,13 +474,15 @@ function NewTripModal({
 
   function submit() {
     const dates = start || end ? `${fmt(start)}${end ? " – " + fmt(end) : ""}` : "dates TBD";
+    const endISO = end || start;
     onCreate({
       id: "new" + Date.now(),
       ent,
       dest: dest || "New destination",
       dates,
-      status: "open",
-      grace: "open for expenses",
+      start,
+      end: endISO,
+      status: endISO && endISO >= new Date().toISOString().slice(0, 10) ? "up" : "closed",
       purpose: purpose || undefined,
       total: 0,
       itin: [],
@@ -563,55 +566,55 @@ function TripsList({
   setSearch: (s: string) => void;
   onOpen: (id: string) => void;
 }) {
-  const open = trips.filter((t) => t.status === "open");
-  const up = trips.filter((t) => t.status === "up");
-  const past = trips.filter((t) => t.status === "closed");
+  const [ent, setEnt] = useState<string>("ALL");
+  const upcoming = trips.filter((t) => t.status === "up");
+  const rest = trips.filter((t) => t.status !== "up");
+
+  // Entity filter options present in the data (consistent selection criteria).
+  const ents = Array.from(new Set(rest.map((t) => t.ent)));
   const q = search.toLowerCase();
-  const pastFiltered = past.filter(
-    (t) => !q || `${ENT[t.ent]} ${t.dest} ${t.purpose ?? ""} ${t.dates}`.toLowerCase().includes(q),
+  const list = rest.filter(
+    (t) =>
+      (ent === "ALL" || t.ent === ent) &&
+      (!q || `${ENT[t.ent] ?? t.ent} ${t.dest} ${t.purpose ?? ""} ${t.dates}`.toLowerCase().includes(q)),
   );
+  const filtered = ent !== "ALL" || q;
 
   return (
     <div className="mt-4 space-y-6">
-      <Group label="Open for expenses">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {open.map((t) => <TripCard key={t.id} t={t} onOpen={onOpen} />)}
-        </div>
-      </Group>
-      <Group label="Upcoming">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {up.map((t) => <TripCard key={t.id} t={t} onOpen={onOpen} />)}
-        </div>
-      </Group>
-      <Group label={`Past trips (${past.length})`}>
-        <div className="relative mb-2.5">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search past trips — destination, entity, purpose…"
-            className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm"
-          />
+      {upcoming.length > 0 && (
+        <Group label={`Upcoming (${upcoming.length})`}>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {upcoming.map((t) => (
+              <TripRow key={t.id} t={t} onOpen={onOpen} upcoming />
+            ))}
+          </div>
+        </Group>
+      )}
+
+      <Group label={`All trips (${filtered ? `${list.length} of ${rest.length}` : rest.length})`}>
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <FilterChip active={ent === "ALL"} onClick={() => setEnt("ALL")}>All</FilterChip>
+          {ents.map((e) => (
+            <FilterChip key={e} active={ent === e} onClick={() => setEnt(e)}>
+              {ENT[e] ?? e}
+            </FilterChip>
+          ))}
+          <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs sm:flex-none">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search trips…"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"
+            />
+          </div>
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {pastFiltered.length === 0 ? (
+          {list.length === 0 ? (
             <div className="px-4 py-6 text-sm text-slate-400">No matching trips.</div>
           ) : (
-            pastFiltered.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => onOpen(t.id)}
-                className="grid w-full grid-cols-[150px_1fr_110px_110px] items-center gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-brand/[0.03]"
-              >
-                <Badge tone="indigo">{ENT[t.ent]}</Badge>
-                <div>
-                  <div className="font-semibold text-slate-900">{t.dest}</div>
-                  <div className="text-[12.5px] text-slate-500">{t.purpose ?? "—"}</div>
-                </div>
-                <div className="text-[12.5px] text-slate-500">{t.dates}</div>
-                <div className="text-right font-semibold tabular-nums">{money(t.total)}</div>
-              </button>
-            ))
+            list.map((t) => <TripRow key={t.id} t={t} onOpen={onOpen} />)
           )}
         </div>
       </Group>
@@ -619,29 +622,40 @@ function TripsList({
   );
 }
 
-function TripCard({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
-  const border = t.status === "closed" ? "border-l-slate-400" : t.status === "up" ? "border-l-brand-sky" : "border-l-brand";
+function TripRow({ t, onOpen, upcoming }: { t: Trip; onOpen: (id: string) => void; upcoming?: boolean }) {
   return (
     <button
       onClick={() => onOpen(t.id)}
-      className={`rounded-xl border border-slate-200 border-l-4 ${border} bg-white p-4 text-left shadow-sm transition hover:shadow-md`}
+      className="grid w-full grid-cols-[160px_1fr_120px_92px] items-center gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-brand/[0.03]"
     >
-      <Badge tone="indigo">{ENT[t.ent]}</Badge>
-      <div className="mt-2 text-[15px] font-semibold text-slate-900">{t.dest}</div>
-      <div className="text-[12.5px] text-slate-500">
-        {t.dates}
-        {t.grace ? ` · ${t.grace}` : ""}
+      <Badge tone="indigo">{ENT[t.ent] ?? t.ent}</Badge>
+      <div className="min-w-0">
+        <div className="truncate font-semibold text-slate-900">{t.dest}</div>
+        <div className="truncate text-[12.5px] text-slate-500">{t.purpose ?? "—"}</div>
       </div>
-      <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs text-slate-500">
-        {t.status === "open" ? (
-          <span className="font-semibold text-emerald-600">● open for expenses</span>
-        ) : t.status === "up" ? (
-          <span>{t.itin.length} bookings</span>
+      <div className="text-[12.5px] text-slate-500">{t.dates}</div>
+      <div className="text-right text-[13px] font-semibold tabular-nums">
+        {upcoming ? (
+          <span className="text-brand-sky">Upcoming</span>
+        ) : t.total > 0 ? (
+          money(t.total)
         ) : (
-          <span>closed</span>
+          <span className="text-slate-300">—</span>
         )}
-        <span>{t.status === "up" ? "upcoming" : money(t.total)}</span>
       </div>
+    </button>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+        active ? "border-brand-navy bg-brand-navy text-white" : "border-slate-200 bg-white text-slate-600 hover:border-brand"
+      }`}
+    >
+      {children}
     </button>
   );
 }
@@ -664,8 +678,8 @@ function TripDetail({ trip, onBack, onReport }: { trip: Trip; onBack: () => void
           </p>
         </div>
         <div className="text-right">
-          <Badge tone={trip.status === "open" ? "green" : trip.status === "up" ? "indigo" : "neutral"} dot>
-            {trip.status === "open" ? "Open for expenses" : trip.status === "up" ? "Upcoming" : "Closed"}
+          <Badge tone={trip.status === "up" ? "indigo" : "neutral"} dot>
+            {trip.status === "up" ? "Upcoming" : "Past trip"}
           </Badge>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={onReport}>
@@ -723,7 +737,7 @@ function TripDetail({ trip, onBack, onReport }: { trip: Trip; onBack: () => void
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-[13px] text-slate-600">
-        Posts to QuickBooks under one vendor — <b className="text-brand-navy">Travel {trip.dates} — {ENT[trip.ent]} {trip.dest}</b>. Each merchant is a memo line, never its own vendor.
+        Posts to QuickBooks under one vendor — <b className="text-brand-navy">{tripVendor(trip)}</b>. Each merchant is a memo line, never its own vendor.
       </div>
     </div>
   );
@@ -794,7 +808,7 @@ function BrandedReport({ trip }: { trip: Trip }) {
         </tfoot>
       </table>
       <p className="mt-6 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
-        Generated by the {b.full} agent system · receipts attached in the exported .zip · one QuickBooks vendor: Travel {trip.dates} — {ENT[trip.ent]} {trip.dest}
+        Generated by the {b.full} agent system · receipts attached in the exported .zip · one QuickBooks vendor: {tripVendor(trip)}
       </p>
     </div>
   );

@@ -12,8 +12,9 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, QueueExpense, OverlapException } from "@/lib/data/travel";
+import type { Trip, TripExpense, QueueExpense, OverlapException } from "@/lib/data/travel";
 import { ENT, money } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -59,6 +60,7 @@ export default function Travel({
   const [ovDone, setOvDone] = useState<Record<string, string>>({});
   const [newTripOpen, setNewTripOpen] = useState(false);
   const { message, toast } = useToast();
+  const router = useRouter();
 
   const openTrip = trips.find((t) => t.id === openTripId) || null;
   const reportTrip = trips.find((t) => t.id === reportId) || null;
@@ -94,6 +96,29 @@ export default function Travel({
     toast(`✓ Created ${t.dest} · recent receipts in this window re-scanned`);
   }
 
+  // Stage this trip's ready invoices for QuickBooks — reuses the payables batch
+  // checkpoint (sets status=approved → backend post_runner posts under the trip vendor).
+  async function postTrip(t: Trip) {
+    const ids = t.exps.filter((e) => e.id && e.status === "open").map((e) => e.id!);
+    if (!ids.length) {
+      toast("Nothing to post — all caught up");
+      return;
+    }
+    try {
+      const res = await fetch("/api/payables/post-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "post failed");
+      toast(`✓ Posting ${j.staged} invoice${j.staged === 1 ? "" : "s"} → QuickBooks`);
+      router.refresh();
+    } catch (e) {
+      toast(`Couldn't post: ${(e as Error).message}`);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
       {openTrip ? (
@@ -101,6 +126,7 @@ export default function Travel({
           trip={openTrip}
           onBack={() => setOpenTripId(null)}
           onReport={() => setReportId(openTrip.id)}
+          onPost={() => postTrip(openTrip)}
         />
       ) : (
         <>
@@ -647,6 +673,16 @@ function TripRow({ t, onOpen, upcoming }: { t: Trip; onOpen: (id: string) => voi
   );
 }
 
+function ExpenseStatusChip({ e }: { e: TripExpense }) {
+  if (e.needsDoc)
+    return <Badge tone="amber">Needs doc</Badge>;
+  if (e.status === "posted")
+    return <Badge tone="green" dot>Posted</Badge>;
+  if (e.status === "staged")
+    return <Badge tone="indigo" dot>Staged</Badge>;
+  return <Badge tone="neutral">Ready</Badge>;
+}
+
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -661,8 +697,19 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 }
 
 // ---------- trip detail ----------
-function TripDetail({ trip, onBack, onReport }: { trip: Trip; onBack: () => void; onReport: () => void }) {
+function TripDetail({
+  trip,
+  onBack,
+  onReport,
+  onPost,
+}: {
+  trip: Trip;
+  onBack: () => void;
+  onReport: () => void;
+  onPost: () => void;
+}) {
   const b = brandFor(trip.ent);
+  const postable = trip.exps.filter((e) => e.id && e.status === "open").length;
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand">
@@ -714,25 +761,35 @@ function TripDetail({ trip, onBack, onReport }: { trip: Trip; onBack: () => void
       </div>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 text-[13.5px] font-semibold">
-          <span>Trip expenses ({trip.exps.length})</span>
-          <span>{money(trip.total)}</span>
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-[13.5px] font-semibold">Trip expenses ({trip.exps.length})</div>
+          <div className="flex items-center gap-3">
+            {postable > 0 && (
+              <Button variant="success" size="sm" onClick={onPost}>
+                ✓ Post {postable} → QuickBooks
+              </Button>
+            )}
+            <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>
+          </div>
         </div>
         {trip.exps.length ? (
           trip.exps.map((e, k) => (
-            <div key={k} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
+            <div key={e.id ?? k} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
               <span className="text-lg">{e.ic}</span>
-              <div className="flex-1">
-                <div className="font-medium">{e.what}</div>
-                <div className="text-[12.5px] text-slate-500">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{e.what}</div>
+                <div className="truncate text-[12.5px] text-slate-500">
                   {e.gl} · <span className="inline-flex items-center gap-0.5 text-brand"><FileText className="h-3 w-3" /> view</span>
                 </div>
               </div>
-              <span className="font-semibold tabular-nums">{money(e.amount)}</span>
+              <ExpenseStatusChip e={e} />
+              <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>
             </div>
           ))
         ) : (
-          <div className="px-4 py-3 text-[12.5px] text-slate-400">No expenses attributed yet.</div>
+          <div className="px-4 py-3 text-[12.5px] text-slate-400">
+            No expenses attributed yet — invoices post here as they’re received and matched to this trip.
+          </div>
         )}
       </div>
 

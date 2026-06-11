@@ -13,18 +13,55 @@ export type TripStatus = "up" | "closed";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Icon by travel category, for the ledger rows.
+const CAT_ICON: Record<string, string> = {
+  airfare: "✈️", hotel: "🏨", lodging: "🏨", meals: "🍽️", dining: "🍽️",
+  "car rental": "🚗", "ground transportation": "🚕", transport: "🚕",
+  fuel: "⛽", parking: "🅿️",
+};
+
+/** Map a trip-attributed payables_queue row into a ledger line. The QB vendor is
+ *  the trip header, so the ledger shows the REAL payee (extracted.payee). */
+function payableToLedger(r: {
+  id: string; vendor: string; memo: string | null; amount: number | string;
+  gl: string | null; category: string | null; status: string | null;
+  doc_url: string | null; nodoc: boolean | null;
+  extracted: { payee?: string } | null;
+}): TripExpense {
+  const cat = (r.category ?? "").toLowerCase();
+  const status: ExpenseStatus = r.status === "posted" ? "posted" : r.status === "approved" ? "staged" : "open";
+  return {
+    id: r.id,
+    ic: CAT_ICON[cat] ?? "🧾",
+    what: r.extracted?.payee || r.vendor,
+    sub: r.memo || r.category || "",
+    amount: Number(r.amount),
+    gl: r.gl ?? "",
+    status,
+    needsDoc: !r.doc_url && !r.nodoc,
+  };
+}
+
 export interface ItinItem {
   ic: string;
   when: string;
   what: string;
   sub: string;
 }
+// Posting lifecycle of a single attributed invoice in the trip ledger.
+//   open   = attributed, not yet staged (operator can post it)
+//   staged = approved → queued for the backend post_runner (QBO write pending)
+//   posted = written to QuickBooks
+export type ExpenseStatus = "open" | "staged" | "posted";
 export interface TripExpense {
+  id?: string; // payables_queue row id — present for real (postable) invoices
   ic: string;
-  what: string;
-  sub: string;
+  what: string; // the real payee (Delta, Westin…), not the trip-header vendor
+  sub: string; // memo / date
   amount: number;
   gl: string;
+  status?: ExpenseStatus;
+  needsDoc?: boolean; // attributed but no receipt on file yet (gap, not a blocker)
 }
 export interface Trip {
   id: string;
@@ -113,16 +150,29 @@ export async function getTravel(): Promise<{
   if (!isSupabaseConfigured()) return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS };
   try {
     const supabase = await createClient();
-    const [{ data: t }, { data: q }] = await Promise.all([
+    const [{ data: t }, { data: q }, { data: pq }] = await Promise.all([
       supabase.from("trips").select("*").order("ord"),
       supabase.from("travel_queue").select("*").order("ord"),
+      // Real invoices attributed to a trip — the per-trip running ledger.
+      supabase
+        .from("payables_queue")
+        .select("id,vendor,memo,amount,gl,category,status,doc_url,nodoc,extracted,trip_id,created_at")
+        .not("trip_id", "is", null),
     ]);
+    // Group attributed invoices by trip → ledger lines.
+    const ledger = new Map<string, TripExpense[]>();
+    for (const r of pq ?? []) {
+      const line = payableToLedger(r);
+      const arr = ledger.get(r.trip_id) ?? [];
+      arr.push(line);
+      ledger.set(r.trip_id, arr);
+    }
     // Fall back to the mock when the table is empty (not just null/error), so
     // the page is never blank against an unseeded backend.
     const trips: Trip[] =
       t && t.length
         ? t.map((r) => {
-            const exps = (r.exps ?? []).map((e: TripExpense) => ({ ...e, amount: Number(e.amount) }));
+            const exps = ledger.get(r.id) ?? [];
             const start = (r.start_date ?? "").slice(0, 10);
             const end = (r.end_date ?? start).slice(0, 10);
             return {

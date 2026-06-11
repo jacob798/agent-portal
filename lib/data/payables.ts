@@ -49,6 +49,8 @@ export interface PayableRow {
     street?: string; city?: string; state?: string; zip?: string;
     phone?: string; email?: string; website?: string; account_number?: string;
   } | null;
+  /** accepted (operator-confirmed / curated) | on_file (in vendor_master, unconfirmed) | new. */
+  vendorStatus?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -176,6 +178,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       paymentMethodId: r.payment_method_id ?? null,
       status: r.status ?? "open",
       vendorContact: r.vendor_contact ?? null,
+      vendorStatus: r.vendor_status ?? "new",
     }));
   } catch {
     return MOCK;

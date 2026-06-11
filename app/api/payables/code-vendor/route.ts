@@ -61,5 +61,16 @@ export async function POST(req: NextRequest) {
   );
   if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
 
+  // 3) ENTITY-SPECIFIC GL: the GL is per (vendor, entity) — every company has its own
+  // chart. Record this so the entity stays trusted next time and seeds cross-entity
+  // prediction (a new entity for this vendor predicts its GL from this one).
+  if (entity && gl) {
+    const { error: e3 } = await admin.from("vendor_entity_coding").upsert(
+      { vendor, entity_code: entity, gl, auto_approve: autoApprove, updated_at: now },
+      { onConflict: "vendor,entity_code" },
+    );
+    if (e3) return NextResponse.json({ error: e3.message }, { status: 500 });
+  }
+
   return NextResponse.json({ ok: true, count: coded?.length ?? 0, autoApprove });
 }

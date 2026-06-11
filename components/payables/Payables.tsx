@@ -735,6 +735,29 @@ export default function Payables({
     }
   }
 
+  // Correct a wrong invoice amount (e.g. parser read $0). Updates the row total and, for a
+  // single-line invoice, the line + the open drawer's line state so it still reconciles.
+  async function persistAmount(id: string, value: number) {
+    setRows((rs) =>
+      rs.map((x) => {
+        if (x.id !== id) return x;
+        const ls = x.lines && x.lines.length === 1 ? [{ ...x.lines[0], amount: value }] : x.lines;
+        return { ...x, amount: value, lines: ls };
+      }),
+    );
+    if (lines.length === 1) setLineAmount(0, value);
+    try {
+      await fetch("/api/payables/set-amount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, amount: value }),
+      });
+      toast(`Amount → ${money(value)}`);
+    } catch {
+      toast("Couldn't change amount — try again");
+    }
+  }
+
   // Confirm the entity (and coding) for a row from the drawer, optionally
   // saving the "always" rule.
   async function confirmEntityFromDrawer(r: Row, code: string) {
@@ -1637,7 +1660,7 @@ export default function Payables({
         {/* QuickBooks — invoice # + date two-up, memo full-width below */}
         <div>
           <div className={DLBL}>QuickBooks</div>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             <div>
               <input
                 value={invoiceNumber}
@@ -1657,6 +1680,21 @@ export default function Payables({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
               />
               <div className="mt-0.5 text-[10px] text-slate-400">Transaction date → QB TxnDate</div>
+            </div>
+            <div>
+              <input
+                key={r.id + "-amt"}
+                type="number"
+                step="0.01"
+                defaultValue={r.amount}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isFinite(v) && v >= 0 && Math.abs(v - r.amount) > 0.001) persistAmount(r.id, v);
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-[12.5px] font-semibold tabular-nums text-slate-700"
+                placeholder="Amount"
+              />
+              <div className="mt-0.5 text-[10px] text-slate-400">Invoice total → QB amount</div>
             </div>
           </div>
           <textarea

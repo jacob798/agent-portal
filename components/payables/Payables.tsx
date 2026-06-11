@@ -325,10 +325,12 @@ export default function Payables({
     const need = rows.filter((r) => !r.auto && !r.resolved).length;
     const docs = rows.filter(missingDoc).length;
     const auto = rows.filter((r) => r.auto || r.resolved).length;
-    // "Staged" = dollars actually queued to post (approved/posted rows), not the
-    // whole queue.
-    const staged = rows.filter((r) => r.resolved).reduce((s, r) => s + r.amount, 0);
-    return { need, docs, auto, staged };
+    // Ready to post = coded rows queued for QuickBooks (agent auto-coded, or
+    // operator-coded & awaiting the Post click). Approved rows have already left
+    // the queue to Bookkeeper, so we sum what's coded-and-ready here.
+    const ready = rows.filter((r) => !r.resolved && (r.auto || (!r.exception && !!r.entity)));
+    const readyAmt = ready.reduce((s, r) => s + r.amount, 0);
+    return { need, docs, auto, ready: ready.length, readyAmt };
   }, [rows]);
 
   const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
@@ -635,7 +637,7 @@ export default function Payables({
         <Stat label="Need you" value={counts.need} tone="amber" />
         <Stat label="Missing docs" value={counts.docs} tone="amber" />
         <Stat label="Auto-coded ✓" value={counts.auto} tone="green" />
-        <Stat label="Staged to post" value={money(counts.staged)} tone="navy" />
+        <Stat label="Ready to post" value={money(counts.readyAmt)} tone="navy" />
       </div>
 
       <div className="mt-5">

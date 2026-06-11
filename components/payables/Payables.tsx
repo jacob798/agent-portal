@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Zap, Upload, FileText, Plane } from "lucide-react";
-import type { PayableRow } from "@/lib/data/payables";
+import type { PayableRow, TripOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
   entName,
@@ -41,6 +41,7 @@ export default function Payables({
   bcCategories,
   ingestion,
   vendors,
+  trips,
 }: {
   initial: PayableRow[];
   accounts: PayAccount[];
@@ -48,6 +49,7 @@ export default function Payables({
   bcCategories: string[];
   ingestion: IngestionJob[];
   vendors: string[];
+  trips: TripOption[];
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((r) =>
@@ -506,6 +508,37 @@ export default function Payables({
       body: JSON.stringify({ ids: [id], status: "open" }),
     }).catch(() => {});
     toast("Back in the review queue");
+  }
+  // Re-attribute a charge to a trip (or clear it). The trip supplies the canonical
+  // vendor header + entity (+ BC routing); "" = not a trip.
+  async function setTrip(id: string, tripId: string) {
+    const trip = trips.find((t) => t.tripId === tripId) || null;
+    setRows((rs) =>
+      rs.map((x) => {
+        if (x.id !== id) return x;
+        if (!trip) return { ...x, tripId: null };
+        const ent = trip.entity ?? x.entity;
+        return {
+          ...x,
+          tripId,
+          vendor: trip.header,
+          entity: ent,
+          recommended: ent ?? undefined,
+          exception: undefined,
+          gl: ent === "BC" ? "Loan - Builders Capital" : x.gl,
+        };
+      }),
+    );
+    try {
+      await fetch("/api/payables/set-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, tripId }),
+      });
+      toast(trip ? `Trip → ${trip.header}` : "Cleared trip — back to a normal payable");
+    } catch {
+      toast("Couldn't change trip — try again");
+    }
   }
   // Re-point a charge to an EXISTING vendor the operator picked from the vendor list.
   async function persistVendor(id: string, vendor: string) {
@@ -1439,6 +1472,25 @@ export default function Payables({
             ))}
           </datalist>
         </div>
+
+        {/* trip — re-attribute to the correct trip, or clear to a normal payable */}
+        {trips.length > 0 && (
+          <div>
+            <div className={DLBL}>Trip</div>
+            <select
+              value={r.tripId ?? ""}
+              onChange={(e) => setTrip(r.id, e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 focus:border-brand focus:outline-none"
+            >
+              <option value="">— Not a trip (normal payable) —</option>
+              {trips.map((t) => (
+                <option key={t.tripId} value={t.tripId}>
+                  {t.header}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* posting + pay-from, two-up */}
         <div className="grid grid-cols-2 gap-3">

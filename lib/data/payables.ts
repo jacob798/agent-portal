@@ -57,6 +57,8 @@ export interface PayableRow {
   invoiceNumber?: string | null;
   /** Transaction (invoice/service) date YYYY-MM-DD (operator-editable) → posted as QB TxnDate. */
   txnDate?: string | null;
+  /** Attributed trip id (when this is a trip expense) — drives the drawer trip picker. */
+  tripId?: string | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -174,6 +176,37 @@ export async function getVendors(): Promise<string[]> {
   }
 }
 
+export interface TripOption {
+  tripId: string;
+  header: string;
+  entity: string | null;
+  dates: string;
+}
+
+/**
+ * Trips for the drawer's trip re-attribution picker. Reads `payables_trips`, which the
+ * backend syncs from the canonical trip source WITH the locked `build_trip_header_subject`
+ * header precomputed — so the portal never re-implements the trip name (drift-proof).
+ */
+export async function getTrips(): Promise<TripOption[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("payables_trips")
+      .select("trip_id, header, entity, dates")
+      .order("start_date", { ascending: false });
+    return (data ?? []).map((t) => ({
+      tripId: t.trip_id,
+      header: t.header,
+      entity: t.entity ?? null,
+      dates: t.dates ?? "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getPayablesQueue(): Promise<PayableRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
@@ -214,6 +247,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       memo: r.memo ?? null,
       invoiceNumber: r.invoice_number ?? null,
       txnDate: r.txn_date ?? null,
+      tripId: r.trip_id ?? null,
     }));
   } catch {
     return MOCK;

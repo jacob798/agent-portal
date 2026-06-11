@@ -790,6 +790,11 @@ export default function Payables({
               {/* Vendor */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2 truncate font-semibold text-slate-900">
+                  {r.vendorStatus === "new" ? (
+                    <span title="New vendor — not in your vendor master" className="shrink-0 font-bold text-red-500">✗</span>
+                  ) : (
+                    <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
+                  )}
                   <span className="truncate">{r.vendor}</span>
                   {r.doc_waived ? (
                     <Badge tone="neutral">no receipt</Badge>
@@ -808,9 +813,6 @@ export default function Payables({
                     >
                       📄 doc
                     </a>
-                  )}
-                  {r.vendorStatus === "accepted" && (
-                    <span title="Previously accepted — on file in your vendor master" className="font-semibold text-emerald-600">✓ on file</span>
                   )}
                   {displayReason(r) && <span className="truncate text-amber-600">{displayReason(r)}</span>}
                 </div>

@@ -40,18 +40,22 @@ export default function Payables({
   gls,
   bcCategories,
   ingestion,
+  vendors,
 }: {
   initial: PayableRow[];
   accounts: PayAccount[];
   gls: GlOption[];
   bcCategories: string[];
   ingestion: IngestionJob[];
+  vendors: string[];
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((r) =>
       r.status === "approved" || r.status === "posted"
         ? { ...r, auto: true, resolved: true, resolvedTo: r.status === "posted" ? "→ posted to QuickBooks" : "→ staged for QuickBooks" }
-        : r,
+        : r.status === "reclassified"
+          ? { ...r, resolved: true, auto: true, resolvedTo: "→ Travel" }
+          : r,
     ),
   );
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
@@ -484,6 +488,44 @@ export default function Payables({
     setTravelRow(null);
     patch(id, { resolved: true, auto: true, resolvedTo: label });
     setDrawerId(null);
+    // PERSIST the reclassification (was local-only before — the row vanished with no
+    // way back). It stays loaded + recoverable via "Back to review".
+    fetch("/api/payables/set-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id], status: "reclassified" }),
+    }).catch(() => {});
+    toast("Sent to Travel — use “Back to review” to undo");
+  }
+  // Pull a reclassified charge back into the payables review queue.
+  function recoverFromTravel(id: string) {
+    patch(id, { resolved: false, auto: false, resolvedTo: undefined, exception: "entity", reason: "Back from Travel — review" });
+    fetch("/api/payables/set-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id], status: "open" }),
+    }).catch(() => {});
+    toast("Back in the review queue");
+  }
+  // Re-point a charge to an EXISTING vendor the operator picked from the vendor list.
+  async function persistVendor(id: string, vendor: string) {
+    setRows((rs) =>
+      rs.map((x) =>
+        x.id === id
+          ? { ...x, vendor, vendorStatus: "accepted", exception: x.exception === "vendor" ? undefined : x.exception }
+          : x,
+      ),
+    );
+    try {
+      await fetch("/api/payables/set-vendor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, vendor }),
+      });
+      toast(`Vendor → ${vendor}`);
+    } catch {
+      toast("Couldn't change vendor — try again");
+    }
   }
   async function confirmLearn() {
     if (!learnRow || !learnForm) return;
@@ -1253,7 +1295,19 @@ export default function Payables({
   // ---------- inline action cell ----------
   function actionCell(r: Row) {
     if (r.resolved)
-      return <span className="text-[12.5px] font-semibold text-emerald-600">✓ {r.resolvedTo}</span>;
+      return (
+        <span className="inline-flex items-center gap-2">
+          <span className="text-[12.5px] font-semibold text-emerald-600">✓ {r.resolvedTo}</span>
+          {/travel/i.test(r.resolvedTo ?? "") && (
+            <button
+              onClick={() => recoverFromTravel(r.id)}
+              className="text-[11.5px] font-semibold text-brand hover:underline"
+            >
+              Back to review
+            </button>
+          )}
+        </span>
+      );
 
     if (filter === "docs") {
       if (r.doc_waived)
@@ -1364,6 +1418,27 @@ export default function Payables({
             <Button size="sm" variant="ghost" onClick={() => resolveDoc(r.id, "attach")}>Attach receipt</Button>
           </div>
         )}
+
+        {/* vendor — re-point to an existing vendor from the list (typeahead) */}
+        <div>
+          <div className={DLBL}>Vendor</div>
+          <input
+            key={r.id}
+            list="fc-vendor-list"
+            defaultValue={r.vendor}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== r.vendor) persistVendor(r.id, v);
+            }}
+            placeholder="Search vendors…"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-900 focus:border-brand focus:outline-none"
+          />
+          <datalist id="fc-vendor-list">
+            {vendors.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+        </div>
 
         {/* posting + pay-from, two-up */}
         <div className="grid grid-cols-2 gap-3">

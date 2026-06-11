@@ -151,6 +151,29 @@ const MOCK: PayableRow[] = [
   { id: "8", auto: true, vendor: "Adobe", sub: "Creative Cloud", amount: 59.99, posting: "charge", account: "AMEX Foundry ••1005", entity: "FC", gl: "6200 Software" },
 ];
 
+/**
+ * The known vendor universe for the drawer's "change vendor" typeahead: our canonical
+ * `vendors` master + every entity's live QuickBooks vendor list (`vendor_qbo_refs`),
+ * deduped + sorted. Lets the operator re-point a charge to an EXISTING vendor instead of
+ * only free-text Learn/Add. Defensive: returns [] (typeahead just shows nothing) on any error.
+ */
+export async function getVendors(): Promise<string[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const [{ data: master }, { data: qb }] = await Promise.all([
+      supabase.from("vendors").select("canonical_name"),
+      supabase.from("vendor_qbo_refs").select("display_name").eq("active", true),
+    ]);
+    const names = new Set<string>();
+    for (const v of master ?? []) if (v.canonical_name) names.add(String(v.canonical_name).trim());
+    for (const v of qb ?? []) if (v.display_name) names.add(String(v.display_name).trim());
+    return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
 export async function getPayablesQueue(): Promise<PayableRow[]> {
   if (!isSupabaseConfigured()) return MOCK;
   try {
@@ -158,10 +181,13 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
     // Payables is the coding queue: only rows still being coded (status open or
     // null). Once approved/posted they hand off to the Bookkeeper; discarded are
     // gone. So the queue shows only un-posted work.
+    // open/null = active coding queue. 'reclassified' rows (sent to Travel) are ALSO
+    // loaded so the operator can recover them (they render resolved, with a "Back to
+    // review" action) — a reclassify must never make a row un-findable.
     const { data, error } = await supabase
       .from("payables_queue")
       .select("*")
-      .or("status.is.null,status.eq.open")
+      .or("status.is.null,status.eq.open,status.eq.reclassified")
       .order("ord");
     if (error || !data) return MOCK;
     return data.map((r): PayableRow => ({

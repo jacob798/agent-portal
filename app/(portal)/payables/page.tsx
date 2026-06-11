@@ -1,13 +1,14 @@
-import { getPayablesQueue } from "@/lib/data/payables";
+import { getPayablesQueue, getVendors } from "@/lib/data/payables";
 import { getCodingConfig } from "@/lib/data/config";
 import { getIngestionLog } from "@/lib/data/ingestion";
 import Payables from "@/components/payables/Payables";
 
 export default async function PayablesPage() {
-  const [rows, config, ingestion] = await Promise.all([
+  const [rows, config, ingestion, vendors] = await Promise.all([
     getPayablesQueue(),
     getCodingConfig(),
     getIngestionLog(),
+    getVendors(),
   ]);
   return (
     <Payables
@@ -16,6 +17,7 @@ export default async function PayablesPage() {
       gls={config.gls}
       bcCategories={config.bcCategories}
       ingestion={ingestion}
+      vendors={vendors}
     />
   );
 }

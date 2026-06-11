@@ -7,10 +7,12 @@ import { getProfile } from "@/lib/auth/profile";
  *   open      → back in the review queue (un-stage)
  *   approved  → staged for the QuickBooks batch post
  *   discarded → dropped (e.g. confirmed duplicate); hidden from the queue
- * One endpoint so every bulk action (Move-to-review, Post, Discard) actually
- * sticks across reloads instead of mutating only local state.
+ *   reclassified → sent to Travel; leaves the active queue but stays recoverable
+ *                  (still loaded, rendered resolved with a "Back to review" action)
+ * One endpoint so every bulk action (Move-to-review, Post, Discard, Reclassify)
+ * actually sticks across reloads instead of mutating only local state.
  */
-const ALLOWED = new Set(["open", "approved", "discarded"]);
+const ALLOWED = new Set(["open", "approved", "discarded", "reclassified"]);
 
 export async function POST(req: NextRequest) {
   const profile = await getProfile();
@@ -39,7 +41,9 @@ export async function POST(req: NextRequest) {
       ? { status, approved_at: now, auto: true, exception: null, reason: null }
       : status === "open"
         ? { status, approved_at: null, auto: false, exception: "entity", reason: "Returned to review" }
-        : { status }; // discarded
+        : status === "reclassified"
+          ? { status, auto: false } // sent to Travel; recoverable
+          : { status }; // discarded
 
   const admin = createAdminClient();
   const { data, error } = await admin

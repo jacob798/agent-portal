@@ -1340,9 +1340,16 @@ export default function Payables({
         {r.docUrl ? (
           <a
             href={r.docUrl}
+            // Open the invoice in a SEPARATE browser window (not a tab) so you can
+            // Cmd-` between the portal and the invoice. A stable window name reuses one
+            // preview window instead of piling up.
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(r.docUrl!, "fcInvoicePreview", "noopener,noreferrer,width=1200,height=1000,left=120,top=80");
+            }}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-brand hover:bg-brand/[0.03]"
+            className="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-brand hover:bg-brand/[0.03]"
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand/10 text-[14px]">📄</span>
             <span className="min-w-0 flex-1">

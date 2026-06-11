@@ -230,6 +230,7 @@ export default function Payables({
   const [lines, setLines] = useState<DrawerLine[]>([]);
   const [memo, setMemo] = useState<string>("");
   const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [txnDate, setTxnDate] = useState<string>("");
   const [alwaysCode, setAlwaysCode] = useState(false);
   const [autoApprove, setAutoApprove] = useState(false);
   const [payFrom, setPayFrom] = useState<string>("");
@@ -289,6 +290,7 @@ export default function Payables({
     setLines(base);
     setMemo(r.memo ?? "");
     setInvoiceNumber(r.invoiceNumber ?? "");
+    setTxnDate(r.txnDate ?? (r.sub?.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? ""));
     setAlwaysCode(false);
     setAutoApprove(false);
     setPostType(r.posting === "bill" ? "bill" : "charge");
@@ -394,7 +396,7 @@ export default function Payables({
     return { need, docs, auto, ready: ready.length, readyAmt };
   }, [rows]);
 
-  const rowDate = (r: Row) => (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
+  const rowDate = (r: Row) => r.txnDate || (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
   // Show what it's actually CODED to (the GL leaf, e.g. "Communication"), not the
   // parser's loose invoice_category ("Utilities" isn't a real account) — so the queue
   // matches the drawer's coding line.
@@ -627,6 +629,20 @@ export default function Payables({
       });
     } catch {
       /* best-effort; the local value still shows and re-saves on next action */
+    }
+  }
+
+  // Persist an operator edit to the transaction date (→ QB TxnDate).
+  async function persistDate(id: string, value: string) {
+    setRows((rs) => rs.map((x) => (x.id === id ? { ...x, txnDate: value } : x)));
+    try {
+      await fetch("/api/payables/set-date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, date: value }),
+      });
+    } catch {
+      /* best-effort */
     }
   }
 
@@ -1484,26 +1500,39 @@ export default function Payables({
           )}
         </div>
 
-        {/* QuickBooks — invoice # + memo, two-up */}
+        {/* QuickBooks — invoice # + date two-up, memo full-width below */}
         <div>
           <div className={DLBL}>QuickBooks</div>
-          <div className="grid grid-cols-[130px_1fr] gap-2.5">
-            <input
-              value={invoiceNumber}
-              onChange={(e) => setInvoiceNumber(e.target.value)}
-              onBlur={() => { if (invoiceNumber !== (r.invoiceNumber ?? "")) persistInvoice(r.id, invoiceNumber); }}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
-              placeholder="Invoice #"
-            />
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
-              rows={2}
-              className="resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
-              placeholder="Memo — auto-written, edit if needed"
-            />
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <input
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                onBlur={() => { if (invoiceNumber !== (r.invoiceNumber ?? "")) persistInvoice(r.id, invoiceNumber); }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+                placeholder="Invoice #"
+              />
+              <div className="mt-0.5 text-[10px] text-slate-400">Invoice # → QB Ref no.</div>
+            </div>
+            <div>
+              <input
+                type="date"
+                value={txnDate}
+                onChange={(e) => setTxnDate(e.target.value)}
+                onBlur={() => { if (txnDate !== (r.txnDate ?? rowDate(r))) persistDate(r.id, txnDate); }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+              />
+              <div className="mt-0.5 text-[10px] text-slate-400">Transaction date → QB TxnDate</div>
+            </div>
           </div>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            onBlur={() => { if (memo !== (r.memo ?? "")) persistMemo(r.id, memo); }}
+            rows={2}
+            className="mt-2.5 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-700"
+            placeholder="Memo — auto-written, edit if needed"
+          />
         </div>
 
         {/* trust vendor */}

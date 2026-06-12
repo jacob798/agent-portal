@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { domainsFrom, learnFingerprints, originalFilename } from "@/lib/payables/fingerprints";
 
 /**
  * Re-point a payable to an EXISTING vendor the operator picked from the vendor list
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   // the row we're re-pointing
   const { data: row, error: rowErr } = await admin
     .from("payables_queue")
-    .select("entity, exception, lines")
+    .select("entity, exception, lines, doc_path, vendor_contact, sub")
     .eq("id", id)
     .single();
   if (rowErr || !row) return NextResponse.json({ error: "row not found" }, { status: 404 });
@@ -73,6 +74,15 @@ export async function POST(req: NextRequest) {
 
   const { error } = await admin.from("payables_queue").update(update).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // LEARN distinctive fingerprints for this vendor (filename stem, billing domain, agency)
+  // so the next similar invoice IDs the vendor even if its own name isn't clean. Best-effort.
+  const filename = (await originalFilename(admin, id)) || (row.doc_path ?? "").split("/").pop() || "";
+  await learnFingerprints(admin, vendor, {
+    filename,
+    domains: domainsFrom(row.vendor_contact),
+    agency: typeof row.sub === "string" ? row.sub : undefined,
+  });
 
   return NextResponse.json({ ok: true, id, vendor, entity, gl });
 }

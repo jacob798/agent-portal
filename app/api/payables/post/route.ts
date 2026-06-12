@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     paymentMethodId?: string | null;
     gl?: string | null;
     bcCategory?: string | null;
+    posting?: string | null;
     lines?: { desc: string; amount: number; gl: string; entity?: string; bcCategory?: string }[];
     /** false = save coding only (stays in the queue); true (default) = stage for QBO. */
     approve?: boolean;
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
   if (body.paymentMethodId !== undefined) update.payment_method_id = body.paymentMethodId;
   if (body.gl !== undefined) update.gl = body.gl;
   if (body.bcCategory !== undefined) update.bc_category = body.bcCategory;
+  if (body.posting !== undefined && body.posting !== null) update.posting = body.posting;
   if (body.lines !== undefined) update.lines = body.lines;
 
   const admin = createAdminClient();

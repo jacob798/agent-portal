@@ -64,7 +64,7 @@ export default function Payables({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [entityPickRow, setEntityPickRow] = useState<string | null>(null);
   // Mass-edit selected invoices (posting type, entity, pay-from, GL).
-  type Bulk = { posting?: "charge" | "bill"; entity?: string; paymentMethodId?: string; gl?: string };
+  type Bulk = { posting?: "charge" | "bill"; entity?: string; paymentMethodId?: string; gl?: string; vendor?: string };
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulk, setBulk] = useState<Bulk>({});
   async function applyBulkEdit() {
@@ -75,6 +75,7 @@ export default function Payables({
     if (bulk.posting) patch.posting = bulk.posting;
     if (bulk.entity) patch.entity = bulk.entity;
     if (bulk.gl) patch.gl = bulk.gl;
+    if (bulk.vendor) patch.vendor = bulk.vendor;
     if (bulk.paymentMethodId) {
       patch.paymentMethodId = bulk.paymentMethodId;
       patch.account = acct?.label;
@@ -92,6 +93,7 @@ export default function Payables({
               ...(bulk.entity ? { entity: bulk.entity } : {}),
               ...(bulk.posting ? { posting: bulk.posting } : {}),
               ...(bulk.gl ? { gl: bulk.gl } : {}),
+              ...(bulk.vendor ? { vendor: bulk.vendor, vendorStatus: "accepted" } : {}),
               ...(acct ? { account: acct.label, paymentMethodId: acct.id } : {}),
               auto: false,
               resolved: false,
@@ -191,6 +193,41 @@ export default function Payables({
       toast("↻ Re-queued for processing");
     } catch (e) {
       toast(`Reprocess failed: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+  }
+  // "Reprocess vendors" — re-run vendor ID across the backlog using everything learned
+  // (fingerprints + the bill-to guard). After teaching one Safeco invoice, fixes the rest.
+  const [reprocessing, setReprocessing] = useState(false);
+  async function reprocessVendors() {
+    setReprocessing(true);
+    try {
+      const res = await fetch("/api/payables/reprocess", { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
+      const fixed = json.fixed ?? 0;
+      const flagged = json.flagged ?? 0;
+      // reflect the re-identified vendors AND their category/GL in the list immediately
+      if (Array.isArray(json.changes) && json.changes.length) {
+        const byId = new Map<string, { to: string; gl?: string }>(
+          json.changes.map((c: { id: string; to: string; gl?: string }) => [c.id, { to: c.to, gl: c.gl }]),
+        );
+        setRows((rs) =>
+          rs.map((r) => {
+            const ch = byId.get(r.id);
+            if (!ch) return r;
+            return { ...r, vendor: ch.to, vendorStatus: "on_file", ...(ch.gl ? { gl: ch.gl, category: undefined } : {}) };
+          }),
+        );
+      }
+      toast(
+        fixed || flagged
+          ? `↻ Reprocessed · ${fixed} vendor${fixed === 1 ? "" : "s"} re-identified${flagged ? ` · ${flagged} flagged for review` : ""}`
+          : "↻ Reprocessed · nothing to change",
+      );
+    } catch (e) {
+      toast(`Reprocess failed: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setReprocessing(false);
     }
   }
   // Persist a lifecycle change for a set of rows (open/approved/discarded).
@@ -570,11 +607,22 @@ export default function Payables({
       ),
     );
     try {
-      await fetch("/api/payables/set-vendor", {
+      const res = await fetch("/api/payables/set-vendor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, vendor }),
       });
+      // the route applies the vendor's default entity/category — reflect them in the queue
+      const j = (await res.json().catch(() => ({}))) as { entity?: string | null; gl?: string | null };
+      if (j.entity || j.gl) {
+        setRows((rs) =>
+          rs.map((x) =>
+            x.id === id
+              ? { ...x, ...(j.entity ? { entity: j.entity } : {}), ...(j.gl ? { gl: j.gl, category: undefined } : {}) }
+              : x,
+          ),
+        );
+      }
       toast(`Vendor → ${vendor}`);
     } catch {
       toast("Couldn't change vendor — try again");
@@ -672,40 +720,71 @@ export default function Payables({
     }
   }
 
-  // "Save & remember": code this row (+ all queued invoices from the same
-  // vendor) and learn the vendor so future ones auto-code. Stays in the queue
-  // for posting. Optimistic with revert.
+  // Drawer "Save": persist THIS invoice's FULL coding — entity, pay-from account,
+  // GL/category, lines, posting — and reflect it in the list immediately. The
+  // pay-from account used to be local-only (never saved), so popout edits didn't
+  // stick; this routes the whole coding through /api/payables/post. Learning the
+  // VENDOR for future invoices stays opt-in (the "Always code" / "Auto-approve"
+  // toggles). Optimistic with revert.
   async function saveAndRemember(r: Row) {
     const entity = lines[0]?.entity ?? r.entity ?? r.recommended ?? "PER";
     const gl = lines[0]?.gl ?? r.gl ?? "";
     const bcCat = lines.find((l) => l.entity === "BC")?.bcCategory ?? null;
-    const snapshot = new Map(rows.filter((x) => x.vendor === r.vendor && !x.resolved).map((x) => [x.id, x]));
+    const acct = accounts.find((a) => a.label === payFrom);
+    const acctLabel = acct?.label ?? payFrom ?? r.account;
+    const pmId = acct?.id ?? r.paymentMethodId ?? null;
+    const remember = alwaysCode || autoApprove; // vendor-level learning is opt-in
     const approveAll = autoApprove;
+    const prevRows = rows;
     setRows((rs) =>
       approveAll
-        ? rs.filter((x) => !(x.vendor === r.vendor && !x.resolved)) // auto-approved → leave the queue
-        : rs.map((x) =>
-            x.vendor === r.vendor && !x.resolved
-              ? { ...x, entity, gl, auto: false, exception: undefined, reason: "Coded from vendor rule — review & post" }
-              : x,
-          ),
+        ? rs.filter((x) => (x.id === r.id ? false : !(remember && x.vendor === r.vendor && !x.resolved)))
+        : rs.map((x) => {
+            if (x.id === r.id)
+              return {
+                ...x,
+                entity, gl, lines,
+                account: acctLabel, paymentMethodId: pmId,
+                posting: postType,
+                auto: false, exception: undefined, reason: "Coded — review & post",
+              };
+            if (remember && x.vendor === r.vendor && !x.resolved)
+              return { ...x, entity, gl, auto: false, exception: undefined, reason: "Coded from vendor rule — review & post" };
+            return x;
+          }),
     );
     setDrawerId(null);
     try {
-      const res = await fetch("/api/payables/code-vendor", {
+      // 1) persist THIS row's full coding (the pay-from account was the piece being dropped)
+      const res = await fetch("/api/payables/post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vendor: r.vendor, entity, gl, bcCategory: bcCat, autoApprove: approveAll }),
+        body: JSON.stringify({
+          id: r.id, approve: approveAll, entity, gl,
+          account: acctLabel, paymentMethodId: pmId, bcCategory: bcCat,
+          lines, posting: postType,
+        }),
       });
       if (!res.ok) throw new Error();
-      const { count } = (await res.json()) as { count: number };
+      // 2) learn the vendor for sibling/future invoices ONLY when the operator asked
+      let count = 0;
+      if (remember) {
+        const r2 = await fetch("/api/payables/code-vendor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vendor: r.vendor, entity, gl, bcCategory: bcCat, autoApprove: approveAll }),
+        });
+        if (r2.ok) count = ((await r2.json()) as { count: number }).count ?? 0;
+      }
       toast(
-        approveAll
-          ? `✓ ${r.vendor} auto-approved going forward · ${count} invoice${count === 1 ? "" : "s"} posted`
-          : `✓ ${r.vendor} remembered · ${count} invoice${count === 1 ? "" : "s"} coded — review & post when ready`,
+        remember
+          ? approveAll
+            ? `✓ ${r.vendor} saved + auto-approved going forward · ${count} invoice${count === 1 ? "" : "s"}`
+            : `✓ ${r.vendor} saved + remembered · ${count} invoice${count === 1 ? "" : "s"} coded`
+          : `✓ ${r.vendor} saved`,
       );
     } catch {
-      setRows((rs) => rs.map((x) => snapshot.get(x.id) ?? x));
+      setRows(prevRows);
       toast(`Couldn't save ${r.vendor} — try again`);
     }
   }
@@ -853,6 +932,9 @@ export default function Payables({
             <Button variant="secondary" onClick={() => setShowInvoices(true)}>
               <FileText className="h-4 w-4" /> Upload invoices
             </Button>
+            <Button variant="ghost" onClick={reprocessVendors} disabled={reprocessing} title="Re-run vendor ID on the queue using everything learned">
+              ↻ {reprocessing ? "Reprocessing…" : "Reprocess vendors"}
+            </Button>
           </div>
         }
       />
@@ -895,7 +977,7 @@ export default function Payables({
             <div className="px-5 py-8 text-sm text-slate-400">No documents ingested yet.</div>
           ) : (
             jobs.map((j) => (
-              <div key={j.id} className="flex items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0">
+              <div key={j.id} className={`flex items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0 ${j.superseded ? "opacity-55" : ""}`}>
                 <span
                   className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                     j.outcome === "error"
@@ -911,9 +993,9 @@ export default function Payables({
                   <div className="truncate text-[13px] font-semibold text-slate-900">
                     {j.filename} <span className="text-[11px] font-normal text-slate-400">· {j.source}</span>
                   </div>
-                  {j.detail && (
+                  {(j.superseded || j.detail) && (
                     <div className={`truncate text-[12px] ${j.outcome === "error" ? "text-red-600" : "text-slate-500"}`}>
-                      {j.detail}
+                      {j.superseded ? "duplicate — invoice already in the system ✓" : j.detail}
                     </div>
                   )}
                 </div>
@@ -928,7 +1010,11 @@ export default function Payables({
                           : "amber"
                   }
                 >
-                  {j.outcome === "filed" ? "filed ✓" : j.outcome === "duplicate" ? "duplicate" : j.outcome}
+                  {j.outcome === "filed"
+                    ? "filed ✓"
+                    : j.outcome === "duplicate"
+                      ? j.superseded ? "in system ✓" : "duplicate"
+                      : j.outcome}
                 </Badge>
                 {j.outcome === "error" && (
                   <Button size="sm" variant="secondary" onClick={() => reprocessJob(j.id)}>
@@ -1041,11 +1127,20 @@ export default function Payables({
                     Inv {r.invoiceNumber || "—"}
                   </span>
                 </div>
-                {r.memo && (
-                  <div className="mt-0.5 line-clamp-2 text-[11.5px] italic text-slate-400" title={r.memo}>
-                    {r.memo}
-                  </div>
-                )}
+                {/* memo — editable inline, per transaction (persists to QB on blur) */}
+                <input
+                  key={`memo-${r.id}-${r.memo ?? ""}`}
+                  defaultValue={r.memo ?? ""}
+                  title={r.memo || "Add a memo for this transaction"}
+                  placeholder="+ memo"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v !== (r.memo ?? "")) persistMemo(r.id, v);
+                  }}
+                  className="mt-0.5 w-full truncate rounded border border-transparent bg-transparent px-1 text-[11.5px] italic text-slate-400 placeholder:not-italic placeholder:text-slate-300 hover:border-slate-200 focus:border-brand focus:bg-white focus:not-italic focus:text-slate-700 focus:outline-none"
+                />
               </div>
               {/* Date */}
               <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
@@ -1292,22 +1387,32 @@ export default function Payables({
           Only the fields you set change; the rest stay as they are. Applies to all
           selected rows.
         </p>
-        <Field label="Posting">
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            {[
-              { k: undefined, label: "No change" },
-              { k: "charge" as const, label: "Charge (card)" },
-              { k: "bill" as const, label: "Bill (A/P)" },
-            ].map((o) => (
-              <button
-                key={o.label}
-                onClick={() => setBulk((b) => ({ ...b, posting: o.k }))}
-                className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-semibold transition ${bulk.posting === o.k ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                {o.label}
-              </button>
+        {/* order: payment from · vendor · entity · account (GL) · posting */}
+        <Field label="Pay from">
+          <select
+            value={bulk.paymentMethodId ?? ""}
+            onChange={(e) => setBulk((b) => ({ ...b, paymentMethodId: e.target.value || undefined }))}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+          >
+            <option value="">No change</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
             ))}
-          </div>
+          </select>
+        </Field>
+        <Field label="Vendor">
+          <input
+            list="fc-vendor-bulk"
+            value={bulk.vendor ?? ""}
+            onChange={(e) => setBulk((b) => ({ ...b, vendor: e.target.value || undefined }))}
+            placeholder="Leave blank to keep each row's vendor…"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-900 focus:border-brand focus:outline-none"
+          />
+          <datalist id="fc-vendor-bulk">
+            {vendors.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
         </Field>
         <Field label="Entity">
           <div className="flex flex-wrap gap-1">
@@ -1328,18 +1433,6 @@ export default function Payables({
               </button>
             ))}
           </div>
-        </Field>
-        <Field label="Pay from">
-          <select
-            value={bulk.paymentMethodId ?? ""}
-            onChange={(e) => setBulk((b) => ({ ...b, paymentMethodId: e.target.value || undefined }))}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
-          >
-            <option value="">No change</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
         </Field>
         {bulk.entity !== "BC" && (
           <Field label="GL account">
@@ -1362,6 +1455,23 @@ export default function Payables({
         {bulk.entity === "BC" && (
           <p className="text-[12px] text-amber-700">BC → posts to PER QB as {BC_ROUTE.gl}.</p>
         )}
+        <Field label="Posting">
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {[
+              { k: undefined, label: "No change" },
+              { k: "charge" as const, label: "Charge (card)" },
+              { k: "bill" as const, label: "Bill (A/P)" },
+            ].map((o) => (
+              <button
+                key={o.label}
+                onClick={() => setBulk((b) => ({ ...b, posting: o.k }))}
+                className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-semibold transition ${bulk.posting === o.k ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </Field>
       </Modal>
 
       <Toast message={message} />

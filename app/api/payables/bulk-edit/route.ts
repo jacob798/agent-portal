@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     paymentMethodId?: string | null;
     account?: string | null;
     bcCategory?: string | null;
+    vendor?: string | null;
   };
   try {
     body = await req.json();
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest) {
     if (body.paymentMethodId !== undefined) patch.payment_method_id = body.paymentMethodId;
     if (body.account !== undefined) patch.account = body.account;
     if (body.bcCategory !== undefined) patch.bc_category = body.bcCategory;
+    if (body.vendor !== undefined && body.vendor !== null && String(body.vendor).trim()) {
+      patch.vendor = String(body.vendor).trim();
+      patch.vendor_status = "accepted";
+    }
     // A coding change makes the row coded & ready to review/post.
     if (body.entity !== undefined || body.gl !== undefined || body.posting !== undefined) {
       patch.auto = false;

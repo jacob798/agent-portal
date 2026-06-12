@@ -20,6 +20,10 @@ export interface IngestionJob {
   resultId: string | null; // payables_queue id when filed/duplicate-of
   dropboxPath: string | null;
   createdAt: string;
+  /** A duplicate skip whose invoice IS now represented by a live (non-discarded) row.
+   *  These are resolved history, not a live alert — the UI shows them as "already in
+   *  system" instead of a standing "duplicate" so the log reflects the final truth. */
+  superseded?: boolean;
 }
 
 function classify(status: string, error: string | null): { outcome: Outcome; detail: string } {
@@ -46,7 +50,7 @@ export async function getIngestionLog(limit = 50): Promise<IngestionJob[]> {
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error || !data) return MOCK;
-    return data.map((r): IngestionJob => {
+    const jobs = data.map((r): IngestionJob => {
       const { outcome, detail } = classify(r.status, r.error);
       return {
         id: r.id,
@@ -59,6 +63,23 @@ export async function getIngestionLog(limit = 50): Promise<IngestionJob[]> {
         createdAt: r.created_at ?? "",
       };
     });
+
+    // Mark duplicate skips as SUPERSEDED when the row they matched still exists and
+    // isn't discarded — i.e. the invoice really is in the system, so the skip is
+    // resolved history, not a live "duplicate" alert. (A duplicate whose original was
+    // later discarded stays a live duplicate: nothing represents it anymore.)
+    const dupIds = [...new Set(jobs.filter((j) => j.outcome === "duplicate" && j.resultId).map((j) => j.resultId!))];
+    if (dupIds.length) {
+      const { data: liveRows } = await supabase
+        .from("payables_queue")
+        .select("id, status")
+        .in("id", dupIds);
+      const live = new Set((liveRows ?? []).filter((r) => r.status !== "discarded").map((r) => r.id));
+      for (const j of jobs) {
+        if (j.outcome === "duplicate" && j.resultId && live.has(j.resultId)) j.superseded = true;
+      }
+    }
+    return jobs;
   } catch {
     return MOCK;
   }

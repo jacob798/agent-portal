@@ -358,6 +358,26 @@ export default function Payables({
       return [...ls, { desc: "New line", amount: 0, gl: base?.gl ?? "", entity: base?.entity ?? "PER", bcCategory: base?.bcCategory }];
     });
   const removeLine = (i: number) => setLines((ls) => (ls.length > 1 ? ls.filter((_, j) => j !== i) : ls));
+  // Apply this vendor's saved multi-line split (entity + account per line). Amounts are
+  // prefilled ONLY when this invoice's total matches the prior split's total; otherwise
+  // the structure comes in and you enter the amounts. Used on demand — splits are the
+  // exception, not the rule, so it's never auto-applied.
+  const applySavedSplit = (r: Row) => {
+    const tmpl = r.lineTemplate;
+    if (!tmpl || tmpl.length < 2) return;
+    const priorTot = Math.round(tmpl.reduce((s, t) => s + (t.amount ?? 0), 0) * 100) / 100;
+    const same = Math.abs(priorTot - r.amount) < 0.01;
+    setLines(
+      tmpl.map((t) => ({
+        desc: r.vendor,
+        amount: same ? (t.amount ?? 0) : 0,
+        gl: t.gl ?? "",
+        entity: t.entity ?? "PER",
+        bcCategory: t.bcCategory,
+      })),
+    );
+    toast(same ? `Applied saved split (${tmpl.length} lines, amounts prefilled)` : `Applied saved split (${tmpl.length} lines) — enter the amounts`);
+  };
   const setLineAmount = (i: number, amount: number) =>
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, amount } : l)));
   const multiEntity = useMemo(
@@ -1635,6 +1655,14 @@ export default function Payables({
                 </div>
               </div>
             ))}
+            {r.lineTemplate && r.lineTemplate.length >= 2 && (
+              <button
+                onClick={() => applySavedSplit(r)}
+                className="w-full rounded-lg border border-brand/30 bg-brand/[0.04] px-3 py-1.5 text-[12px] font-semibold text-brand hover:bg-brand/10"
+              >
+                ⎘ Apply saved split for {r.vendor} ({r.lineTemplate.length} lines)
+              </button>
+            )}
             <div className="flex items-center justify-between pt-0.5">
               <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">
                 + Add coding line

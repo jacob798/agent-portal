@@ -59,6 +59,9 @@ export interface PayableRow {
   txnDate?: string | null;
   /** Attributed trip id (when this is a trip expense) — drives the drawer trip picker. */
   tripId?: string | null;
+  /** This vendor's saved multi-line split layout (entity+account+amount per line), if any.
+   *  The drawer offers a one-click "Apply saved split"; NOT auto-applied (split = exception). */
+  lineTemplate?: { entity: string | null; gl: string | null; amount?: number; bcCategory?: string }[] | null;
 }
 
 const MOCK: PayableRow[] = [
@@ -223,7 +226,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       .or("status.is.null,status.eq.open,status.eq.reclassified")
       .order("ord");
     if (error || !data) return MOCK;
-    return data.map((r): PayableRow => ({
+    const rows = data.map((r): PayableRow => ({
       id: r.id,
       vendor: r.vendor,
       sub: r.sub ?? "",
@@ -249,6 +252,26 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       txnDate: r.txn_date ?? null,
       tripId: r.trip_id ?? null,
     }));
+    // Attach each vendor's saved multi-line split layout (if any), so the drawer can offer
+    // a one-click "Apply saved split". NOT auto-applied — a split is the exception, not the
+    // rule, for most vendors (Jacob).
+    try {
+      const vendors = [...new Set(rows.map((r) => r.vendor).filter(Boolean))];
+      if (vendors.length) {
+        const { data: tmpls } = await supabase
+          .from("vendor_line_templates")
+          .select("vendor, lines")
+          .in("vendor", vendors);
+        const byVendor = new Map((tmpls ?? []).map((t) => [String(t.vendor).toLowerCase(), t.lines]));
+        for (const r of rows) {
+          const t = byVendor.get((r.vendor ?? "").toLowerCase());
+          if (Array.isArray(t) && t.length >= 2) r.lineTemplate = t;
+        }
+      }
+    } catch {
+      /* best-effort — the saved-split button just won't show */
+    }
+    return rows;
   } catch {
     return MOCK;
   }

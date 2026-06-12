@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
         const layout = lines.map((l) => ({
           entity: l.entity ?? null,
           gl: l.gl ?? null,
+          amount: l.amount ?? 0, // prior amount → prefilled next time (operator adjusts)
           ...(l.bcCategory ? { bcCategory: l.bcCategory } : {}),
         }));
         await admin

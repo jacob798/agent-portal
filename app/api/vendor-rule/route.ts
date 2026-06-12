@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { isSelfName } from "@/lib/payables/fingerprints";
 
 /**
  * Persist an "always code <vendor> this way" rule. Upserts into vendor_rules,
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest) {
   }
   const vendor = (body.vendor ?? "").trim();
   if (!vendor) return NextResponse.json({ error: "vendor is required" }, { status: 400 });
+  // never learn a rule for the account holder / a bill-to entity — it's not a vendor
+  if (isSelfName(vendor)) {
+    return NextResponse.json(
+      { error: `'${vendor}' is the bill-to / account holder, not a vendor.` },
+      { status: 400 },
+    );
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.from("vendor_rules").upsert(

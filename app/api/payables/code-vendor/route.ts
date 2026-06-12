@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { isSelfName } from "@/lib/payables/fingerprints";
 
 /**
  * "Save & remember": learn a vendor's coding once, applied to all of its queued
@@ -31,6 +32,14 @@ export async function POST(req: NextRequest) {
   const gl = body.gl ?? null;
   const autoApprove = body.autoApprove === true;
   if (!vendor) return NextResponse.json({ error: "vendor required" }, { status: 400 });
+  // The account holder / a bill-to entity is NEVER a vendor — refuse to learn a rule for it
+  // (a 'Jacob Wolbach → Vehicle Insurance' rule mis-coded every doc billed to Jacob).
+  if (isSelfName(vendor)) {
+    return NextResponse.json(
+      { error: `'${vendor}' is the bill-to / account holder, not a vendor — pick the real biller first.` },
+      { status: 400 },
+    );
+  }
 
   const admin = createAdminClient();
 

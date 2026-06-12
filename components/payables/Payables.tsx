@@ -427,14 +427,41 @@ export default function Payables({
       toast("Pick at least one PDF or image first");
       return;
     }
+    // Vercel serverless functions cap the REQUEST BODY at ~4.5MB, so a batch of invoices
+    // posted together 413s. Split into size-bounded chunks (each well under the cap) and
+    // upload them sequentially, aggregating the result.
+    const CAP = 3.5 * 1024 * 1024;
+    const oversize = invFiles.filter((f) => f.size > CAP);
+    if (oversize.length) {
+      toast(`${oversize[0].name} is too large to upload here (>3.5MB) — split or compress it`);
+      return;
+    }
+    const batches: File[][] = [];
+    let cur: File[] = [];
+    let curSize = 0;
+    for (const f of invFiles) {
+      if (cur.length && curSize + f.size > CAP) {
+        batches.push(cur);
+        cur = [];
+        curSize = 0;
+      }
+      cur.push(f);
+      curSize += f.size;
+    }
+    if (cur.length) batches.push(cur);
+
     setUploading(true);
     try {
-      const fd = new FormData();
-      invFiles.forEach((f) => fd.append("files", f));
-      const res = await fetch("/api/ingest", { method: "POST", body: fd });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || `upload failed (${res.status})`);
-      toast(`✓ Uploaded ${json.jobs.length} document${json.jobs.length > 1 ? "s" : ""} — queued for OCR + classify`);
+      let uploaded = 0;
+      for (const batch of batches) {
+        const fd = new FormData();
+        batch.forEach((f) => fd.append("files", f));
+        const res = await fetch("/api/ingest", { method: "POST", body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || `upload failed (${res.status})`);
+        uploaded += json.jobs?.length ?? batch.length;
+      }
+      toast(`✓ Uploaded ${uploaded} document${uploaded === 1 ? "" : "s"} — queued for OCR + classify`);
       setInvFiles([]);
       setShowInvoices(false);
     } catch (e) {

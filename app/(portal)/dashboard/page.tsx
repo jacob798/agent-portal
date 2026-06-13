@@ -15,9 +15,18 @@ const STATUS: Record<AgentStatus, { tone: Tone; label: string }> = {
   idle: { tone: "neutral", label: "Idle" },
 };
 
+// A "Healthy" badge only reflects the LAST write — an agent that stopped reporting days ago
+// still shows green. Staleness of the heartbeat is the real "is the backend alive?" signal.
+const STALE_WARN_MIN = 120; // >2h since last run → suspicious
+const STALE_DOWN_MIN = 1440; // >24h → backend almost certainly not running
+
+function minsSince(iso: string | null): number | null {
+  return iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null;
+}
+
 function formatLastRun(iso: string | null): string {
-  if (!iso) return "Never";
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  const mins = minsSince(iso);
+  if (mins === null) return "Never";
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
@@ -34,6 +43,10 @@ export default async function DashboardPage() {
   );
   const attention = (counts.degraded ?? 0) + (counts.down ?? 0);
   const totalQueue = agents.reduce((sum, a) => sum + a.queueDepth, 0);
+  const stale = agents.filter((a) => {
+    const m = minsSince(a.lastRunAt);
+    return m === null || m > STALE_WARN_MIN;
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
@@ -41,6 +54,18 @@ export default async function DashboardPage() {
         title="Agent Health"
         subtitle="Live status across every agent in the system."
       />
+
+      {/* Heartbeat-staleness banner — a green badge can hide a backend that stopped reporting. */}
+      {stale.length > 0 && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>{stale.length} agent{stale.length === 1 ? "" : "s"} haven&apos;t reported in over 2h</b> — the
+            status badges below reflect the last heartbeat, not live state. If this is unexpected, the backend
+            worker may be down. ({stale.map((a) => a.name).join(", ")})
+          </span>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -71,7 +96,16 @@ export default async function DashboardPage() {
                 {agent.description}
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                <span>Last run · {formatLastRun(agent.lastRunAt)}</span>
+                {(() => {
+                  const m = minsSince(agent.lastRunAt);
+                  const stale = m === null || m > STALE_WARN_MIN;
+                  const down = m === null || m > STALE_DOWN_MIN;
+                  return (
+                    <span className={down ? "font-semibold text-red-600" : stale ? "font-semibold text-amber-600" : ""}>
+                      {stale && "⚠ "}Last run · {formatLastRun(agent.lastRunAt)}
+                    </span>
+                  );
+                })()}
                 <span className="inline-flex items-center gap-1">
                   Queue
                   <span

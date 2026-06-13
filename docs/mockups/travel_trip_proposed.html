@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Travel — proposed trip view</title>
+<style>
+  :root{
+    --navy:#16223a; --brand:#2f6f6b; --ink:#1e293b; --muted:#64748b; --line:#e2e8f0;
+    --bg:#f8fafc; --green:#059669; --amber:#b45309; --indigo:#4f46e5; --card:#fff;
+  }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink)}
+  .wrap{max-width:880px;margin:32px auto;padding:0 20px}
+  .crumb{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .crumb b{color:var(--navy)}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  h1{font-size:24px;margin:0 0 2px;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13.5px}
+  .purpose{margin-top:8px;font-size:13.5px}
+  .purpose .lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-right:8px}
+  .btns{display:flex;gap:8px;justify-content:flex-end}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700}
+  .b-neutral{background:#f1f5f9;color:#475569} .b-green{background:#ecfdf5;color:var(--green)}
+  .b-amber{background:#fffbeb;color:var(--amber)} .b-indigo{background:#eef2ff;color:var(--indigo)}
+  .dot::before{content:"●";font-size:8px;margin-right:2px}
+  /* reconciliation strip */
+  .recon{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+  .stat{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .stat .n{font-size:20px;font-weight:700;color:var(--navy)} .stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:16px}
+  .card .ttl{padding:11px 16px;border-bottom:1px solid var(--line);background:#f8fafc;font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
+  .row{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid #f1f5f9}
+  .row:last-child{border-bottom:0}
+  .ic{font-size:18px;width:22px;text-align:center}
+  .when{width:96px;flex-shrink:0;color:var(--muted);font-size:12.5px}
+  .grow{flex:1;min-width:0}
+  .merch{font-weight:600}
+  .meta{font-size:12.5px;color:var(--muted)}
+  .rcpt-ok{color:var(--green);font-weight:700} .rcpt-no{color:var(--amber);font-weight:700}
+  .amt{width:90px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .note{margin-top:16px;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:13px;color:#475569}
+  .note b{color:var(--navy)}
+  .matchline{font-size:11.5px;color:var(--brand);margin-top:1px}
+  .total{font-weight:700;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumb">Portal / <b>Travel</b></div>
+
+  <!-- Header -->
+  <div class="head">
+    <div>
+      <h1>Spokane</h1>
+      <div class="sub">Personal · Jun 5 – 7, 2026</div>
+      <div class="purpose"><span class="lbl">Purpose</span>SP Volleyball</div>
+    </div>
+    <div style="text-align:right">
+      <span class="badge b-neutral dot">Past trip</span>
+      <div class="btns" style="margin-top:12px">
+        <button class="btn">🖨 Print / Save PDF</button>
+        <button class="btn primary">⬇ Download .zip</button>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#94a3b8">zip = summary + every receipt PDF</div>
+    </div>
+  </div>
+
+  <!-- Reconciliation: expected (itinerary) vs posted (actuals) -->
+  <div class="recon">
+    <div class="stat"><div class="n">$418.61</div><div class="l">Posted to QuickBooks</div></div>
+    <div class="stat"><div class="n">$380.00</div><div class="l">Expected (awaiting invoice)</div></div>
+    <div class="stat"><div class="n">3 / 4</div><div class="l">Receipts on file</div></div>
+    <div class="stat"><div class="n">$798.61</div><div class="l">Trip total</div></div>
+  </div>
+
+  <!-- LAYER 1: Itinerary (Calendar Writer V2 — header + individual events) -->
+  <div class="card">
+    <div class="ttl">Itinerary — what's scheduled <span class="badge b-indigo">on your calendar</span></div>
+    <div class="row"><span class="ic">✈️</span><span class="when">Jun 5 · 5:30a</span>
+      <div class="grow"><div class="merch">Delta 2808 · BOI → GEG</div><div class="meta">conf JLB4PN · arrives 7:10a</div></div></div>
+    <div class="row"><span class="ic">🏨</span><span class="when">Jun 5 – 7</span>
+      <div class="grow"><div class="merch">Davenport Grand, Spokane</div><div class="meta">2 nights · conf 5582193</div></div></div>
+    <div class="row"><span class="ic">✈️</span><span class="when">Jun 7 · 6:45p</span>
+      <div class="grow"><div class="merch">Delta 2811 · GEG → BOI</div><div class="meta">conf JLB4PN</div></div></div>
+  </div>
+
+  <!-- LAYER 2: Books (charges post on arrival; matched to itinerary events) -->
+  <div class="card">
+    <div class="ttl">Trip expenses (4)
+      <span class="total">$798.61</span>
+    </div>
+
+    <!-- posted, matched to the flight event, receipt on file -->
+    <div class="row"><span class="ic">✈️</span>
+      <div class="grow">
+        <div class="merch">Delta Air Lines</div>
+        <div class="meta">Airfare · conf JLB4PN · 6/5 · <a href="#" class="rcpt-ok">✓ receipt</a></div>
+        <div class="matchline">↳ matches itinerary: Delta 2808 BOI→GEG</div>
+      </div>
+      <span class="badge b-green dot">Posted</span><span class="amt">$420.00</span></div>
+
+    <!-- expected: scheduled event, no charge yet -->
+    <div class="row" style="background:#fffdf5"><span class="ic">🏨</span>
+      <div class="grow">
+        <div class="merch">Davenport Grand</div>
+        <div class="meta">Hotel · from itinerary · <span class="rcpt-no">⏳ awaiting invoice</span></div>
+        <div class="matchline">↳ expected from itinerary — posts when the charge arrives</div>
+      </div>
+      <span class="badge b-amber">Expected</span><span class="amt">$380.00</span></div>
+
+    <!-- posted meal, receipt on file -->
+    <div class="row"><span class="ic">🍽️</span>
+      <div class="grow">
+        <div class="merch">Frank's Diner</div>
+        <div class="meta">Meals · 6/6 · <a href="#" class="rcpt-ok">✓ receipt</a></div>
+      </div>
+      <span class="badge b-green dot">Posted</span><span class="amt">$32.40</span></div>
+
+    <!-- posted but no receipt — documentation gap, flagged -->
+    <div class="row"><span class="ic">🚕</span>
+      <div class="grow">
+        <div class="merch">Spokane Yellow Cab</div>
+        <div class="meta">Ground · 6/7 · <span class="rcpt-no">⚠ no receipt</span></div>
+      </div>
+      <span class="badge b-green dot">Posted</span><span class="amt">$16.21</span></div>
+  </div>
+
+  <!-- QB posting model -->
+  <div class="note">
+    Posts to QuickBooks under <b>one vendor — Travel 2026-06 - PER SP Volleyball Spokane (6/5–7)</b>.
+    Each merchant is a memo line (e.g. <i>Delta Air Lines · conf JLB4PN</i>), never its own vendor.
+    Charges post <b>as they arrive</b> — a flight booked in January records in January, on this trip.
+  </div>
+</div>
+</body>
+</html>

@@ -678,6 +678,9 @@ export default function Payables({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendor: vendorName,
+          // apply the coding to the card we opened this from, even if it's still
+          // mis-vendored — so the row you were on gets populated immediately.
+          ids: [learnRow.id],
           entity_code: entity,
           gl_full_name: f.gl,
           display_name: f.display,

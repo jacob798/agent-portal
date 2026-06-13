@@ -126,5 +126,38 @@ export async function POST() {
     }
   }
 
-  return NextResponse.json({ ok: true, learned, fixed: changes.length, flagged, changes });
+  // ── APPLY learned vendor RULES to still-open rows ──────────────────────────
+  // "Reprocess" means "apply everything we've learned". A row whose vendor now has a
+  // saved rule (entity + GL) but whose coding doesn't match it — e.g. it was coded under
+  // the wrong vendor before the rule existed, or the vendor was just re-identified above —
+  // gets the rule's coding. OPEN rows only: never touch approved/posted (operator-confirmed)
+  // coding. This is the fix for "I taught the vendor's defaults but the batch didn't update".
+  const { data: rules } = await admin.from("vendor_rules").select("vendor, entity_code, gl_full_name");
+  const ruleByVendor = new Map<string, { entity: string | null; gl: string | null }>();
+  for (const rl of rules ?? []) {
+    if (rl.vendor) ruleByVendor.set(String(rl.vendor).toLowerCase(), { entity: rl.entity_code ?? null, gl: rl.gl_full_name ?? null });
+  }
+  let recoded = 0;
+  const { data: openRows } = await admin
+    .from("payables_queue")
+    .select("id, vendor, entity, gl, lines")
+    .eq("status", "open");
+  for (const r of openRows ?? []) {
+    const rule = ruleByVendor.get(String(r.vendor ?? "").toLowerCase());
+    if (!rule) continue;
+    const patch: Record<string, unknown> = {};
+    if (rule.entity && r.entity !== rule.entity) patch.entity = rule.entity;
+    if (rule.gl && r.gl !== rule.gl) {
+      patch.gl = rule.gl;
+      const lines = Array.isArray(r.lines) ? r.lines : [];
+      if (lines.length) patch.lines = [{ ...lines[0], gl: rule.gl }, ...lines.slice(1)];
+    }
+    if (Object.keys(patch).length) {
+      patch.exception = null;
+      await admin.from("payables_queue").update(patch).eq("id", r.id);
+      recoded += 1;
+    }
+  }
+
+  return NextResponse.json({ ok: true, learned, fixed: changes.length, flagged, recoded, changes });
 }

@@ -1182,7 +1182,19 @@ export default function Payables({
                 <Badge tone={r.posting === "bill" ? "indigo" : "slate"}>
                   {r.posting === "bill" ? "Bill" : "Charge"}
                 </Badge>
-                <div className="mt-1 truncate text-[11px] text-slate-500" title={r.account}>{r.account}</div>
+                {(() => {
+                  // a charge with no pay-from account can't post — flag it amber so it's
+                  // clearly a required step, not just grey placeholder text.
+                  const needAcct = !r.account || /pick account/i.test(r.account);
+                  return (
+                    <div
+                      className={`mt-1 truncate text-[11px] ${needAcct ? "font-semibold text-amber-600" : "text-slate-500"}`}
+                      title={needAcct ? "Pick a pay-from account before posting" : r.account}
+                    >
+                      {needAcct ? "⚠ pick pay-from account" : r.account}
+                    </div>
+                  );
+                })()}
               </div>
               {/* Entity (inline picker; multi-line opens the drawer) */}
               <div onClick={(e) => e.stopPropagation()}>

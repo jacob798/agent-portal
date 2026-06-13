@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
   Printer,
   Download,
@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense } from "@/lib/data/travel";
+import type { Trip, TripExpense, NeedsTripItem } from "@/lib/data/travel";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -64,8 +64,10 @@ function tripRollup(t: Trip) {
 
 export default function Travel({
   trips: initialTrips,
+  needsTrip = [],
 }: {
   trips: Trip[];
+  needsTrip?: NeedsTripItem[];
 }) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [openTripId, setOpenTripId] = useState<string | null>(null);
@@ -74,8 +76,29 @@ export default function Travel({
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const [zipping, setZipping] = useState(false);
+  // "Needs a trip" asks (unmatched travel@ itineraries) + which one a New-Trip is resolving.
+  const [needs, setNeeds] = useState<NeedsTripItem[]>(needsTrip);
+  const [prefill, setPrefill] = useState<{ dest: string; start: string; end: string; needsId: string } | null>(null);
   const { message, toast } = useToast();
   const router = useRouter();
+
+  async function dismissNeeds(id: string) {
+    setNeeds((n) => n.filter((x) => x.id !== id));
+    try {
+      await fetch("/api/travel/needs-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "dismissed" }),
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  function createFromNeeds(item: NeedsTripItem) {
+    setPrefill({ dest: item.destination, start: item.startDate ?? "", end: item.endDate ?? "", needsId: item.id });
+    setNewTripOpen(true);
+  }
 
   // Download the trip's expense .zip (manifest CSV + every receipt PDF) from the server.
   async function downloadZip(t: Trip) {
@@ -111,6 +134,8 @@ export default function Travel({
   async function createTrip(t: Trip) {
     setTrips((prev) => [t, ...prev]); // optimistic
     setNewTripOpen(false);
+    const resolvingNeedsId = prefill?.needsId ?? null;
+    setPrefill(null);
     try {
       const res = await fetch("/api/travel/create-trip", {
         method: "POST",
@@ -121,6 +146,15 @@ export default function Travel({
       if (!res.ok) throw new Error(j.error || `failed (${res.status})`);
       // swap the temp local id for the persisted one so edits/attribution use the real id
       setTrips((prev) => prev.map((x) => (x.id === t.id ? { ...x, id: j.id } : x)));
+      // if this trip was created to resolve a "needs a trip" ask, clear that ask
+      if (resolvingNeedsId) {
+        setNeeds((n) => n.filter((x) => x.id !== resolvingNeedsId));
+        fetch("/api/travel/needs-trip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: resolvingNeedsId, status: "resolved" }),
+        }).catch(() => {});
+      }
       toast(`✓ Saved ${t.dest} — new invoices in this window will attribute to it`);
     } catch (e) {
       setTrips((prev) => prev.filter((x) => x.id !== t.id)); // revert — it didn't save
@@ -174,6 +208,9 @@ export default function Travel({
               </Button>
             }
           />
+          {needs.length > 0 && (
+            <NeedsTripInbox items={needs} onCreate={createFromNeeds} onDismiss={dismissNeeds} />
+          )}
           <TripsList
             trips={trips}
             search={search}
@@ -184,7 +221,12 @@ export default function Travel({
       )}
 
       {/* New trip */}
-      <NewTripModal open={newTripOpen} onClose={() => setNewTripOpen(false)} onCreate={createTrip} />
+      <NewTripModal
+        open={newTripOpen}
+        onClose={() => { setNewTripOpen(false); setPrefill(null); }}
+        onCreate={createTrip}
+        initial={prefill ? { dest: prefill.dest, start: prefill.start, end: prefill.end } : undefined}
+      />
 
       {editTrip && (
         <EditTripModal
@@ -229,16 +271,27 @@ function NewTripModal({
   open,
   onClose,
   onCreate,
+  initial,
 }: {
   open: boolean;
   onClose: () => void;
   onCreate: (t: Trip) => void;
+  initial?: { dest?: string; start?: string; end?: string };
 }) {
   const [ent, setEnt] = useState("BC");
   const [dest, setDest] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [purpose, setPurpose] = useState("");
+
+  // Seed from a "needs a trip" ask when opened pre-filled (destination + dates).
+  useEffect(() => {
+    if (open && initial) {
+      setDest(initial.dest ?? "");
+      setStart(initial.start ?? "");
+      setEnd(initial.end ?? "");
+    }
+  }, [open, initial]);
 
   const fmt = (d: string) =>
     d ? new Date(d + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
@@ -587,6 +640,48 @@ function TripsList({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function NeedsTripInbox({
+  items,
+  onCreate,
+  onDismiss,
+}: {
+  items: NeedsTripItem[];
+  onCreate: (item: NeedsTripItem) => void;
+  onDismiss: (id: string) => void;
+}) {
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60">
+      <div className="border-b border-amber-200 px-4 py-2.5 text-[13px] font-semibold text-amber-900">
+        Needs a trip — {items.length} itinerary{items.length === 1 ? "" : "s"} from travel@ didn’t match a trip
+      </div>
+      {items.map((it) => (
+        <div key={it.id} className="flex items-center gap-3 border-b border-amber-100 px-4 py-2.5 last:border-0">
+          <span className="text-lg">🧭</span>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-slate-900">{it.destination}</div>
+            <div className="truncate text-[12.5px] text-slate-500">
+              {it.dates || "dates TBD"}
+              {it.summary && it.summary !== it.destination ? ` · ${it.summary}` : ""}
+            </div>
+          </div>
+          <button
+            onClick={() => onCreate(it)}
+            className="rounded-lg bg-brand-navy px-3 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90"
+          >
+            Create trip
+          </button>
+          <button
+            onClick={() => onDismiss(it.id)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:border-slate-300"
+          >
+            Dismiss
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

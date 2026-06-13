@@ -81,6 +81,42 @@ export interface Trip {
   exps: TripExpense[];
 }
 
+/**
+ * An incoming travel@ itinerary that matched NO manual trip — the "ask" surface.
+ * Written by the backend (public.travel_needs_trip); the operator either creates a trip
+ * (pre-filled from these) or dismisses it. Trips are never auto-created.
+ */
+export interface NeedsTripItem {
+  id: string;
+  destination: string;
+  dates: string;
+  startDate: string | null;
+  endDate: string | null;
+  summary: string;
+}
+
+export async function getNeedsTrip(): Promise<NeedsTripItem[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("travel_needs_trip")
+      .select("id, destination, dates, start_date, end_date, summary, status")
+      .eq("status", "open")
+      .order("start_date", { ascending: true });
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      destination: r.destination ?? "—",
+      dates: r.dates ?? "",
+      startDate: r.start_date ?? null,
+      endDate: r.end_date ?? null,
+      summary: r.summary ?? r.destination ?? "",
+    }));
+  } catch {
+    return []; // table may not exist yet — no ask items
+  }
+}
+
 export interface QueueExpense {
   id: string;
   ic: string;

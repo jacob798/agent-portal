@@ -98,11 +98,25 @@ export default function Travel({
     toast(`✓ Assigned to ${opt}`);
   }
 
-  function createTrip(t: Trip) {
-    setTrips((prev) => [t, ...prev]);
+  async function createTrip(t: Trip) {
+    setTrips((prev) => [t, ...prev]); // optimistic
     setNewTripOpen(false);
     setView("trips");
-    toast(`✓ Created ${t.dest} · recent receipts in this window re-scanned`);
+    try {
+      const res = await fetch("/api/travel/create-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ent: t.ent, dest: t.dest, start: t.start, end: t.end, purpose: t.purpose }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `failed (${res.status})`);
+      // swap the temp local id for the persisted one so edits/attribution use the real id
+      setTrips((prev) => prev.map((x) => (x.id === t.id ? { ...x, id: j.id } : x)));
+      toast(`✓ Saved ${t.dest} — new invoices in this window will attribute to it`);
+    } catch (e) {
+      setTrips((prev) => prev.filter((x) => x.id !== t.id)); // revert — it didn't save
+      toast(`Couldn't save trip: ${e instanceof Error ? e.message : "try again"}`);
+    }
   }
 
   // Stage this trip's ready invoices for QuickBooks — reuses the payables batch

@@ -21,7 +21,8 @@ export interface PayableLine {
 
 export interface PayableRow {
   id: string;
-  vendor: string;
+  vendor: string;          // QB posting name (trip name for travel)
+  vendorDisplay?: string;  // real merchant shown in the app (Delta, Hilton, …)
   sub: string;
   amount: number;
   posting: Posting;
@@ -229,6 +230,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
     const rows = data.map((r): PayableRow => ({
       id: r.id,
       vendor: r.vendor,
+      vendorDisplay: r.vendor_display ?? r.vendor,
       sub: r.sub ?? "",
       amount: Number(r.amount),
       posting: r.posting,

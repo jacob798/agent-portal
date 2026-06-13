@@ -1147,7 +1147,7 @@ export default function Payables({
                   ) : (
                     <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
                   )}
-                  <span className="truncate">{r.vendor}</span>
+                  <span className="truncate" title={r.vendorDisplay && r.vendorDisplay !== r.vendor ? `QuickBooks: ${r.vendor}` : undefined}>{r.vendorDisplay ?? r.vendor}</span>
                   {r.doc_waived ? (
                     <Badge tone="neutral">no receipt</Badge>
                   ) : r.nodoc ? (
@@ -1637,7 +1637,7 @@ export default function Payables({
           >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand/10 text-[14px]">📄</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12.5px] font-semibold text-slate-900">{r.vendor} — invoice</span>
+              <span className="block truncate text-[12.5px] font-semibold text-slate-900">{(r.vendorDisplay ?? r.vendor)} — invoice</span>
               <span className="block truncate text-[11.5px] text-slate-500">Filed to Dropbox · {r.sub}</span>
             </span>
             <span className="shrink-0 text-[12px] font-semibold text-brand group-hover:underline">Open ↗</span>

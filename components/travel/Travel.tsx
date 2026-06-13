@@ -68,8 +68,37 @@ export default function Travel({
   const [ovDone, setOvDone] = useState<Record<string, string>>({});
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
+  const [zipping, setZipping] = useState(false);
   const { message, toast } = useToast();
   const router = useRouter();
+
+  // Download the trip's expense .zip (manifest CSV + every receipt PDF) from the server.
+  async function downloadZip(t: Trip) {
+    setZipping(true);
+    try {
+      const res = await fetch(`/api/travel/export-zip?trip=${encodeURIComponent(t.id)}`, { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${t.dest.replace(/[^\w.\-]+/g, "_")}_expense_report.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      const got = res.headers.get("X-Receipts-Attached") ?? "?";
+      const miss = res.headers.get("X-Receipts-Missing") ?? "0";
+      toast(`✓ ${t.dest} report — ${got} receipt(s)${miss !== "0" ? ` · ${miss} missing` : ""}`);
+    } catch (e) {
+      toast(`Export failed: ${e instanceof Error ? e.message : "try again"}`);
+    } finally {
+      setZipping(false);
+    }
+  }
 
   const openTrip = trips.find((t) => t.id === openTripId) || null;
   const reportTrip = trips.find((t) => t.id === reportId) || null;
@@ -231,11 +260,10 @@ export default function Travel({
             </Button>
             <Button
               variant="ghost"
-              onClick={() => {
-                if (reportTrip) toast(`Exporting ${reportTrip.dest} as a ${brandFor(reportTrip.ent).mark}-branded .zip`);
-              }}
+              disabled={zipping}
+              onClick={() => reportTrip && downloadZip(reportTrip)}
             >
-              Download .zip
+              {zipping ? "Building…" : "Download .zip"}
             </Button>
           </>
         }
@@ -916,7 +944,22 @@ function TripDetail({
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{e.what}</div>
                 <div className="truncate text-[12.5px] text-slate-500">
-                  {expenseCode(trip.ent, e)} · <span className="inline-flex items-center gap-0.5 text-brand"><FileText className="h-3 w-3" /> view</span>
+                  {expenseCode(trip.ent, e)} ·{" "}
+                  {e.needsDoc ? (
+                    <span className="inline-flex items-center gap-0.5 font-semibold text-amber-600">⚠ no receipt</span>
+                  ) : e.docUrl ? (
+                    <a
+                      href={e.docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(ev) => ev.stopPropagation()}
+                      className="inline-flex items-center gap-0.5 font-semibold text-emerald-600 hover:underline"
+                    >
+                      <FileText className="h-3 w-3" /> ✓ receipt
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">✓ receipt</span>
+                  )}
                 </div>
               </div>
               <ExpenseStatusChip e={e} />
@@ -989,7 +1032,9 @@ function BrandedReport({ trip }: { trip: Trip }) {
               <td className="py-2 pr-2">{e.sub.includes("·") ? e.sub.split("·").pop()!.trim() : trip.dates}</td>
               <td className="px-2 py-2">{e.what}</td>
               <td className="px-2 py-2">{expenseCode(trip.ent, e)}</td>
-              <td className="px-2 py-2 text-center" style={{ color: b.accent }}>✓ receipt</td>
+              <td className="px-2 py-2 text-center" style={{ color: e.needsDoc ? "#b45309" : b.accent }}>
+                {e.needsDoc ? "⚠ missing" : "✓ receipt"}
+              </td>
               <td className="py-2 pl-2 text-right tabular-nums">{money(e.amount)}</td>
             </tr>
           ))}

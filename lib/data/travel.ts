@@ -40,6 +40,7 @@ function payableToLedger(r: {
     bcCategory: r.bc_category ?? undefined,
     status,
     needsDoc: !r.doc_url && !r.nodoc,
+    docUrl: r.doc_url ?? null,
   };
 }
 
@@ -64,6 +65,7 @@ export interface TripExpense {
   bcCategory?: string; // BC Paylocity category ("Meals - General") — the code BC reports show
   status?: ExpenseStatus;
   needsDoc?: boolean; // attributed but no receipt on file yet (gap, not a blocker)
+  docUrl?: string | null; // Dropbox share link to the receipt, when one is on file
 }
 export interface Trip {
   id: string;

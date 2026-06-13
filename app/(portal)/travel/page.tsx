@@ -2,6 +2,6 @@ import { getTravel } from "@/lib/data/travel";
 import Travel from "@/components/travel/Travel";
 
 export default async function TravelPage() {
-  const { trips, queue, overlaps } = await getTravel();
-  return <Travel trips={trips} queue={queue} overlaps={overlaps} />;
+  const { trips } = await getTravel();
+  return <Travel trips={trips} />;
 }

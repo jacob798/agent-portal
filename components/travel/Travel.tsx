@@ -9,19 +9,14 @@ import {
   Search,
   Plus,
   Pencil,
-  ExternalLink,
-  Check,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense, QueueExpense, OverlapException } from "@/lib/data/travel";
-import { ENT, money } from "@/lib/data/entities";
+import type { Trip, TripExpense } from "@/lib/data/travel";
+import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
-import FilterTabs from "@/components/ui/FilterTabs";
 import Modal from "@/components/ui/Modal";
-import Drawer from "@/components/ui/Drawer";
 import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
@@ -37,16 +32,6 @@ const brandFor = (ent: string) => (ent === "BC" ? BRANDS.BC : BRANDS._def);
 const expenseCode = (ent: string, e: { gl: string; bcCategory?: string }) =>
   ent === "BC" ? e.bcCategory || e.gl : e.gl;
 const codeLabel = (ent: string) => (ent === "BC" ? "BCX category" : "GL account");
-
-// The trip-rollup QB vendor every Denver charge posts under (build_trip_header_subject).
-const TRIPVEND = "Travel 2026-06 — Builders Capital · Denver Site Visit (6/4–6/7)";
-
-const NEW_TRIP_ENTITIES: { code: string; label: string }[] = [
-  { code: "BC", label: "Builders Capital" },
-  { code: "FC", label: "Foundry Capital" },
-  { code: "PER", label: "Personal" },
-  { code: "WJW", label: "WJW Investments" },
-];
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -79,22 +64,13 @@ function tripRollup(t: Trip) {
 
 export default function Travel({
   trips: initialTrips,
-  queue,
-  overlaps = [],
 }: {
   trips: Trip[];
-  queue: QueueExpense[];
-  overlaps?: OverlapException[];
 }) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
-  const [view, setView] = useState("queue");
   const [openTripId, setOpenTripId] = useState<string | null>(null);
-  const [conf, setConf] = useState<Record<string, boolean>>({});
-  const [done, setDone] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [reportId, setReportId] = useState<string | null>(null);
-  const [drawerId, setDrawerId] = useState<string | null>(null);
-  const [ovDone, setOvDone] = useState<Record<string, string>>({});
   const [newTripOpen, setNewTripOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const [zipping, setZipping] = useState(false);
@@ -131,35 +107,10 @@ export default function Travel({
 
   const openTrip = trips.find((t) => t.id === openTripId) || null;
   const reportTrip = trips.find((t) => t.id === reportId) || null;
-  const drawerExp = queue.find((q) => q.id === drawerId) || null;
-  const pending = queue.filter((q) => !done[q.id]);
-  const openOverlaps = overlaps.filter((o) => !ovDone[o.id]);
-
-  function confirmAll() {
-    const next = { ...done };
-    queue.forEach((q) => {
-      const checked = q.id in conf ? conf[q.id] : q.suggested;
-      if (checked && !q.home) next[q.id] = "→ " + q.trip;
-    });
-    setDone(next);
-    toast("✓ Confirmed all suggested trip expenses");
-  }
-
-  // Resolve an expense from the drawer or an inline action.
-  function resolve(id: string, label: string) {
-    setDone((d) => ({ ...d, [id]: label }));
-    setDrawerId(null);
-  }
-
-  function resolveOverlap(id: string, opt: string) {
-    setOvDone((d) => ({ ...d, [id]: opt }));
-    toast(`✓ Assigned to ${opt}`);
-  }
 
   async function createTrip(t: Trip) {
     setTrips((prev) => [t, ...prev]); // optimistic
     setNewTripOpen(false);
-    setView("trips");
     try {
       const res = await fetch("/api/travel/create-trip", {
         method: "POST",
@@ -216,55 +167,21 @@ export default function Travel({
         <>
           <PageHeader
             title="Travel"
-            subtitle="Trip expense attribution — confirm what the agent suggests; only date-overlaps need you."
+            subtitle="Trips and their attributed expenses. Invoices attribute to a trip in Payables; each trip rolls up to one QuickBooks vendor."
             action={
               <Button onClick={() => setNewTripOpen(true)}>
                 <Plus className="h-4 w-4" /> New trip
               </Button>
             }
           />
-          <div className="mt-5">
-            <FilterTabs
-              active={view}
-              onChange={setView}
-              tabs={[
-                { key: "queue", label: "Expense queue", count: pending.length },
-                { key: "trips", label: "Trips", count: trips.length },
-              ]}
-            />
-          </div>
-
-          {view === "queue" && (
-            <ExpenseQueue
-              queue={queue}
-              conf={conf}
-              done={done}
-              overlaps={openOverlaps}
-              setConf={setConf}
-              onConfirmAll={confirmAll}
-              onOpen={(id) => setDrawerId(id)}
-              onMakeTrip={(id) => resolve(id, "→ Denver (override)")}
-              onResolveOverlap={resolveOverlap}
-            />
-          )}
-
-          {view === "trips" && (
-            <TripsList
-              trips={trips}
-              search={search}
-              setSearch={setSearch}
-              onOpen={setOpenTripId}
-            />
-          )}
+          <TripsList
+            trips={trips}
+            search={search}
+            setSearch={setSearch}
+            onOpen={setOpenTripId}
+          />
         </>
       )}
-
-      {/* Per-expense drawer */}
-      <ExpenseDrawer
-        exp={drawerExp}
-        onClose={() => setDrawerId(null)}
-        onConfirm={(id, label) => resolve(id, label)}
-      />
 
       {/* New trip */}
       <NewTripModal open={newTripOpen} onClose={() => setNewTripOpen(false)} onCreate={createTrip} />
@@ -303,270 +220,6 @@ export default function Travel({
       </Modal>
 
       <Toast message={message} />
-    </div>
-  );
-}
-
-// ---------- expense queue ----------
-function ExpenseQueue({
-  queue,
-  conf,
-  done,
-  overlaps,
-  setConf,
-  onConfirmAll,
-  onOpen,
-  onMakeTrip,
-  onResolveOverlap,
-}: {
-  queue: QueueExpense[];
-  conf: Record<string, boolean>;
-  done: Record<string, string>;
-  overlaps: OverlapException[];
-  setConf: (fn: (c: Record<string, boolean>) => Record<string, boolean>) => void;
-  onConfirmAll: () => void;
-  onOpen: (id: string) => void;
-  onMakeTrip: (id: string) => void;
-  onResolveOverlap: (id: string, opt: string) => void;
-}) {
-  const pending = queue.filter((q) => !q.home && !done[q.id]).length;
-  const homeCount = queue.filter((q) => q.home).length;
-  return (
-    <>
-      {/* Overlap exceptions — the only thing the operator is forced to resolve */}
-      {overlaps.map((o) => (
-        <div
-          key={o.id}
-          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3"
-        >
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg leading-none">⚠️</span>
-            <div>
-              <div className="text-sm font-semibold text-amber-900">{o.title}</div>
-              <div className="text-[12.5px] text-amber-700/90">{o.sub}</div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {o.opts.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => onResolveOverlap(o.id, opt)}
-                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-amber-900 transition hover:border-amber-500 hover:bg-amber-100"
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
-        ✓ Itineraries auto-tie to the matching trip. You’re only asked when a date{" "}
-        <b>overlaps two trips</b>. Auto-coded trip expenses post silently — confirm the suggestions
-        below.
-      </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Trip expenses to confirm</h2>
-            <p className="text-[12.5px] text-slate-500">
-              {pending} suggested{homeCount ? ` · ${homeCount} home → Payables` : ""}
-            </p>
-          </div>
-          {pending > 0 && (
-            <Button variant="success" onClick={onConfirmAll}>✓ Confirm all</Button>
-          )}
-        </div>
-        {queue.length === 0 && (
-          <div className="px-5 py-10 text-center text-sm text-slate-400">
-            No trip expenses waiting — new receipts appear here as the agent attributes them.
-          </div>
-        )}
-        {queue.map((q) => {
-          if (done[q.id])
-            return (
-              <div key={q.id} className="grid grid-cols-[28px_2fr_1.5fr_1.7fr] items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0">
-                <span className="text-lg">{q.ic}</span>
-                <div>
-                  <div className="font-semibold text-slate-900">{q.merchant}</div>
-                  <div className="text-[12.5px] text-slate-500">{q.sub}</div>
-                </div>
-                <div />
-                <div className="text-right text-[12.5px] font-semibold text-emerald-600">✓ {done[q.id]}</div>
-              </div>
-            );
-          const checked = q.id in conf ? conf[q.id] : q.suggested;
-          return (
-            <div
-              key={q.id}
-              onClick={() => onOpen(q.id)}
-              className={`grid cursor-pointer grid-cols-[34px_28px_2fr_1.5fr_1.7fr] items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0 hover:bg-brand/[0.03] ${q.home ? "bg-slate-50/60" : ""}`}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setConf((c) => ({ ...c, [q.id]: !(q.id in c ? c[q.id] : q.suggested) }));
-                }}
-                className={`flex h-5.5 w-5.5 items-center justify-center rounded-md border-2 text-xs font-bold ${
-                  checked ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 bg-white"
-                } ${q.home ? "border-dashed" : ""}`}
-              >
-                {checked ? "✓" : ""}
-              </button>
-              <span className="text-center text-lg">{q.ic}</span>
-              <div>
-                <div className="font-semibold text-slate-900">{q.merchant}</div>
-                <div className="text-[12.5px] text-slate-500">
-                  {q.sub} ·{" "}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onOpen(q.id); }}
-                    className="text-brand hover:underline"
-                  >
-                    📄 view
-                  </button>
-                </div>
-              </div>
-              <div className="text-[12.5px] font-semibold">
-                {q.home ? (
-                  <span className="text-slate-500">📍 {q.loc} · home</span>
-                ) : (
-                  <span className="text-emerald-600">
-                    📍 {q.loc === "—" ? "no location" : q.loc}
-                    {q.postTrip && <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10.5px] font-bold text-violet-700">post-trip</span>}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-end gap-2.5 text-[13px]">
-                {q.home ? (
-                  <span className="rounded-md bg-slate-100 px-2 py-1 text-[12px] font-semibold text-slate-600">→ Payables (not a trip)</span>
-                ) : (
-                  <span className="rounded-md bg-brand/10 px-2 py-1 text-[12px] font-semibold text-brand-navy">{q.trip}</span>
-                )}
-                <span className="tabular-nums text-slate-500">{money(q.amount)}</span>
-                {q.home ? (
-                  <button onClick={(e) => { e.stopPropagation(); onMakeTrip(q.id); }} className="text-xs font-semibold text-brand">make trip</button>
-                ) : (
-                  <button onClick={(e) => { e.stopPropagation(); onOpen(q.id); }} className="text-xs font-semibold text-brand">change</button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-// ---------- per-expense drawer ----------
-function ExpenseDrawer({
-  exp,
-  onClose,
-  onConfirm,
-}: {
-  exp: QueueExpense | null;
-  onClose: () => void;
-  onConfirm: (id: string, label: string) => void;
-}) {
-  // Keep the last non-null expense so content doesn't blank out during the close transition.
-  const [last, setLast] = useState<QueueExpense | null>(null);
-  if (exp && exp !== last) setLast(exp);
-  const x = exp || last;
-
-  return (
-    <Drawer
-      open={!!exp}
-      onClose={onClose}
-      title={x ? `${x.merchant} — ${money(x.amount)}` : ""}
-      subtitle={x?.sub}
-      footer={
-        x &&
-        (x.home ? (
-          <>
-            <Button variant="ghost" onClick={() => onConfirm(x.id, "→ Denver (override)")}>Make trip expense</Button>
-            <Button onClick={() => onConfirm(x.id, "Personal")}>Keep as Personal</Button>
-          </>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={onClose}>Different trip ▾</Button>
-            <Button variant="success" onClick={() => onConfirm(x.id, "→ " + x.trip)}>
-              <Check className="h-4 w-4" /> Confirm → {x.trip} trip
-            </Button>
-          </>
-        ))
-      }
-    >
-      {x && (
-        <div className="divide-y divide-slate-100">
-          {/* Receipt */}
-          <section className="pb-5">
-            <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Receipt / invoice</h3>
-            <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-[13px] text-slate-400">
-              📸 {x.merchant} — receipt image (preview)
-            </div>
-            <button className="mt-2 inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand hover:underline">
-              Open in Dropbox <ExternalLink className="h-3 w-3" />
-            </button>
-          </section>
-
-          {/* Why this trip */}
-          <section className="py-5">
-            <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Why this trip</h3>
-            <div className="mb-2.5 text-[13.5px] font-semibold text-slate-900">
-              {x.home ? "Suggestion: not a trip" : `Suggested: ${x.trip} trip`}
-            </div>
-            <ul className="space-y-1.5 text-[13px]">
-              <Reason ok={!x.home}>
-                📍 Location {x.loc === "—" ? "(none — used date + category)" : `= ${x.loc}`}{" "}
-                {x.home ? "(home → not a trip)" : "(matches destination)"}
-              </Reason>
-              <Reason ok>Date {x.postTrip ? "in grace window (post-trip)" : "inside trip window"}</Reason>
-              <Reason ok>Travel category ({x.category})</Reason>
-            </ul>
-          </section>
-
-          {/* QB posting preview */}
-          <section className="pt-5">
-            <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Posts to QuickBooks as</h3>
-            {x.home ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-                <b>Not a trip expense.</b> Charged at home → posts to Payables as Personal. No trip vendor.
-              </div>
-            ) : (
-              <>
-                <div className="rounded-xl border border-brand/20 bg-brand/[0.04] p-4 text-[13px]">
-                  <QbLine k="Vendor" v={<span className="font-semibold text-brand-navy">{TRIPVEND}</span>} />
-                  <QbLine k="Memo" v={`${x.merchant} · ${x.category.toLowerCase()}`} />
-                  <QbLine k="GL" v={x.gl} />
-                  <QbLine k="Entity" v="Builders Capital" />
-                </div>
-                <p className="mt-2 text-[12px] text-slate-500">
-                  ↳ <b>{x.merchant}</b> never becomes its own QuickBooks vendor.
-                </p>
-              </>
-            )}
-          </section>
-        </div>
-      )}
-    </Drawer>
-  );
-}
-
-function Reason({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2 text-slate-700">
-      <span className={`mt-px shrink-0 ${ok ? "text-emerald-600" : "text-slate-400"}`}>
-        {ok ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-      </span>
-      <span>{children}</span>
-    </li>
-  );
-}
-
-function QbLine({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div className="flex gap-3 py-1">
-      <span className="w-14 shrink-0 font-semibold text-slate-500">{k}</span>
-      <span className="text-slate-700">{v}</span>
     </div>
   );
 }
@@ -624,7 +277,7 @@ function NewTripModal({
       <div className="space-y-4">
         <Field label="Entity">
           <div className="flex flex-wrap gap-2">
-            {NEW_TRIP_ENTITIES.map((e) => (
+            {ACTIVE_ENTITIES.map((e) => (
               <button
                 key={e.code}
                 onClick={() => setEnt(e.code)}
@@ -789,7 +442,6 @@ function TripsList({
   const [dir, setDir] = useState<1 | -1>(-1); // newest first by default
   const today = todayISO();
 
-  const ents = Array.from(new Set(trips.map((t) => t.ent)));
   const q = search.toLowerCase();
   const match = (t: Trip) => {
     if (ent !== "ALL" && t.ent !== ent) return false;
@@ -862,10 +514,18 @@ function TripsList({
 
       {/* toolbar: entity + status filters, search */}
       <div className="flex flex-wrap items-center gap-2">
-        <FilterChip active={ent === "ALL"} onClick={() => setEnt("ALL")}>All</FilterChip>
-        {ents.map((e) => (
-          <FilterChip key={e} active={ent === e} onClick={() => setEnt(e)}>{ENT[e] ?? e}</FilterChip>
-        ))}
+        {/* All ACTIVE entities are selectable — not just the ones that happen to have trips. */}
+        <select
+          value={ent}
+          onChange={(e) => setEnt(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700"
+          aria-label="Filter by entity"
+        >
+          <option value="ALL">All entities</option>
+          {ACTIVE_ENTITIES.map((e) => (
+            <option key={e.code} value={e.code}>{e.label}</option>
+          ))}
+        </select>
         <div className="inline-flex overflow-hidden rounded-lg border border-slate-200">
           {([["ALL", "All"], ["up", "Upcoming"], ["past", "Past"], ["attn", "Needs attention"]] as const).map(([k, lbl]) => (
             <button
@@ -1002,19 +662,6 @@ function ExpenseStatusChip({ e }: { e: TripExpense }) {
   if (e.status === "staged")
     return <Badge tone="indigo" dot>Staged</Badge>;
   return <Badge tone="neutral">Ready</Badge>;
-}
-
-function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition ${
-        active ? "border-brand-navy bg-brand-navy text-white" : "border-slate-200 bg-white text-slate-600 hover:border-brand"
-      }`}
-    >
-      {children}
-    </button>
-  );
 }
 
 // ---------- trip detail ----------

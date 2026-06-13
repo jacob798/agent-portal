@@ -11,9 +11,28 @@ export const ENT: Record<string, string> = {
   WB12: "Waterbrook 1 & 12",
   IOTA: "Iota Street",
   PC: "Prestwick Capital",
+  PFB: "Prestwick Funding B",
   SEL: "Selkirk Management",
   UNK: "Unknown",
 };
+
+/**
+ * Every ACTIVE entity an operator can code a trip/expense to (CLAUDE.md entity reference).
+ * Inactive (FI, PIL), archived (POC), and the UNK fallback are intentionally excluded from
+ * pickers. Single source of truth for the New-Trip picker AND the trips filter, so the two
+ * never drift (they used to be a hardcoded 4 / a derived-from-data subset).
+ */
+export const ACTIVE_ENTITIES: { code: string; label: string }[] = [
+  { code: "BC", label: "Builders Capital" },
+  { code: "FC", label: "Foundry Capital" },
+  { code: "PER", label: "Personal" },
+  { code: "WJW", label: "WJW Investments" },
+  { code: "WB12", label: "Waterbrook 1 & 12" },
+  { code: "IOTA", label: "Iota Street" },
+  { code: "PC", label: "Prestwick Capital" },
+  { code: "PFB", label: "Prestwick Funding B" },
+  { code: "SEL", label: "Selkirk Management" },
+];
 
 export const entName = (c?: string | null): string =>
   (c && ENT[c]) || (c ?? "Unknown");

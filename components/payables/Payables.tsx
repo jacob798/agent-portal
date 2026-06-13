@@ -169,10 +169,12 @@ export default function Payables({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `failed (${res.status})`);
       const set = new Set(ids);
-      setRows((rs) => rs.filter((r) => !set.has(r.id))); // approved → leaves the queue, posts
+      setRows((rs) => rs.filter((r) => !set.has(r.id))); // staged → leaves the queue for the Bookkeeper
       clearSel();
       const n = json.staged ?? ids.length;
-      toast(`✓ Posted ${n} invoice${n === 1 ? "" : "s"} to QuickBooks`);
+      // Honest wording: this STAGES (status=approved); the Bookkeeper cycle does the actual
+      // QBO write. Don't claim "Posted" — that misled operators when the post loop was down.
+      toast(`✓ ${n} invoice${n === 1 ? "" : "s"} staged → Bookkeeper will post to QuickBooks`);
     } catch (e) {
       toast(`Batch post failed: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -950,8 +952,8 @@ export default function Payables({
         subtitle="Exception queue — you only touch what the agent can't resolve confidently."
         action={
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => toast("Plaid: pulling new transactions… +14 new")}>
-              <Zap className="h-4 w-4" /> Get from Plaid
+            <Button variant="secondary" disabled title="Plaid bank-feed isn't connected yet — use Upload CSV/QBO or Upload invoices">
+              <Zap className="h-4 w-4" /> Get from Plaid (soon)
             </Button>
             <Button variant="secondary" onClick={() => setShowUpload(true)}>
               <Upload className="h-4 w-4" /> Upload CSV / QBO

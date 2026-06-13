@@ -6,6 +6,7 @@ import {
   Plane,
   CreditCard,
   BookOpenCheck,
+  ClipboardCheck,
   Shield,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/inbox", label: "Inbox", icon: Inbox },
+      { href: "/review-queue", label: "Review Queue", icon: ClipboardCheck },
       { href: "/monitoring", label: "Monitoring", icon: Activity },
     ],
   },

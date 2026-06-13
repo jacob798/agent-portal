@@ -69,10 +69,10 @@
 
   <!-- Reconciliation: expected (itinerary) vs posted (actuals) -->
   <div class="recon">
-    <div class="stat"><div class="n">$418.61</div><div class="l">Posted to QuickBooks</div></div>
-    <div class="stat"><div class="n">$380.00</div><div class="l">Expected (awaiting invoice)</div></div>
-    <div class="stat"><div class="n">3 / 4</div><div class="l">Receipts on file</div></div>
-    <div class="stat"><div class="n">$798.61</div><div class="l">Trip total</div></div>
+    <div class="stat"><div class="n">$468.61</div><div class="l">Posted to QuickBooks</div></div>
+    <div class="stat"><div class="n">$380.00</div><div class="l">Ready to post (confirmation)</div></div>
+    <div class="stat"><div class="n">~$145.00</div><div class="l">Awaiting invoice</div></div>
+    <div class="stat"><div class="n">$993.61</div><div class="l">Trip total</div></div>
   </div>
 
   <!-- LAYER 1: Itinerary (Calendar Writer V2 — header + individual events) -->
@@ -86,29 +86,39 @@
       <div class="grow"><div class="merch">Delta 2811 · GEG → BOI</div><div class="meta">conf JLB4PN</div></div></div>
   </div>
 
-  <!-- LAYER 2: Books (charges post on arrival; matched to itinerary events) -->
+  <!-- LAYER 2: Books — two paths to QuickBooks: invoice-coming vs confirmation-only -->
   <div class="card">
-    <div class="ttl">Trip expenses (4)
-      <span class="total">$798.61</span>
+    <div class="ttl">Trip expenses (5)
+      <span class="total">$993.61</span>
     </div>
 
-    <!-- posted, matched to the flight event, receipt on file -->
+    <!-- posted from the e-ticket — a flight never gets a "later invoice" -->
     <div class="row"><span class="ic">✈️</span>
       <div class="grow">
         <div class="merch">Delta Air Lines</div>
-        <div class="meta">Airfare · conf JLB4PN · 6/5 · <a href="#" class="rcpt-ok">✓ receipt</a></div>
-        <div class="matchline">↳ matches itinerary: Delta 2808 BOI→GEG</div>
+        <div class="meta">Airfare · conf JLB4PN · <a href="#" class="rcpt-ok">✓ e-ticket</a></div>
+        <div class="matchline">↳ posted from confirmation — no invoice will follow</div>
       </div>
       <span class="badge b-green dot">Posted</span><span class="amt">$420.00</span></div>
 
-    <!-- expected: scheduled event, no charge yet -->
-    <div class="row" style="background:#fffdf5"><span class="ic">🏨</span>
+    <!-- CONFIRMATION-ONLY: prepaid, no future invoice → post directly from the confirmation -->
+    <div class="row" style="background:#eef2ff"><span class="ic">🏨</span>
       <div class="grow">
         <div class="merch">Davenport Grand</div>
-        <div class="meta">Hotel · from itinerary · <span class="rcpt-no">⏳ awaiting invoice</span></div>
-        <div class="matchline">↳ expected from itinerary — posts when the charge arrives</div>
+        <div class="meta">Hotel · prepaid · conf 5582193 · <a href="#" class="rcpt-ok">✓ confirmation</a></div>
+        <div class="matchline">↳ no invoice will follow — the confirmation <i>is</i> the document</div>
       </div>
-      <span class="badge b-amber">Expected</span><span class="amt">$380.00</span></div>
+      <button class="btn primary" style="margin-right:8px">Post from confirmation</button>
+      <span class="badge b-indigo">Ready</span><span class="amt">$380.00</span></div>
+
+    <!-- EXPECTED: a separate charge/invoice WILL arrive → hold open until it lands -->
+    <div class="row" style="background:#fffdf5"><span class="ic">🚗</span>
+      <div class="grow">
+        <div class="merch">Enterprise Rent-A-Car</div>
+        <div class="meta">Ground · from itinerary · <span class="rcpt-no">⏳ awaiting final charge</span></div>
+        <div class="matchline">↳ final amount unknown until drop-off — posts when the charge arrives</div>
+      </div>
+      <span class="badge b-amber">Expected</span><span class="amt">~$145.00</span></div>
 
     <!-- posted meal, receipt on file -->
     <div class="row"><span class="ic">🍽️</span>
@@ -130,6 +140,12 @@
   <!-- QB posting model -->
   <div class="note">
     Posts to QuickBooks under <b>one vendor — Travel 2026-06 - PER SP Volleyball Spokane (6/5–7)</b>.
+    Two paths to the books: <b>(1) a charge or invoice arrives later</b> (corporate-card charge, hotel
+    folio at checkout) → the line stays <span style="color:var(--amber);font-weight:700">Expected</span>
+    and auto-matches its itinerary event when the charge lands; <b>(2) no invoice will ever come</b>
+    (Delta e-ticket, prepaid hotel) → the confirmation <i>is</i> the document, so the line
+    <span style="color:var(--indigo);font-weight:700">posts directly from the confirmation</span> —
+    amount and confirmation # from the itinerary, the confirmation PDF attached. Nothing waits on a phantom invoice.
   </div>
 </div>
 </body>

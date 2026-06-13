@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   Printer,
   Download,
@@ -47,6 +47,35 @@ const NEW_TRIP_ENTITIES: { code: string; label: string }[] = [
   { code: "PER", label: "Personal" },
   { code: "WJW", label: "WJW Investments" },
 ];
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Dates WITH the year. The stored `dates` string drops the year — ambiguous across the
+// 2025/2026 span (Fort Benning 2025 was reading as 2026). Format from the ISO start/end
+// (the source of truth); fall back to the stored string only when ISO is absent.
+function tripDates(t: { start?: string; end?: string; dates?: string }): string {
+  const s = (t.start || "").slice(0, 10);
+  const e = (t.end || s).slice(0, 10);
+  if (!s) return t.dates || "dates TBD";
+  const sd = new Date(s + "T00:00"), ed = new Date(e + "T00:00"), yr = sd.getFullYear();
+  const md = (d: Date) => `${MON[d.getMonth()]} ${d.getDate()}`;
+  if (+sd === +ed) return `${md(sd)}, ${yr}`;
+  if (sd.getMonth() === ed.getMonth()) return `${md(sd)}–${ed.getDate()}, ${yr}`;
+  return `${md(sd)} – ${md(ed)}, ${yr}`;
+}
+
+// Per-trip rollup from the attributed invoices (the same payables rows the detail shows),
+// so the list can answer "is this trip reconciled?": expense count, posted vs open, and
+// missing receipts. `attn` = a PAST trip still has open expenses or a missing receipt.
+function tripRollup(t: Trip) {
+  const exps = t.exps || [];
+  const posted = exps.filter((e) => e.status === "posted").length;
+  const open = exps.length - posted; // staged + open — not yet written to QB
+  const missing = exps.filter((e) => e.needsDoc).length;
+  const isPast = (t.end || "") < todayISO();
+  return { count: exps.length, posted, open, missing, isPast, attn: isPast && (open > 0 || missing > 0) };
+}
 
 export default function Travel({
   trips: initialTrips,
@@ -178,6 +207,8 @@ export default function Travel({
           trip={openTrip}
           onBack={() => setOpenTripId(null)}
           onReport={() => setReportId(openTrip.id)}
+          onZip={() => downloadZip(openTrip)}
+          zipping={zipping}
           onPost={() => postTrip(openTrip)}
           onEdit={() => setEditTrip(openTrip)}
         />
@@ -739,6 +770,8 @@ function Field({ label, className = "", children }: { label: string; className?:
 }
 
 // ---------- trips list ----------
+type SortKey = "start" | "dest" | "ent" | "count" | "missing" | "total";
+
 function TripsList({
   trips,
   search,
@@ -751,83 +784,213 @@ function TripsList({
   onOpen: (id: string) => void;
 }) {
   const [ent, setEnt] = useState<string>("ALL");
-  const upcoming = trips.filter((t) => t.status === "up");
-  const rest = trips.filter((t) => t.status !== "up");
+  const [stat, setStat] = useState<"ALL" | "up" | "past" | "attn">("ALL");
+  const [sortK, setSortK] = useState<SortKey>("start");
+  const [dir, setDir] = useState<1 | -1>(-1); // newest first by default
+  const today = todayISO();
 
-  // Entity filter options present in the data (consistent selection criteria).
-  const ents = Array.from(new Set(rest.map((t) => t.ent)));
+  const ents = Array.from(new Set(trips.map((t) => t.ent)));
   const q = search.toLowerCase();
-  const list = rest.filter(
-    (t) =>
-      (ent === "ALL" || t.ent === ent) &&
-      (!q || `${ENT[t.ent] ?? t.ent} ${t.dest} ${t.purpose ?? ""} ${t.dates}`.toLowerCase().includes(q)),
+  const match = (t: Trip) => {
+    if (ent !== "ALL" && t.ent !== ent) return false;
+    const up = (t.end || "") >= today;
+    if (stat === "up" && !up) return false;
+    if (stat === "past" && up) return false;
+    if (stat === "attn" && !tripRollup(t).attn) return false;
+    if (q && !`${ENT[t.ent] ?? t.ent} ${t.dest} ${t.purpose ?? ""} ${tripDates(t)}`.toLowerCase().includes(q)) return false;
+    return true;
+  };
+  const sortVal = (t: Trip): string | number => {
+    const r = tripRollup(t);
+    switch (sortK) {
+      case "dest": return t.dest.toLowerCase();
+      case "ent": return (ENT[t.ent] ?? t.ent).toLowerCase();
+      case "count": return r.count;
+      case "missing": return r.missing;
+      case "total": return t.total;
+      default: return t.start || "";
+    }
+  };
+  const cmp = (a: Trip, b: Trip) => {
+    const x = sortVal(a), y = sortVal(b);
+    return x < y ? -dir : x > y ? dir : 0;
+  };
+
+  const all = trips.filter(match);
+  const upcoming = all.filter((t) => (t.end || "") >= today).sort((a, b) => (a.start < b.start ? -1 : 1));
+  const past = all.filter((t) => (t.end || "") < today).sort(cmp);
+  const showUpcoming = stat === "ALL" || stat === "up";
+  const filtered = ent !== "ALL" || stat !== "ALL" || !!q;
+  const shown = (showUpcoming ? upcoming.length : 0) + (stat === "up" ? 0 : past.length);
+
+  // Summary across ALL trips (not just the filtered view) — the "where do I act?" numbers.
+  const yr = String(new Date().getFullYear());
+  const sum = trips.reduce(
+    (a, t) => {
+      const r = tripRollup(t);
+      if ((t.start || "").startsWith(yr)) a.spend += t.total;
+      if (r.open > 0) a.openTrips += 1;
+      a.missing += r.missing;
+      return a;
+    },
+    { spend: 0, openTrips: 0, missing: 0 },
   );
-  const filtered = ent !== "ALL" || q;
+
+  function toggleSort(k: SortKey) {
+    if (sortK === k) setDir((d) => (d === 1 ? -1 : 1));
+    else { setSortK(k); setDir(k === "dest" || k === "ent" ? 1 : -1); }
+  }
+  const SortTh = ({ k, label, right }: { k: SortKey; label: string; right?: boolean }) => (
+    <th
+      onClick={() => toggleSort(k)}
+      className={`cursor-pointer select-none whitespace-nowrap px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-400 ${right ? "text-right" : "text-left"}`}
+    >
+      {label}
+      <span className={sortK === k ? "ml-1 text-slate-600" : "ml-1 opacity-0"}>{dir < 0 ? "↓" : "↑"}</span>
+    </th>
+  );
 
   return (
-    <div className="mt-4 space-y-6">
-      {upcoming.length > 0 && (
-        <Group label={`Upcoming (${upcoming.length})`}>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            {upcoming.map((t) => (
-              <TripRow key={t.id} t={t} onOpen={onOpen} upcoming />
-            ))}
-          </div>
-        </Group>
-      )}
+    <div className="mt-4 space-y-4">
+      {/* at-a-glance: answers "where do I need to act?" before the list */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryStat n={String(trips.length)} l="Trips" />
+        <SummaryStat n={money(sum.spend)} l={`Travel spend · ${yr} YTD`} />
+        <SummaryStat n={String(sum.openTrips)} l="Trips with open expenses" warn={sum.openTrips > 0} />
+        <SummaryStat n={String(sum.missing)} l="Receipts missing" warn={sum.missing > 0} />
+      </div>
 
-      <Group label={`All trips (${filtered ? `${list.length} of ${rest.length}` : rest.length})`}>
-        <div className="mb-2.5 flex flex-wrap items-center gap-2">
-          <FilterChip active={ent === "ALL"} onClick={() => setEnt("ALL")}>All</FilterChip>
-          {ents.map((e) => (
-            <FilterChip key={e} active={ent === e} onClick={() => setEnt(e)}>
-              {ENT[e] ?? e}
-            </FilterChip>
+      {/* toolbar: entity + status filters, search */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterChip active={ent === "ALL"} onClick={() => setEnt("ALL")}>All</FilterChip>
+        {ents.map((e) => (
+          <FilterChip key={e} active={ent === e} onClick={() => setEnt(e)}>{ENT[e] ?? e}</FilterChip>
+        ))}
+        <div className="inline-flex overflow-hidden rounded-lg border border-slate-200">
+          {([["ALL", "All"], ["up", "Upcoming"], ["past", "Past"], ["attn", "Needs attention"]] as const).map(([k, lbl]) => (
+            <button
+              key={k}
+              onClick={() => setStat(k)}
+              className={`border-l border-slate-200 px-3 py-1.5 text-[12.5px] font-semibold first:border-l-0 ${stat === k ? "bg-brand/10 text-brand-navy" : "bg-white text-slate-600 hover:text-brand-navy"}`}
+            >
+              {lbl}
+            </button>
           ))}
-          <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs sm:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search trips…"
-              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"
-            />
-          </div>
         </div>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {list.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-slate-400">No matching trips.</div>
-          ) : (
-            list.map((t) => <TripRow key={t.id} t={t} onOpen={onOpen} />)
-          )}
+        <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs sm:flex-none">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search trips…"
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"
+          />
         </div>
-      </Group>
+      </div>
+      <p className="text-[12px] text-slate-400">{filtered ? `${shown} of ${trips.length} trips` : `${trips.length} trips`}</p>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <SortTh k="dest" label="Trip" />
+              <SortTh k="ent" label="Entity" />
+              <SortTh k="start" label="Dates" />
+              <SortTh k="count" label="Expenses" />
+              <SortTh k="missing" label="Receipts" />
+              <SortTh k="total" label="Amount" right />
+              <th className="w-6" />
+            </tr>
+          </thead>
+          <tbody>
+            {showUpcoming && upcoming.length > 0 && (
+              <>
+                <GroupRow label={`Upcoming (${upcoming.length})`} />
+                {upcoming.map((t) => <TripRow key={t.id} t={t} onOpen={onOpen} />)}
+              </>
+            )}
+            {shown === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-6 text-sm text-slate-400">No matching trips.</td></tr>
+            ) : (
+              past.map((t, i) => {
+                const ty = (t.start || "").slice(0, 4);
+                const prevY = i > 0 ? (past[i - 1].start || "").slice(0, 4) : "";
+                const showYr = sortK === "start" && !!ty && ty !== prevY;
+                return (
+                  <Fragment key={t.id}>
+                    {showYr && <GroupRow label={ty} />}
+                    <TripRow t={t} onOpen={onOpen} />
+                  </Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-function TripRow({ t, onOpen, upcoming }: { t: Trip; onOpen: (id: string) => void; upcoming?: boolean }) {
+function GroupRow({ label }: { label: string }) {
   return (
-    <button
+    <tr className="bg-slate-50/70">
+      <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</td>
+    </tr>
+  );
+}
+
+function SummaryStat({ n, l, warn }: { n: string; l: string; warn?: boolean }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+      <div className={`text-[19px] font-bold tabular-nums ${warn ? "text-amber-600" : "text-brand-navy"}`}>{n}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{l}</div>
+    </div>
+  );
+}
+
+function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
+  const r = tripRollup(t);
+  const upcoming = !r.isPast;
+  return (
+    <tr
       onClick={() => onOpen(t.id)}
-      className="grid w-full grid-cols-[160px_1fr_120px_92px] items-center gap-4 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-brand/[0.03]"
+      className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-brand/[0.03]"
     >
-      <Badge tone="indigo">{ENT[t.ent] ?? t.ent}</Badge>
-      <div className="min-w-0">
-        <div className="truncate font-semibold text-slate-900">{t.dest}</div>
-        <div className="truncate text-[12.5px] text-slate-500">{t.purpose ?? "—"}</div>
-      </div>
-      <div className="text-[12.5px] text-slate-500">{t.dates}</div>
-      <div className="text-right text-[13px] font-semibold tabular-nums">
-        {upcoming ? (
-          <span className="text-brand-sky">Upcoming</span>
+      <td className={`px-4 py-3 ${r.attn ? "border-l-4 border-amber-400" : "border-l-4 border-transparent"}`}>
+        <div className="font-semibold text-slate-900">{t.dest}</div>
+        <div className="text-[12px] text-slate-500">{t.purpose ?? "—"}</div>
+      </td>
+      <td className="px-4 py-3"><Badge tone="indigo">{ENT[t.ent] ?? t.ent}</Badge></td>
+      <td className="whitespace-nowrap px-4 py-3 text-[12.5px] text-slate-600">{tripDates(t)}</td>
+      <td className="px-4 py-3 text-[12.5px]">
+        {r.count === 0 ? (
+          <span className="text-slate-400">—</span>
+        ) : r.open === 0 ? (
+          <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · <span className="text-emerald-600">all posted</span></span>
+        ) : (
+          <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · {r.posted} posted, {r.open} open</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-[12.5px]">
+        {r.count === 0 ? (
+          <span className="text-slate-400">—</span>
+        ) : r.missing === 0 ? (
+          <span className="font-semibold text-emerald-600">✓ on file</span>
+        ) : (
+          <span className="font-semibold text-amber-600">⚠ {r.missing} missing</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums">
+        {upcoming && t.total === 0 ? (
+          <Badge tone="indigo">Upcoming</Badge>
         ) : t.total > 0 ? (
           money(t.total)
         ) : (
-          <span className="text-slate-300">—</span>
+          <span className="text-slate-300">no expenses</span>
         )}
-      </div>
-    </button>
+      </td>
+      <td className="px-2 text-right text-slate-300">›</td>
+    </tr>
   );
 }
 
@@ -859,17 +1022,23 @@ function TripDetail({
   trip,
   onBack,
   onReport,
+  onZip,
+  zipping,
   onPost,
   onEdit,
 }: {
   trip: Trip;
   onBack: () => void;
   onReport: () => void;
+  onZip: () => void;
+  zipping: boolean;
   onPost: () => void;
   onEdit: () => void;
 }) {
   const b = brandFor(trip.ent);
   const postable = trip.exps.filter((e) => e.id && e.status === "open").length;
+  const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
+  const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand">
@@ -883,7 +1052,7 @@ function TripDetail({
               <Pencil className="h-3 w-3" /> Edit
             </button>
           </div>
-          <p className="mt-1 text-sm text-slate-500">{ENT[trip.ent] ?? trip.ent} · {trip.dates}</p>
+          <p className="mt-1 text-sm text-slate-500">{ENT[trip.ent] ?? trip.ent} · {tripDates(trip)}</p>
           <p className="mt-2 text-[13.5px]">
             <span className="mr-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Purpose</span>
             {trip.purpose ?? "— (add one)"}
@@ -897,8 +1066,8 @@ function TripDetail({
             <Button variant="secondary" size="sm" onClick={onReport}>
               <Printer className="h-3.5 w-3.5" /> Print / Save PDF
             </Button>
-            <Button variant="secondary" size="sm" onClick={onReport}>
-              <Download className="h-3.5 w-3.5" /> Export (.zip)
+            <Button variant="secondary" size="sm" onClick={onZip} disabled={zipping}>
+              <Download className="h-3.5 w-3.5" /> {zipping ? "Building…" : "Export (.zip)"}
             </Button>
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
@@ -906,6 +1075,15 @@ function TripDetail({
           </p>
         </div>
       </div>
+
+      {trip.exps.length > 0 && (
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
+          <SummaryStat n={money(trip.total - postedAmt)} l="Awaiting post" warn={trip.total - postedAmt > 0} />
+          <SummaryStat n={`${withDoc} / ${trip.exps.length}`} l="Receipts on file" warn={withDoc < trip.exps.length} />
+          <SummaryStat n={money(trip.total)} l="Trip total" />
+        </div>
+      )}
 
       <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-[13.5px] font-semibold">Itinerary — what’s scheduled</div>
@@ -975,6 +1153,9 @@ function TripDetail({
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-[13px] text-slate-600">
         Posts to QuickBooks under one vendor — <b className="text-brand-navy">{tripVendor(trip)}</b>. Each merchant is a memo line, never its own vendor.
+        <span className="mt-1.5 block text-[12.5px] text-slate-500">
+          Two paths to the books: a charge or invoice that <b>arrives later</b> stays open and matches its itinerary item when it lands; an expense with <b>no future invoice</b> (Delta e-ticket, prepaid hotel) posts directly from the confirmation, which serves as the receipt.
+        </span>
       </div>
     </div>
   );
@@ -1062,11 +1243,3 @@ function Meta({ k, v, full }: { k: string; v: string; full?: boolean }) {
   );
 }
 
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      {children}
-    </div>
-  );
-}

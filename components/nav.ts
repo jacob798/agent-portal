@@ -8,6 +8,7 @@ import {
   BookOpenCheck,
   ClipboardCheck,
   Shield,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,7 +45,10 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     heading: "Settings",
-    items: [{ href: "/admin", label: "Admin", icon: Shield }],
+    items: [
+      { href: "/rules", label: "Rules & Learning", icon: Sparkles },
+      { href: "/admin", label: "Admin", icon: Shield },
+    ],
   },
 ];
 

@@ -1974,7 +1974,9 @@ export default function Payables({
     return (
       <>
         <Button className="flex-1" onClick={() => saveAndRemember(r)} disabled={posting}>Save</Button>
-        <Button className="flex-1" variant="secondary" onClick={() => setLearnId(r.id)}>Add vendor…</Button>
+        <Button className="flex-1" variant="secondary" onClick={() => setLearnId(r.id)}>
+          {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "Learn vendor…" : "Edit vendor…"}
+        </Button>
         <Button className="flex-1 !bg-brand !text-white hover:!opacity-90" onClick={() => approveAndPost(r)} disabled={posting}>
           {posting ? "Posting…" : "Post"}
         </Button>

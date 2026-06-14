@@ -1131,6 +1131,15 @@ export default function Payables({
                 onChange={() => toggleSel(r.id)}
               />
               <span
+                title={
+                  r.auto || r.resolved
+                    ? "Ready / auto-coded"
+                    : r.exception === "dup"
+                      ? "Possible duplicate"
+                      : r.exception === "vendor"
+                        ? "Needs a vendor"
+                        : "Needs you"
+                }
                 className={`h-2.5 w-2.5 rounded-full ${
                   r.auto || r.resolved
                     ? "bg-emerald-500"
@@ -1159,6 +1168,13 @@ export default function Payables({
                     Inv {r.invoiceNumber || "—"}
                   </span>
                 </div>
+                {/* payee vs posting name made explicit: for a travel charge the QB vendor is
+                    the TRIP, the real merchant rides as the payee — show it, don't bury it on hover */}
+                {r.vendorDisplay && r.vendor && r.vendorDisplay !== r.vendor ? (
+                  <div className="mt-0.5 text-[11px] text-slate-400">
+                    {r.tripId ? "Trip" : "posts to QB as"}: <span className="text-slate-500">{r.vendor}</span>
+                  </div>
+                ) : null}
                 {/* memo — editable inline, per transaction (persists to QB on blur) */}
                 <input
                   key={`memo-${r.id}-${r.memo ?? ""}`}

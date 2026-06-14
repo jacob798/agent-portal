@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rules &amp; Learning — Maintenance (Mockup)</title>
+<style>
+  :root{
+    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
+    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3;
+    --red:#c0392b; --red-bg:#fdecea; --violet:#6b3fa0; --violet-bg:#efeaf8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:14px 22px}
+  .mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--sky),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700}
+  .top h1{font-size:16px;margin:0;font-weight:600}
+  .top .sub{color:#9bb8d4;font-size:12px}
+  .top .spacer{flex:1}
+  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+  .pill .led{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.25)}
+
+  .shell{display:grid;grid-template-columns:212px 1fr;max-width:1280px;margin:0 auto;gap:22px;padding:22px}
+  .nav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;height:fit-content;position:sticky;top:22px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:#334155;text-decoration:none;font-weight:500;font-size:13.5px;cursor:pointer}
+  .nav a .ic{width:18px;text-align:center}
+  .nav a .c{margin-left:auto;font-size:11px;background:#eef2f7;color:#64748b;border-radius:999px;padding:1px 8px;font-weight:600}
+  .nav a.on{background:var(--navy);color:#fff}
+  .nav a.on .c{background:rgba(255,255,255,.2);color:#fff}
+  .nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;padding:12px 12px 4px;font-weight:700}
+
+  .main{min-width:0}
+  .view{display:none}.view.on{display:block}
+  .summary{display:flex;gap:14px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 16px;flex:1}
+  .stat .n{font-size:23px;font-weight:600}
+  .stat .l{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+  .stat.warn .n{color:var(--amber)} .stat.learn .n{color:var(--violet)} .stat.auto .n{color:var(--green)}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:18px}
+  .ptitle{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#f8fafc}
+  .ptitle h2{font-size:14px;margin:0;font-weight:600}
+  .ptitle .hint{color:var(--muted);font-size:12.5px;font-weight:400}
+  .ptitle .spacer{flex:1}
+  .bulk{border:1px solid var(--line);background:#fff;border-radius:8px;height:30px;padding:0 12px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .addbtn{border:1px dashed var(--blue);background:#f5fafe;border-radius:8px;height:30px;padding:0 12px;font:inherit;font-size:12.5px;font-weight:600;color:var(--blue);cursor:pointer}
+
+  .lc{display:grid;grid-template-columns:34px 1fr auto;gap:14px;padding:16px 18px;border-bottom:1px solid #f1f5f9;align-items:start}
+  .lc:last-child{border-bottom:0}
+  .lc .ico{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .ico.vend{background:#eaf1f8} .ico.rule{background:var(--violet-bg)} .ico.type{background:var(--green-bg)} .ico.code{background:var(--amber-bg)}
+  .lc .ttl{font-weight:600;font-size:14px}
+  .lc .ttl .kind{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--violet);margin-right:8px}
+  .lc .why{color:var(--muted);font-size:12.8px;margin-top:4px;line-height:1.5}.lc .why b{color:#334155;font-weight:600}
+  .lc .meta{margin-top:7px;display:flex;gap:7px;flex-wrap:wrap}
+  .chip2{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid}
+  .src-learned{background:var(--violet-bg);color:var(--violet);border-color:#dcd0ef}
+  .src-conf{background:#eef4fb;color:var(--blue);border-color:#cfe0f1}
+  .acts{display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:120px}
+  .btn{border:0;border-radius:8px;height:32px;padding:0 14px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+  .btn.ok{background:var(--green);color:#fff} .btn.gh{background:#fff;color:#334155;border:1px solid var(--line)} .btn.rej{background:#fff;color:var(--red);border:1px solid #f0c9c4}
+
+  .prow,.manual{display:grid;grid-template-columns:26px 1fr auto auto;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid #f1f5f9}
+  .prow:last-child{border-bottom:0}.manual{background:#fcfdff}
+  .grip{color:#cbd5e1;cursor:grab;font-size:16px}
+  .pname{font-weight:600}.pname .desc{color:var(--muted);font-size:12.2px;font-weight:400;margin-top:2px}
+  .manual .pname .desc{color:var(--amber)}
+  .conf{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+  .sw{width:38px;height:22px;border-radius:999px;background:var(--green);position:relative;cursor:pointer}
+  .sw::after{content:"";position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff}
+  .sw.off{background:#cbd5e1}.sw.off::after{right:auto;left:2px}
+  .legend{display:flex;gap:16px;padding:12px 18px;background:#f8fafc;border-top:1px solid var(--line);font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .lg{display:inline-flex;align-items:center;gap:6px}
+  .dotk{width:9px;height:9px;border-radius:50%}
+  .k-sync{background:var(--blue)} .k-cur{background:var(--amber)} .k-learn{background:var(--violet)}
+
+  /* report */
+  .rep{padding:6px 18px 12px}
+  .rrow{display:grid;grid-template-columns:240px 1fr 34px 44px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f4f7fa}.rrow:last-child{border-bottom:0}
+  .rlbl{font-size:13px;font-weight:500}
+  .rbar{height:8px;background:#eef2f7;border-radius:999px;overflow:hidden}.rbar span{display:block;height:100%;background:var(--blue);border-radius:999px}
+  .rbar.amber span{background:var(--amber)}.rbar.red span{background:var(--red)}
+  .rn{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+  .rlink{color:var(--blue);font-size:12.5px;text-decoration:none;text-align:right}
+
+  /* tables (routing / knowledge) */
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;padding:10px 18px;background:#f8fafc;border-bottom:1px solid var(--line)}
+  .tbl td{padding:11px 18px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  .tbl tr:last-child td{border-bottom:0}
+  .tbl tr:hover td{background:#f8fbff}
+  .ag{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:7px;margin-right:5px}
+  .ag.travel{background:#eaf1f8;color:var(--blue)} .ag.pay{background:var(--violet-bg);color:var(--violet)} .ag.val{background:var(--green-bg);color:var(--green)}
+  .ag.none{background:#fdf3e3;color:var(--amber)}
+  .st{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid}
+  .st.ok{background:var(--green-bg);color:var(--green);border-color:#bfe6cd}
+  .st.fan{background:#eef4fb;color:var(--blue);border-color:#cfe0f1}
+  .st.no{background:var(--amber-bg);color:var(--amber);border-color:#f3dcae}
+  .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid;display:inline-flex;align-items:center;gap:5px}
+  .b-sync{background:#eef4fb;color:var(--blue);border-color:#cfe0f1}
+  .b-cur{background:var(--amber-bg);color:var(--amber);border-color:#f3dcae}
+  .b-learn{background:var(--violet-bg);color:var(--violet);border-color:#dcd0ef}
+  .ali{color:var(--muted);font-size:12px}
+  .subtabs{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin:0 18px 0 0}
+  .subtabs button{border:0;background:none;padding:6px 13px;border-radius:6px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}
+  .subtabs button.on{background:var(--navy);color:#fff}
+  .search{border:1px solid var(--line);border-radius:8px;height:30px;padding:0 10px;font:inherit;font-size:12.5px;min-width:180px}
+  .sel{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font:inherit;font-size:12.5px;background:#fff;color:var(--blue);font-weight:600}
+  .foot{color:#94a3b8;font-size:12px;padding:2px}
+  .note{background:#f0f7fc;border:1px solid #cfe3f3;border-radius:10px;padding:11px 14px;margin:0 18px 16px;font-size:12.8px;color:#2c5d86}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="mark">F</div>
+    <div><h1>Rules &amp; Learning</h1><div class="sub">Maintain the system by approving what it learns — no code</div></div>
+    <div class="spacer"></div>
+    <span class="pill"><span class="led"></span> Learning: ON</span>
+    <span class="pill">Jacob · Admin</span>
+  </div>
+
+  <div class="shell">
+    <nav class="nav">
+      <div class="grp">Maintain</div>
+      <a data-v="exceptions"><span class="ic">⚠️</span> Exceptions <span class="c">6</span></a>
+      <a data-v="learned" class="on"><span class="ic">✨</span> Learned <span class="c">4</span></a>
+      <a data-v="needsid"><span class="ic">🆔</span> Needs ID <span class="c">2</span></a>
+      <div class="grp">Configure</div>
+      <a data-v="rules"><span class="ic">⚙️</span> Rules &amp; priority</a>
+      <a data-v="routing"><span class="ic">🔀</span> Routing</a>
+      <a data-v="knowledge"><span class="ic">📚</span> Knowledge</a>
+    </nav>
+
+    <div class="main">
+      <!-- LEARNED -->
+      <section class="view on" id="v-learned">
+        <div class="summary">
+          <div class="stat warn"><div class="n">6</div><div class="l">Exceptions to clear</div></div>
+          <div class="stat learn"><div class="n">4</div><div class="l">Learned · pending you</div></div>
+          <div class="stat auto"><div class="n">92%</div><div class="l">Auto-handled · 30d</div></div>
+          <div class="stat"><div class="n">12</div><div class="l">Active rules</div></div>
+        </div>
+        <div class="panel">
+          <div class="ptitle"><h2>Why analysis needed review</h2><span class="hint">last 30 days · why a document didn’t auto-process</span><span class="spacer"></span><button class="bulk">Export ▾</button></div>
+          <div class="rep">
+            <div class="rrow"><div class="rlbl">New vendor — first time seen</div><div class="rbar"><span style="width:33%"></span></div><div class="rn">7</div><a class="rlink">view</a></div>
+            <div class="rrow"><div class="rlbl">Low-confidence vendor match</div><div class="rbar"><span style="width:24%"></span></div><div class="rn">5</div><a class="rlink">view</a></div>
+            <div class="rrow"><div class="rlbl">Ambiguous entity (no clear signal)</div><div class="rbar"><span style="width:19%"></span></div><div class="rn">4</div><a class="rlink">view</a></div>
+            <div class="rrow"><div class="rlbl">Amount not found on document</div><div class="rbar amber"><span style="width:14%"></span></div><div class="rn">3</div><a class="rlink">view</a></div>
+            <div class="rrow"><div class="rlbl">Unknown document type</div><div class="rbar"><span style="width:10%"></span></div><div class="rn">2</div><a class="rlink">view</a></div>
+            <div class="rrow"><div class="rlbl">Unreadable scan / OCR failed</div><div class="rbar red"><span style="width:5%"></span></div><div class="rn">1</div><a class="rlink">view</a></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ptitle"><h2>Learned — pending your approval</h2><span class="hint">approve to make live</span><span class="spacer"></span><button class="bulk">Approve all safe ▾</button></div>
+          <div class="lc"><div class="ico vend">🏢</div><div><div class="ttl"><span class="kind">New vendor</span>Alaska Airlines</div><div class="why">From you correcting <b>2 receipts</b> “Wi-Fi Onboard” → <b>Alaska Airlines</b>. Aliases: Alaska, Alaska Air.</div><div class="meta"><span class="chip2 src-learned">✨ learned</span><span class="chip2 src-conf">2 samples</span></div></div><div class="acts"><button class="btn ok">✓ Approve</button><button class="btn gh">Edit</button><button class="btn rej">Reject</button></div></div>
+          <div class="lc"><div class="ico rule">🔗</div><div><div class="ttl"><span class="kind">New rule · domain → vendor</span>alaskaair.com → Alaska Airlines</div><div class="why">Sender domain of those receipts → auto-IDs future Alaska emails.</div><div class="meta"><span class="chip2 src-learned">✨ learned</span><span class="chip2 src-conf">conf 0.95</span></div></div><div class="acts"><button class="btn ok">✓ Approve</button><button class="btn gh">Edit</button><button class="btn rej">Reject</button></div></div>
+        </div>
+      </section>
+
+      <!-- RULES & PRIORITY -->
+      <section class="view" id="v-rules">
+        <div class="panel">
+          <div class="ptitle"><h2>Resolution rules</h2><span class="hint">how each field is decided — ordered, most-reliable first</span><span class="spacer"></span>
+            <div class="subtabs"><button class="on">Vendor</button><button>Entity</button><button>GL</button></div></div>
+          <div class="ptitle" style="background:#fff;border-bottom:0;padding-bottom:0"><span class="hint">drag to reorder · toggle on/off · no deploy</span><span class="spacer"></span><button class="addbtn">+ Add rule manually</button><button class="bulk">↺ Use learned order</button></div>
+          <div class="manual"><span class="grip">⠿</span><div><div class="pname">Amazon Business → split by line item <span class="desc">added by you · manual rule</span></div></div><span class="conf">your rule</span><span class="sw"></span></div>
+          <div class="prow"><span class="grip">⠿</span><div><div class="pname">Sender domain → vendor <span class="desc">the email’s real sender (alaskaair.com) — hard to fake</span></div></div><span class="conf">fires 0.95</span><span class="sw"></span></div>
+          <div class="prow"><span class="grip">⠿</span><div><div class="pname">Model named a known vendor <span class="desc">the read matches a vendor we already know</span></div></div><span class="conf">fires 0.90</span><span class="sw"></span></div>
+          <div class="prow"><span class="grip">⠿</span><div><div class="pname">Name position in document <span class="desc">the biller at the top of the page</span></div></div><span class="conf">fires 0.80</span><span class="sw"></span></div>
+          <div class="prow"><span class="grip">⠿</span><div><div class="pname">Learned fingerprint <span class="desc">filename / account # / past patterns</span></div></div><span class="conf">fires 0.70</span><span class="sw off"></span></div>
+          <div class="legend"><span class="lg"><span class="dotk k-sync"></span> Synced (QuickBooks)</span><span class="lg"><span class="dotk k-cur"></span> Set by you</span><span class="lg"><span class="dotk k-learn"></span> Learned</span><span style="margin-left:auto">Order is learned automatically; pin or override here.</span></div>
+        </div>
+        <div class="panel"><div class="ptitle"><h2>Confidence gates</h2><span class="hint">how sure before it auto-fills vs. asks you</span></div>
+          <div class="prow"><span></span><div><div class="pname">Entity <span class="desc">expensive to get wrong → high bar</span></div></div><span class="conf">auto ≥ 0.97 · n≥3</span><span class="sw"></span></div>
+          <div class="prow"><span></span><div><div class="pname">GL account</div></div><span class="conf">auto ≥ 0.95 · n≥3</span><span class="sw"></span></div>
+          <div class="prow"><span></span><div><div class="pname">Vendor</div></div><span class="conf">auto ≥ 0.90</span><span class="sw"></span></div>
+          <div class="prow"><span></span><div><div class="pname">Memo <span class="desc">cosmetic → low bar</span></div></div><span class="conf">auto ≥ 0.60</span><span class="sw"></span></div>
+        </div>
+      </section>
+
+      <!-- ROUTING -->
+      <section class="view" id="v-routing">
+        <div class="summary">
+          <div class="stat auto"><div class="n">144</div><div class="l">Types routed</div></div>
+          <div class="stat"><div class="n">3</div><div class="l">Fan-out (2+ agents)</div></div>
+          <div class="stat warn"><div class="n">73</div><div class="l">Unrouted · no agent yet</div></div>
+          <div class="stat"><div class="n">217</div><div class="l">Doc types total</div></div>
+        </div>
+        <div class="panel">
+          <div class="ptitle"><h2>Routing</h2><span class="hint">which agent owns each document type · content decides, not the inbox</span><span class="spacer"></span><input class="search" placeholder="Search doc type…"/></div>
+          <div class="note">A document is identified first, then routed by its type. Unrouted types have no owning agent yet — they go to <b>Needs ID</b> for you to assign, never a wrong guess.</div>
+          <table class="tbl">
+            <thead><tr><th>Document type</th><th>Routes to</th><th>Min confidence</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Flight confirmation</td><td><span class="ag travel">Travel</span><span class="ag pay">Payables</span></td><td>0.60</td><td><span class="st fan">fan-out</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Hotel folio</td><td><span class="ag travel">Travel</span><span class="ag pay">Payables</span></td><td>0.60</td><td><span class="st fan">fan-out</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Standard vendor bill</td><td><span class="ag pay">Payables</span></td><td>0.60</td><td><span class="st ok">routed</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Utility statement</td><td><span class="ag pay">Payables</span></td><td>0.60</td><td><span class="st ok">routed</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Appraisal report</td><td><span class="ag val">Valuation</span></td><td>0.60</td><td><span class="st ok">routed</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Construction budget</td><td><span class="ag val">Valuation</span></td><td>0.60</td><td><span class="st ok">routed</span></td><td><a class="rlink">edit</a></td></tr>
+              <tr><td>Loan application (1003 / URLA)</td><td><span class="ag none">no agent yet</span></td><td>—</td><td><span class="st no">unrouted → Needs ID</span></td><td><select class="sel"><option>Assign agent…</option><option>Payables</option><option>Valuation</option></select></td></tr>
+              <tr><td>Closing disclosure</td><td><span class="ag none">no agent yet</span></td><td>—</td><td><span class="st no">unrouted → Needs ID</span></td><td><select class="sel"><option>Assign agent…</option></select></td></tr>
+            </tbody>
+          </table>
+          <div class="legend"><span style="color:var(--muted)">Editing a route is data — no deploy. Assigning an agent to an unrouted type moves it out of Needs ID.</span></div>
+        </div>
+      </section>
+
+      <!-- KNOWLEDGE -->
+      <section class="view" id="v-knowledge">
+        <div class="panel">
+          <div class="ptitle">
+            <div class="subtabs"><button class="on">Vendors</button><button>Doc types</button><button>Fields &amp; aliases</button></div>
+            <span class="spacer"></span><input class="search" placeholder="Search vendors…"/><button class="addbtn">+ Add vendor</button>
+          </div>
+          <div class="note">The master data the agents resolve against. <b>Synced</b> = from QuickBooks (read-only). <b>Set by you</b> = you added it. <b>Learned</b> = captured from your corrections; edit any of it as data, no code.</div>
+          <table class="tbl">
+            <thead><tr><th>Vendor</th><th>Aliases</th><th>Default entity / GL</th><th>Source</th><th>Used</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><b>Alaska Airlines</b></td><td class="ali">Alaska · Alaska Air</td><td>PER · Travel</td><td><span class="badge b-learn">✨ Learned</span></td><td>5</td><td><a class="rlink">edit</a></td></tr>
+              <tr><td><b>Pipedrive</b></td><td class="ali">—</td><td>FC · 6200 Software</td><td><span class="badge b-cur">Set by you</span></td><td>3</td><td><a class="rlink">edit</a></td></tr>
+              <tr><td><b>Verizon</b></td><td class="ali">Verizon Business · Verizon Wireless</td><td>FC · 6300 Telecom</td><td><span class="badge b-learn">✨ Learned</span></td><td>12</td><td><a class="rlink">edit</a></td></tr>
+              <tr><td><b>Amazon Business</b></td><td class="ali">Amazon · AMZN</td><td>split per line</td><td><span class="badge b-cur">Set by you</span></td><td>27</td><td><a class="rlink">edit</a></td></tr>
+              <tr><td><b>Home Depot</b></td><td class="ali">The Home Depot</td><td>by project</td><td><span class="badge b-sync">🔗 QuickBooks</span></td><td>9</td><td><a class="rlink">edit</a></td></tr>
+              <tr><td><b>Anthropic, PBC</b></td><td class="ali">Anthropic</td><td>FC · 6200 Software</td><td><span class="badge b-sync">🔗 QuickBooks</span></td><td>2</td><td><a class="rlink">edit</a></td></tr>
+            </tbody>
+          </table>
+          <div class="legend"><span style="color:var(--muted)">~1,110 vendors · 217 doc types · 717 field aliases — all editable here as data.</span></div>
+        </div>
+      </section>
+
+      <!-- stubs -->
+      <section class="view" id="v-exceptions"><div class="panel"><div class="ptitle"><h2>Exceptions</h2><span class="hint">the daily queue — each correction teaches the system</span></div><div class="rep" style="color:var(--muted);padding:18px">6 documents need a quick decision (vendor / entity / amount). This is the existing payables/travel review queue.</div></div></section>
+      <section class="view" id="v-needsid"><div class="panel"><div class="ptitle"><h2>Needs identification</h2><span class="hint">documents whose type/route wasn’t clear — assign once, it learns</span></div><div class="rep" style="color:var(--muted);padding:18px">2 documents the dispatcher couldn’t confidently type or route.</div></div></section>
+
+      <div class="foot">Maintenance = clear exceptions daily · approve what’s learned weekly · edit Configure (rules / routing / knowledge) as data. New rule <i>types</i> are the only thing that needs engineering.</div>
+    </div>
+  </div>
+<script>
+  const links=[...document.querySelectorAll('.nav a')];
+  function show(v){
+    links.forEach(a=>a.classList.toggle('on',a.dataset.v===v));
+    document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+    window.scrollTo(0,0);
+  }
+  links.forEach(a=>a.addEventListener('click',()=>show(a.dataset.v)));
+</script>
+</body>
+</html>

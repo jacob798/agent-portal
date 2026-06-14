@@ -1142,8 +1142,8 @@ export default function Payables({
               {/* Vendor */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2 truncate font-semibold text-slate-900">
-                  {r.vendorStatus === "new" ? (
-                    <span title="New vendor — not in your vendor master" className="shrink-0 font-bold text-red-500">✗</span>
+                  {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? (
+                    <span title="New / unverified vendor — confirm before posting" className="shrink-0 font-bold text-amber-600">●</span>
                   ) : (
                     <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
                   )}
@@ -1594,7 +1594,9 @@ export default function Payables({
     if (r.exception === "vendor")
       return (
         <>
-          <Chip solid onClick={() => setLearnId(r.id)}>Learn vendor</Chip>
+          <Chip solid onClick={() => setLearnId(r.id)}>
+            {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "Learn vendor" : "Edit vendor"}
+          </Chip>
           {travelBtn}
         </>
       );

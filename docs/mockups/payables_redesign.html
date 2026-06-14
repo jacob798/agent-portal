@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Payables — Redesign (Mockup)</title>
+<style>
+  :root{--navy:#0a2c4e;--blue:#1768a3;--sky:#5ba3d2;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff;
+    --green:#0f9d58;--green-bg:#e8f6ee;--amber:#b7791f;--amber-bg:#fdf3e3;--red:#c0392b;--red-bg:#fdecea;--violet:#6b3fa0;--violet-bg:#efeaf8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:13px 22px}
+  .mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--sky),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700}
+  .top h1{font-size:15px;margin:0;font-weight:600}.top .spacer{flex:1}
+  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:4px 11px;font-size:12px}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px}
+  .summary{display:flex;gap:12px;margin-bottom:16px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;flex:1}
+  .stat .n{font-size:22px;font-weight:600}.stat .l{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+  .stat.warn .n{color:var(--amber)}.stat.auto .n{color:var(--green)}
+  .tabs{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
+  .tabs button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+  .tabs button.on{background:var(--navy);color:#fff}
+  .qbar{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin-bottom:12px}
+  .qbar .spacer{flex:1}
+  .btn{border:0;border-radius:8px;height:34px;padding:0 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn.primary{background:var(--navy);color:#fff}.btn.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
+  .btn.save{background:#fff;color:var(--blue);border:1px solid #cfe0f1}
+  .queue{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .qhead,.row{display:grid;grid-template-columns:24px 2.3fr 1.5fr 1fr 1.2fr 1fr 1.2fr;gap:12px;align-items:center}
+  .qhead{padding:10px 16px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:600;background:#f8fafc}
+  .row{padding:13px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer}.row:last-child{border-bottom:0}.row:hover{background:#f8fbff}
+  .dot{width:9px;height:9px;border-radius:50%;justify-self:center}
+  .dot.need{background:var(--amber)}.dot.dup{background:var(--red)}.dot.ok{background:var(--green)}
+  .vend{font-weight:600;display:flex;align-items:center;gap:7px}
+  .vbadge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid}
+  .vb-known{background:var(--green-bg);color:var(--green);border-color:#bfe6cd}
+  .vb-new{background:var(--amber-bg);color:var(--amber);border-color:#f3dcae}
+  .sub{color:var(--muted);font-size:12px;margin-top:3px}
+  .sub .pay{color:#475569}.sub b{color:#334155}
+  .tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px}
+  .tag.charge{background:#eaf1f8;color:var(--blue)}.tag.bill{background:var(--violet-bg);color:var(--violet)}
+  .ent{border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600;background:#fff;color:var(--ink)}
+  .trip{display:inline-flex;align-items:center;gap:5px;border:1px solid #cfe0f1;background:#eef4fb;color:var(--blue);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+  .tripadd{border:1px dashed var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:500;cursor:pointer}
+  .tripsug{display:inline-flex;align-items:center;gap:6px;border:1px dashed #cfe0f1;background:#f5fafe;color:var(--blue);border-radius:999px;padding:3px 8px;font-size:12px;font-weight:600}
+  .tripsug .y{background:var(--blue);color:#fff;border:0;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:11px}
+  .tripsug .n{background:#fff;color:var(--muted);border:1px solid var(--line);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:11px}
+  .none{color:#cbd5e1;font-size:13px}
+  .amt{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  .act{display:flex;gap:6px;justify-content:flex-end}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:7px;height:30px;padding:0 11px;font:inherit;font-size:12px;font-weight:600;color:#334155;cursor:pointer}
+  .mini:hover{border-color:var(--blue);color:var(--navy)}
+  .warn{color:var(--amber);font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;margin-top:5px}
+  .warn .fix{border:1px solid #f3dcae;background:#fff;border-radius:6px;padding:2px 8px;font-size:11px;color:var(--amber);cursor:pointer}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(10,44,78,.34);display:flex;justify-content:flex-end}
+  .drawer{width:600px;max-width:96vw;background:#fff;height:100%;display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(10,44,78,.22)}
+  .dhead{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start}
+  .dhead .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer}
+  .dbody{flex:1;overflow:auto;padding:4px 20px 20px}
+  .sect{padding:15px 0;border-bottom:1px solid #f1f5f9}
+  .sect h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:0 0 10px}
+  .frow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0}
+  .frow .k{color:var(--muted);font-size:13px}.frow .v{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .field{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;background:#fff;font-weight:600;color:var(--ink)}
+  .field.gl{color:var(--blue)}
+  .ents{display:flex;gap:6px;flex-wrap:wrap}
+  .ents button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;color:#334155;cursor:pointer}
+  .ents button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .doc{height:130px;border:1px dashed var(--line);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px}
+  .dfoot{padding:14px 20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#f8fafc}
+  .dfoot .spacer{flex:1}
+  .vstate{font-size:12px;color:var(--muted)}
+  .link{color:var(--blue);font-size:12px;text-decoration:none;font-weight:600;cursor:pointer}
+  .callout{background:#f0f7fc;border:1px solid #cfe3f3;border-radius:9px;padding:9px 12px;font-size:12.5px;color:#2c5d86;margin-top:8px}
+</style>
+</head>
+<body>
+  <div class="top"><div class="mark">F</div><h1>Payables</h1><div class="spacer"></div><span class="pill">● Live</span></div>
+  <div class="wrap">
+    <div class="summary">
+      <div class="stat warn"><div class="n">92</div><div class="l">Need you</div></div>
+      <div class="stat"><div class="n">0</div><div class="l">Missing docs</div></div>
+      <div class="stat auto"><div class="n">2</div><div class="l">Auto-coded ✓</div></div>
+      <div class="stat"><div class="n">$1,062.11</div><div class="l">Ready to post</div></div>
+    </div>
+    <div class="tabs"><button class="on">Need you 92</button><button>Missing docs 0</button><button>All 94</button><button>Auto-coded 2</button><button>Ingestion log 50</button></div>
+
+    <div class="qbar">
+      <label style="font-size:13px;font-weight:600"><input type="checkbox"/> Select all 92</label>
+      <span class="spacer"></span>
+      <button class="btn save">Save coding</button>
+      <button class="btn primary">Post 2 ready → QuickBooks</button>
+    </div>
+
+    <div class="queue">
+      <div class="qhead"><span></span><span>Vendor / Payee</span><span>Invoice · Date</span><span>Posting</span><span>Entity · Pay-from</span><span>Trip</span><span style="text-align:right">Amount · Action</span></div>
+
+      <!-- new vendor (no green check) -->
+      <div class="row">
+        <span class="dot need" title="Needs vendor + pay-from"></span>
+        <div><div class="vend">Anthropic, PBC <span class="vbadge vb-new">NEW</span></div><div class="sub">Software subscription</div></div>
+        <div>Inv BLSNMU-00002<div class="sub">Jun 10 · 2026</div></div>
+        <div><span class="tag charge">Charge</span></div>
+        <div><select class="ent"><option>FC ▾</option></select><div class="warn">⚠ pay-from <button class="fix">pick</button></div></div>
+        <div><span class="none" title="Not a travel charge — no trip suggested">—</span></div>
+        <div class="amt">$25.00<div class="act" style="margin-top:6px"><button class="mini">Learn vendor</button></div></div>
+      </div>
+
+      <!-- known vendor (green check + Edit, not Learn) -->
+      <div class="row">
+        <span class="dot ok" title="Ready"></span>
+        <div><div class="vend">✅ Amazon Business <span class="vbadge vb-known">KNOWN</span></div><div class="sub">Office supplies</div></div>
+        <div>Inv 112-630…<div class="sub">Jun 9 · 2026</div></div>
+        <div><span class="tag charge">Charge</span></div>
+        <div><select class="ent"><option>WJW ▾</option></select><div class="sub">AMEX ··1004</div></div>
+        <div><span class="none" title="Not a travel charge — no trip suggested">—</span></div>
+        <div class="amt">$21.18<div class="act" style="margin-top:6px"><button class="mini">Edit vendor</button></div></div>
+      </div>
+
+      <!-- TRAVEL row: vendor = trip, payee = merchant, Trip chip set -->
+      <div class="row">
+        <span class="dot ok" title="On a trip"></span>
+        <div><div class="vend">✈ Travel 2026-06 — BC Cleveland</div><div class="sub">payee <b>Alaska Airlines</b> · airfare</div></div>
+        <div>Conf GKZRLR<div class="sub">Jun 12 · 2026</div></div>
+        <div><span class="tag charge">Charge</span></div>
+        <div><span class="ent">BC</span><div class="sub">from trip</div></div>
+        <div><span class="trip">Cleveland ✕</span></div>
+        <div class="amt">$8.00<div class="act" style="margin-top:6px"><a class="link">view trip ↗</a></div></div>
+      </div>
+
+      <!-- travel-category charge in a trip window -> SUGGESTED (gated to travel only) -->
+      <div class="row">
+        <span class="dot need" title="Confirm suggested trip"></span>
+        <div><div class="vend">✅ Uber <span class="vbadge vb-known">KNOWN</span></div><div class="sub">rideshare · travel category</div></div>
+        <div>Jun 18 · 2026<div class="sub">in Cleveland window</div></div>
+        <div><span class="tag charge">Charge</span></div>
+        <div><span class="ent">BC</span><div class="sub">if added to trip</div></div>
+        <div><span class="tripsug" title="Travel charge in a trip window">Cleveland? <button class="y">✓</button><button class="n">✕</button></span></div>
+        <div class="amt">$24.40<div class="act" style="margin-top:6px"><button class="mini">Edit vendor</button></div></div>
+      </div>
+
+      <!-- duplicate -->
+      <div class="row">
+        <span class="dot dup" title="Possible duplicate"></span>
+        <div><div class="vend">✅ Verizon <span class="vbadge vb-known">KNOWN</span></div><div class="sub" style="color:var(--red)">Possible duplicate — same vendor/amount/date</div></div>
+        <div>Inv 9921…<div class="sub">Jun 8 · 2026</div></div>
+        <div><span class="tag bill">Bill</span></div>
+        <div><span class="ent">FC</span><div class="sub">Net 30</div></div>
+        <div><span class="none" title="Not a travel charge — no trip suggested">—</span></div>
+        <div class="amt">$142.10<div class="act" style="margin-top:6px"><button class="mini">Keep both</button><button class="mini">Discard</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER (transaction) -->
+  <div class="scrim">
+    <div class="drawer">
+      <div class="dhead">
+        <div><div style="font-size:16px;font-weight:600">Anthropic, PBC <span class="vbadge vb-new">NEW VENDOR</span></div><div class="sub">Inv BLSNMU-00002 · Jun 10, 2026 · $25.00</div></div>
+        <button class="x">×</button>
+      </div>
+      <div class="dbody">
+        <div class="sect"><h3>Source document</h3><div class="doc">📄 invoice.pdf — from invoices@ · sender billing@anthropic.com</div></div>
+
+        <div class="sect"><h3>Vendor &amp; payee</h3>
+          <div class="frow"><span class="k">Vendor</span><span class="v">Anthropic, PBC <span class="link">Edit</span> · <span class="link">Learn (add to master)</span></span></div>
+          <div class="frow"><span class="k">Payee (paid)</span><span class="v">Anthropic, PBC</span></div>
+          <div class="callout">New vendor — <b>Learn</b> adds it to the master (with coding defaults) so next time it’s automatic. A known vendor would show <b>Edit</b> instead, and a learned change would show <b>Approve</b>.</div>
+        </div>
+
+        <div class="sect"><h3>Coding</h3>
+          <div class="frow"><span class="k">Entity</span><span class="ents"><button class="on">FC</button><button>BC</button><button>WJW</button><button>PER</button><button>…</button></span></div>
+          <div class="frow"><span class="k">GL account</span><span class="v"><select class="field gl"><option>6200 · Software Subscriptions ▾</option></select></span></div>
+          <div class="frow"><span class="k">Pay-from</span><span class="v"><select class="field"><option>Wells Fargo Checking ▾</option><option>AMEX ··1004</option></select></span></div>
+          <div class="frow"><span class="k">Trip (optional)</span><span class="v"><button class="tripadd">+ Add to trip</button></span></div>
+          <div class="frow"><span class="k">Memo</span><span class="v" style="font-weight:400">period 6/10–7/9</span></div>
+        </div>
+
+        <div class="sect"><h3>Posting preview</h3>
+          <div class="frow"><span class="k">Type</span><span class="v"><span class="tag charge">Charge (Purchase)</span></span></div>
+          <div class="frow"><span class="k">QuickBooks</span><span class="v">Foundry Capital LLC</span></div>
+        </div>
+      </div>
+      <div class="dfoot">
+        <span class="vstate">Not yet saved</span>
+        <span class="spacer"></span>
+        <button class="btn ghost">Save coding</button>
+        <button class="btn primary">Post to QuickBooks →</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

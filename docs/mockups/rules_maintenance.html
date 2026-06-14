@@ -247,6 +247,10 @@
   }
   links.forEach(a=>a.addEventListener('click',()=>show(a.dataset.v)));
   const _shot=new URLSearchParams(location.search).get('shot'); if(_shot) show(_shot);
+  // Approve/Reject remove the card (mirrors the real Rules.tsx handler: on a successful
+  // /api/rules/learned-action the item is filtered out of the list). Used for interaction tests.
+  document.querySelectorAll('.lc .btn.ok, .lc .btn.rej').forEach(b=>
+    b.addEventListener('click', () => { const c=b.closest('.lc'); if(c) c.remove(); }));
 </script>
 </body>
 </html>

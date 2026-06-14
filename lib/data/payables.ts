@@ -58,6 +58,8 @@ export interface PayableRow {
   invoiceNumber?: string | null;
   /** Transaction (invoice/service) date YYYY-MM-DD (operator-editable) → posted as QB TxnDate. */
   txnDate?: string | null;
+  /** Identified document type (e.g. utility_statement). Operator can correct → re-run + learn. */
+  docType?: string | null;
   /** Attributed trip id (when this is a trip expense) — drives the drawer trip picker. */
   tripId?: string | null;
   /** This vendor's saved multi-line split layout (entity+account+amount per line), if any.
@@ -252,6 +254,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       memo: r.memo ?? null,
       invoiceNumber: r.invoice_number ?? null,
       txnDate: r.txn_date ?? null,
+      docType: r.doc_type ?? null,
       tripId: r.trip_id ?? null,
     }));
     // Attach each vendor's saved multi-line split layout (if any), so the drawer can offer
@@ -276,5 +279,25 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
     return rows;
   } catch {
     return MOCK;
+  }
+}
+
+export interface DocTypeOption { docType: string; label: string }
+
+/** All document types (for the per-row "correct the identified type" dropdown). */
+export async function getDocTypes(): Promise<DocTypeOption[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("doc_types")
+      .select("doc_type, display_name")
+      .order("display_name");
+    return (data ?? []).map((r) => ({
+      docType: r.doc_type as string,
+      label: (r.display_name as string) || (r.doc_type as string),
+    }));
+  } catch {
+    return [];
   }
 }

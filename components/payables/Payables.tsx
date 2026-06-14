@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Zap, Upload, FileText, Plane } from "lucide-react";
-import type { PayableRow, TripOption } from "@/lib/data/payables";
+import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
   entName,
@@ -42,6 +42,7 @@ export default function Payables({
   ingestion,
   vendors,
   trips,
+  docTypes = [],
 }: {
   initial: PayableRow[];
   accounts: PayAccount[];
@@ -50,6 +51,7 @@ export default function Payables({
   ingestion: IngestionJob[];
   vendors: string[];
   trips: TripOption[];
+  docTypes?: DocTypeOption[];
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     initial.map((r) =>
@@ -603,6 +605,23 @@ export default function Payables({
     toast("Back in the review queue");
   }
   // Re-attribute a charge to a trip (or clear it). The trip supplies the canonical
+  // Correct the identified document type → re-run extraction with that type's spec + learn
+  // (the worker honors the reextract flag the route sets). Prime Directive #10 §9.1.
+  async function setDocType(id: string, docType: string) {
+    if (!docType) return;
+    setRows((rs) => rs.map((x) => (x.id === id ? { ...x, docType } : x)));
+    try {
+      await fetch("/api/payables/set-doc-type", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, docType }),
+      });
+      toast(`Type → ${docType} · re-running extraction`);
+    } catch {
+      toast("Couldn't set the document type");
+    }
+  }
+
   // vendor header + entity (+ BC routing); "" = not a trip.
   async function setTrip(id: string, tripId: string) {
     const trip = trips.find((t) => t.tripId === tripId) || null;
@@ -1179,6 +1198,24 @@ export default function Payables({
                   <span className={r.invoiceNumber ? "" : "text-amber-600"}>
                     Inv {r.invoiceNumber || "—"}
                   </span>
+                </div>
+                {/* Identified document type — what the classifier thinks this is. Correct it
+                    here → the worker re-runs extraction with the right type's spec + learns. */}
+                <div className="mt-0.5 flex items-center gap-1 text-[11px]">
+                  <span className="text-slate-400">Type:</span>
+                  <select
+                    value={r.docType ?? ""}
+                    onChange={(e) => setDocType(r.id, e.target.value)}
+                    title="Identified document type — correct it to re-run extraction with the right spec"
+                    className={`max-w-[180px] truncate rounded border px-1 py-0.5 text-[11px] ${
+                      r.docType ? "border-slate-200 text-slate-600" : "border-amber-300 text-amber-600"
+                    }`}
+                  >
+                    <option value="">— identify type —</option>
+                    {docTypes.map((d) => (
+                      <option key={d.docType} value={d.docType}>{d.label}</option>
+                    ))}
+                  </select>
                 </div>
                 {/* payee vs posting name made explicit: for a travel charge the QB vendor is
                     the TRIP, the real merchant rides as the payee — show it, don't bury it on hover */}

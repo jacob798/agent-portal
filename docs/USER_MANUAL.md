@@ -76,10 +76,11 @@ Need you · Missing docs · All · Auto-coded · Ingestion log — filter the li
 ## Travel (`components/travel/Travel.tsx`)
 Reconcile and report trips. Coding/posting happens in the Payables drawer (one editor).
 
-> Travel screens render live (SSO) — the trips list and trip detail match the live portal; a
-> travel charge in the queue is shown in the Payables screenshot above (the "Travel … Cleveland"
-> row with the Alaska Airlines payee). Static captures of the live travel pages can be added once
-> a non-SSO render path exists.
+**Trips list** — states: *posted · to review (amber) · error (red)*; click a count to review
+![Travel — trips list](manual/img/travel_list.png)
+
+**Trip detail** — reconcile/report; each row opens the shared Payables drawer; **Error** = a failed QB post
+![Travel — trip detail](manual/img/travel_detail.png)
 
 ### Trips list
 Columns: Trip (name + purpose) · Entity · Dates · **Expenses** · **Receipts** · Total.
@@ -99,8 +100,8 @@ Columns: Trip (name + purpose) · Entity · Dates · **Expenses** · **Receipts*
   - **Click an expense row → opens it in the Payables drawer** (`/payables?open=<id>`) — edit/code/post there (the one shared editor).
 - **Header actions:** **Report** (printable expense report) · **Download .zip** (manifest + receipts — `/api/travel/export-zip`) · **Edit trip** (`/api/travel/update-trip`).
 
-### Status meaning (the three-plus states)
-**Ready** = coded, awaiting the post batch · **Staged** = approved, QB write pending · **Posted** = in QuickBooks · **Needs doc** = missing receipt. *(A dedicated post-**failure** "Error" state is **pending backend** — the post path doesn't yet record failures as a status.)*
+### Status meaning (the states)
+**Ready** = coded, awaiting the post batch · **Staged** = approved, QB write pending · **Posted** = in QuickBooks · **Needs doc** = missing receipt · **Error** = the QuickBooks post failed (red; the row's reason shows why; re-approve to retry — `qbo_post_runner` sets `status='error'` on failure).
 
 ---
 
@@ -139,6 +140,6 @@ Documents seen · Predictions · Learned identifiers · Signal stats — from `d
 
 ---
 
-## Known pending (backend) — not yet wired
-- **Post-failure "Error" status** on travel/payables rows (post path must record failures).
-- **Pre-commit approval gate** (learned items held *pending* before they apply) — today the console reviews/approves what's *already* learned, rather than gating it before first use.
+## Implemented (previously pending)
+- **Post-failure "Error" status** — `qbo_post_runner` now sets `payables_queue.status='error'` (+ reason) on a failed QB post; surfaced as a red **Error** on payables rows and travel expenses.
+- **Approval gate** — learned rules are **pending until approved**: the resolvers use only approved rules (`identifier_index` / `field_aliases` filter `source <> 'learned'`); the Rules & Learning → Learned tab's **Approve** flips a learned row to `curated` (applies it), **Reject** removes it. (Vendors keep the model-named precedence rule by design — auto-adds are legitimate, not gated.)

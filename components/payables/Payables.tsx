@@ -1139,20 +1139,24 @@ export default function Payables({
               />
               <span
                 title={
-                  r.auto || r.resolved
-                    ? "Ready / auto-coded"
-                    : r.exception === "dup"
-                      ? "Possible duplicate"
-                      : r.exception === "vendor"
-                        ? "Needs a vendor"
-                        : "Needs you"
+                  r.status === "error"
+                    ? `Post failed${r.reason ? ` — ${r.reason}` : ""}`
+                    : r.auto || r.resolved
+                      ? "Ready / auto-coded"
+                      : r.exception === "dup"
+                        ? "Possible duplicate"
+                        : r.exception === "vendor"
+                          ? "Needs a vendor"
+                          : "Needs you"
                 }
                 className={`h-2.5 w-2.5 rounded-full ${
-                  r.auto || r.resolved
-                    ? "bg-emerald-500"
-                    : r.exception === "dup"
-                      ? "bg-red-500"
-                      : "bg-amber-500"
+                  r.status === "error"
+                    ? "bg-red-500"
+                    : r.auto || r.resolved
+                      ? "bg-emerald-500"
+                      : r.exception === "dup"
+                        ? "bg-red-500"
+                        : "bg-amber-500"
                 }`}
               />
               {/* Vendor */}
@@ -1169,6 +1173,7 @@ export default function Payables({
                   ) : r.nodoc ? (
                     <Badge tone="amber">no receipt</Badge>
                   ) : null}
+                  {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}
                 </div>
                 <div className="mt-0.5 text-[11.5px] text-slate-500">
                   <span className={r.invoiceNumber ? "" : "text-amber-600"}>

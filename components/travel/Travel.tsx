@@ -752,6 +752,8 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
 }
 
 function ExpenseStatusChip({ e }: { e: TripExpense }) {
+  if (e.status === "error")
+    return <Badge tone="red" dot>Error</Badge>;
   if (e.needsDoc)
     return <Badge tone="amber">Needs doc</Badge>;
   if (e.status === "posted")

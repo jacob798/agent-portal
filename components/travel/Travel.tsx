@@ -723,7 +723,9 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
         ) : r.open === 0 ? (
           <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · <span className="text-emerald-600">all posted</span></span>
         ) : (
-          <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · {r.posted} posted, {r.open} open</span>
+          <span className="text-slate-700" title="Open the trip to review & post these — not an error, just not posted yet">
+            <b className="font-semibold">{r.count}</b> · {r.posted} posted · <span className="font-semibold text-amber-600">{r.open} to review</span>
+          </span>
         )}
       </td>
       <td className="px-4 py-3 text-[12.5px]">

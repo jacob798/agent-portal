@@ -25,6 +25,12 @@ One SSO login at the portal; modules never prompt again.
 ## Payables (`components/payables/Payables.tsx`)
 The daily queue: clear what the agent couldn't resolve, then post to QuickBooks.
 
+**The queue**
+![Payables queue](manual/img/payables_queue.png)
+
+**The transaction drawer**
+![Transaction drawer](manual/img/payables_drawer.png)
+
 ### Top bar
 - **Get from Plaid (soon)** — placeholder, disabled.
 - **Upload CSV / QBO** — bank/card statement import → ingestion.
@@ -70,6 +76,11 @@ Need you · Missing docs · All · Auto-coded · Ingestion log — filter the li
 ## Travel (`components/travel/Travel.tsx`)
 Reconcile and report trips. Coding/posting happens in the Payables drawer (one editor).
 
+> Travel screens render live (SSO) — the trips list and trip detail match the live portal; a
+> travel charge in the queue is shown in the Payables screenshot above (the "Travel … Cleveland"
+> row with the Alaska Airlines payee). Static captures of the live travel pages can be added once
+> a non-SSO render path exists.
+
 ### Trips list
 Columns: Trip (name + purpose) · Entity · Dates · **Expenses** · **Receipts** · Total.
 - **Expenses** cell: `N · X posted · Y to review` — **"to review" (amber)**, *not an error*; tooltip says "open the trip to review & post." Rows open the trip on click.
@@ -95,6 +106,16 @@ Columns: Trip (name + purpose) · Entity · Dates · **Expenses** · **Receipts*
 
 ## Rules & Learning (`/rules` — `components/rules/Rules.tsx`)
 The no-code maintenance surface. Reads the live learning + routing tables.
+
+**Learned (with the failure report)** — Approve / Reject per item
+![Rules — Learned + report](manual/img/rules_learned.png)
+
+**Rules & priority + confidence gates**
+![Rules — priority](manual/img/rules_rules.png)
+
+**Routing** (doc type → agent) · **Knowledge** (vendor master)
+![Rules — Routing](manual/img/rules_routing.png)
+![Rules — Knowledge](manual/img/rules_knowledge.png)
 
 ### Stats
 Documents seen · Predictions · Learned identifiers · Signal stats — from `documents`, `predictions`, `identifier_index`, `signal_stats`.

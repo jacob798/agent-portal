@@ -246,6 +246,7 @@
     window.scrollTo(0,0);
   }
   links.forEach(a=>a.addEventListener('click',()=>show(a.dataset.v)));
+  const _shot=new URLSearchParams(location.search).get('shot'); if(_shot) show(_shot);
 </script>
 </body>
 </html>

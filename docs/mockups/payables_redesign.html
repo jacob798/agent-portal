@@ -154,6 +154,14 @@
     </div>
   </div>
 
+  <script>
+    // ?shot=queue hides the drawer so the queue can be captured for the manual.
+    if (new URLSearchParams(location.search).get('shot') === 'queue') {
+      document.addEventListener('DOMContentLoaded', () => {
+        const s = document.querySelector('.scrim'); if (s) s.style.display = 'none';
+      });
+    }
+  </script>
   <!-- DRAWER (transaction) -->
   <div class="scrim">
     <div class="drawer">

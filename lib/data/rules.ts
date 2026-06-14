@@ -10,6 +10,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export interface FailureReason { reason: string; count: number; tone: "blue" | "amber" | "red" }
 export interface LearnedItem { kind: string; title: string; detail: string; actionKind: "vendor" | "identifier" | "alias"; key: string }
 export interface RouteRow { docType: string; label: string; agents: string[]; status: string }
+/** A document type in the catalog — the unit the routing/setup console manages. */
+export interface DocTypeRow {
+  docType: string;
+  label: string;
+  category: string;      // group header (500 types need categories to navigate)
+  agents: string[];      // owning agent(s); [] = unrouted
+  samples: number;       // real documents of this type we've actually seen
+  fields: number;        // fields defined in the spec
+}
+export interface DocTypeCategory { category: string; rows: DocTypeRow[] }
 export interface KnowledgeVendor { name: string; aliases: string[]; entity: string | null; source: "learned" | "curated" | "synced" }
 export interface LearningStats { documents: number; predictions: number; learnedIdentifiers: number; signals: number }
 
@@ -84,25 +94,50 @@ export async function getLearnedItems(): Promise<LearnedItem[]> {
   } catch { return []; }
 }
 
-export async function getRouting(): Promise<RouteRow[]> {
+/** The FULL document-type catalog, grouped by category — every type (no truncation), with
+ *  its routing, how many real samples we've seen, and how many fields are defined. This is
+ *  the routing/setup console's data: navigate by category, see what's unrouted / unsampled. */
+export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
   try {
     const c = db();
-    const [{ data: routes }, { data: types }] = await Promise.all([
+    const [types, routes, fieldRows, docRows] = await Promise.all([
+      c.from("doc_types").select("doc_type, display_name, category").limit(2000),
       c.from("doc_type_routing").select("doc_type, agent, is_primary"),
-      c.from("doc_types").select("doc_type, display_name").limit(1000),
+      c.from("doc_type_fields").select("doc_type").limit(20000),
+      c.from("documents").select("doc_type").not("doc_type", "is", null).limit(20000),
     ]);
-    const label = new Map((types ?? []).map((t) => [(t as { doc_type: string }).doc_type, (t as { display_name: string }).display_name]));
-    const byType = new Map<string, string[]>();
-    for (const r of routes ?? []) {
+    const agentsBy = new Map<string, string[]>();
+    for (const r of routes.data ?? []) {
       const x = r as { doc_type: string; agent: string; is_primary: boolean };
-      const arr = byType.get(x.doc_type) ?? [];
+      const arr = agentsBy.get(x.doc_type) ?? [];
       if (x.is_primary) arr.unshift(x.agent); else arr.push(x.agent);
-      byType.set(x.doc_type, arr);
+      agentsBy.set(x.doc_type, arr);
     }
-    return [...byType.entries()].map(([docType, agents]) => ({
-      docType, label: label.get(docType) ?? docType, agents,
-      status: agents.length > 1 ? "fan-out" : "routed",
-    })).sort((a, b) => a.label.localeCompare(b.label)).slice(0, 60);
+    const countBy = (rows: { doc_type: string }[] | null) => {
+      const m = new Map<string, number>();
+      for (const r of rows ?? []) m.set(r.doc_type, (m.get(r.doc_type) ?? 0) + 1);
+      return m;
+    };
+    const fieldsBy = countBy(fieldRows.data as { doc_type: string }[] | null);
+    const samplesBy = countBy(docRows.data as { doc_type: string }[] | null);
+
+    const rows: DocTypeRow[] = (types.data ?? []).map((t) => {
+      const x = t as { doc_type: string; display_name: string; category: string | null };
+      return {
+        docType: x.doc_type, label: x.display_name || x.doc_type,
+        category: x.category || "Uncategorized", agents: agentsBy.get(x.doc_type) ?? [],
+        samples: samplesBy.get(x.doc_type) ?? 0, fields: fieldsBy.get(x.doc_type) ?? 0,
+      };
+    });
+    const byCat = new Map<string, DocTypeRow[]>();
+    for (const r of rows) { const a = byCat.get(r.category) ?? []; a.push(r); byCat.set(r.category, a); }
+    return [...byCat.entries()]
+      .map(([category, rs]) => ({ category, rows: rs.sort((a, b) => a.label.localeCompare(b.label)) }))
+      .sort((a, b) => {  // sampled categories first (most actionable), then size, then alpha
+        const sa = a.rows.reduce((n, r) => n + (r.samples > 0 ? 1 : 0), 0);
+        const sb = b.rows.reduce((n, r) => n + (r.samples > 0 ? 1 : 0), 0);
+        return sb - sa || b.rows.length - a.rows.length || a.category.localeCompare(b.category);
+      });
   } catch { return []; }
 }
 

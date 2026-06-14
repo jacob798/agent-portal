@@ -861,7 +861,10 @@ function TripDetail({
         </div>
         {trip.exps.length ? (
           trip.exps.map((e, k) => (
-            <div key={e.id ?? k} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
+            <div key={e.id ?? k}
+              onClick={() => { if (e.id) window.location.href = `/payables?open=${e.id}`; }}
+              title={e.id ? "Open in Payables to edit / post" : undefined}
+              className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0 ${e.id ? "cursor-pointer hover:bg-slate-50" : ""}`}>
               <span className="text-lg">{e.ic}</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{e.what}</div>

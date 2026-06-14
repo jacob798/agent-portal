@@ -17,7 +17,21 @@ export default function Rules({
   routing: RouteRow[]; vendors: KnowledgeVendor[];
 }) {
   const [tab, setTab] = useState<Tab>("learned");
+  const [learnedItems, setLearnedItems] = useState(learned);
+  const [busy, setBusy] = useState<string | null>(null);
   const maxN = Math.max(1, ...report.map((r) => r.count));
+
+  async function actLearned(it: LearnedItem, action: "approve" | "reject") {
+    const tag = it.actionKind + it.key;
+    setBusy(tag);
+    try {
+      const res = await fetch("/api/rules/learned-action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: it.actionKind, key: it.key, action }),
+      });
+      if (res.ok) setLearnedItems((xs) => xs.filter((x) => x.actionKind + x.key !== tag));
+    } finally { setBusy(null); }
+  }
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -72,17 +86,24 @@ export default function Rules({
 
       {tab === "learned" && (
         <Panel title="Learned" hint="captured from your corrections & postings — review/keep">
-          {learned.length === 0 ? <Empty>Nothing learned yet — corrections and postings will show here.</Empty> : (
+          {learnedItems.length === 0 ? <Empty>Nothing pending — corrections and postings will show here.</Empty> : (
             <div className="divide-y divide-slate-100">
-              {learned.map((x, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3">
-                  <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700">{x.kind}</span>
-                  <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-semibold text-slate-900">{x.title}</div>
-                    <div className="text-[12px] text-slate-500">{x.detail}</div>
+              {learnedItems.map((x, i) => {
+                const tag = x.actionKind + x.key;
+                return (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3">
+                    <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700">{x.kind}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13.5px] font-semibold text-slate-900">{x.title}</div>
+                      <div className="text-[12px] text-slate-500">{x.detail}</div>
+                    </div>
+                    <button disabled={busy === tag} onClick={() => actLearned(x, "approve")}
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50">✓ Approve</button>
+                    <button disabled={busy === tag} onClick={() => actLearned(x, "reject")}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-[12.5px] font-semibold text-red-600 disabled:opacity-50">Reject</button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Panel>

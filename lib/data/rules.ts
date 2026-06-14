@@ -8,7 +8,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface FailureReason { reason: string; count: number; tone: "blue" | "amber" | "red" }
-export interface LearnedItem { kind: string; title: string; detail: string }
+export interface LearnedItem { kind: string; title: string; detail: string; actionKind: "vendor" | "identifier" | "alias"; key: string }
 export interface RouteRow { docType: string; label: string; agents: string[]; status: string }
 export interface KnowledgeVendor { name: string; aliases: string[]; entity: string | null; source: "learned" | "curated" | "synced" }
 export interface LearningStats { documents: number; predictions: number; learnedIdentifiers: number; signals: number }
@@ -66,19 +66,19 @@ export async function getLearnedItems(): Promise<LearnedItem[]> {
       .eq("source", "learned").order("updated_at", { ascending: false }).limit(20);
     for (const r of ids ?? []) {
       const x = r as { id_kind: string; normalized: string; maps_to_kind: string; maps_to_value: string };
-      out.push({ kind: "Identifier rule", title: `${x.normalized} → ${x.maps_to_value}`, detail: `${x.id_kind} → ${x.maps_to_kind} · learned from your confirmations` });
+      out.push({ kind: "Identifier rule", title: `${x.normalized} → ${x.maps_to_value}`, detail: `${x.id_kind} → ${x.maps_to_kind} · learned from your confirmations`, actionKind: "identifier", key: `${x.id_kind}|${x.normalized}` });
     }
     const { data: al } = await c.from("field_aliases")
-      .select("canonical_name, alias_text, source").eq("source", "learned").limit(20);
+      .select("canonical_name, alias_text, normalized, source").eq("source", "learned").limit(20);
     for (const r of al ?? []) {
-      const x = r as { canonical_name: string; alias_text: string };
-      out.push({ kind: "Field alias", title: `"${x.alias_text}" → ${x.canonical_name}`, detail: "learned document label mapping" });
+      const x = r as { canonical_name: string; alias_text: string; normalized: string };
+      out.push({ kind: "Field alias", title: `"${x.alias_text}" → ${x.canonical_name}`, detail: "learned document label mapping", actionKind: "alias", key: `${x.canonical_name}|${x.normalized}` });
     }
     const { data: v } = await c.from("vendors")
       .select("canonical_name, entity_code, auto_added").eq("auto_added", true).limit(20);
     for (const r of v ?? []) {
       const x = r as { canonical_name: string; entity_code: string | null };
-      out.push({ kind: "Learned vendor", title: x.canonical_name, detail: x.entity_code ? `default entity ${x.entity_code} · auto-added` : "auto-added — confirm to lock" });
+      out.push({ kind: "Learned vendor", title: x.canonical_name, detail: x.entity_code ? `default entity ${x.entity_code} · auto-added` : "auto-added — confirm to lock", actionKind: "vendor", key: x.canonical_name });
     }
     return out;
   } catch { return []; }

@@ -317,6 +317,13 @@ export default function Payables({
     const rest = fromGls.filter((c) => !order.includes(c)).sort();
     return [...order, ...rest];
   }, [gls]);
+  // Deep-link: /payables?open=<id> opens that transaction's drawer. Lets the Travel
+  // trip page (and anywhere else) open the ONE shared editor instead of duplicating it.
+  useEffect(() => {
+    const open = new URLSearchParams(window.location.search).get("open");
+    if (open && rows.some((x) => x.id === open)) setDrawerId(open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const r = rows.find((x) => x.id === drawerId);
     if (!r) return;

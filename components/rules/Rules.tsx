@@ -12,6 +12,18 @@ const AGENT_TONE: Record<string, string> = {
 // agents a doc type can be routed to (current + planned)
 const AGENTS = ["payables", "travel", "bookkeeper", "reconciliation", "valuation", "contacts", "proforma"];
 
+const STATUS_BADGE: Record<string, { label: string; cls: string; icon: string }> = {
+  parked:   { label: "Parked",   cls: "bg-slate-100 text-slate-500",   icon: "○" },
+  in_setup: { label: "In setup", cls: "bg-amber-50 text-amber-700",    icon: "◔" },
+  active:   { label: "Active",   cls: "bg-emerald-50 text-emerald-700", icon: "●" },
+  drifting: { label: "Drifting", cls: "bg-red-50 text-red-700",         icon: "▲" },
+  archived: { label: "Archived", cls: "bg-slate-100 text-slate-400",    icon: "▫" },
+};
+function statusBadge(status: string) {
+  const s = STATUS_BADGE[status] ?? STATUS_BADGE.parked;
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.icon} {s.label}</span>;
+}
+
 export default function Rules({
   stats, report, learned, catalog, vendors,
 }: {
@@ -244,6 +256,7 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
               <table className="w-full text-[13px]">
                 <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-2 font-semibold">Document type</th>
+                  <th className="px-4 py-2 font-semibold">Status</th>
                   <th className="px-4 py-2 font-semibold">Routes to</th>
                   <th className="px-4 py-2 font-semibold">Fields</th>
                   <th className="px-4 py-2 font-semibold">Samples</th></tr></thead>
@@ -251,9 +264,10 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
                   {c.rows.map((r) => (
                     <tr key={r.docType}>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-900">{r.label}</div>
+                        <a href={`/rules/types/${encodeURIComponent(r.docType)}`} className="font-medium text-slate-900 hover:text-blue-600">{r.label}</a>
                         <div className="text-[11px] text-slate-400">{r.docType}</div>
                       </td>
+                      <td className="px-4 py-2.5">{statusBadge(r.status)}</td>
                       <td className="px-4 py-2.5">
                         <select value={routed[r.docType] ?? ""} onChange={(e) => setAgent(r.docType, e.target.value)}
                           className={`rounded-md border px-2 py-1 text-[12.5px] ${routed[r.docType] ? `border-transparent font-semibold ${AGENT_TONE[routed[r.docType]] ?? "bg-slate-100 text-slate-700"}` : "border-amber-300 text-amber-600"}`}>

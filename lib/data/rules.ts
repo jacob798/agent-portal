@@ -18,6 +18,7 @@ export interface DocTypeRow {
   agents: string[];      // owning agent(s); [] = unrouted
   samples: number;       // real documents of this type we've actually seen
   fields: number;        // fields defined in the spec
+  status: string;        // parked | in_setup | active | drifting | archived
 }
 export interface DocTypeCategory { category: string; rows: DocTypeRow[] }
 export interface KnowledgeVendor { name: string; aliases: string[]; entity: string | null; source: "learned" | "curated" | "synced" }
@@ -101,7 +102,7 @@ export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
   try {
     const c = db();
     const [types, routes, fieldRows, docRows] = await Promise.all([
-      c.from("doc_types").select("doc_type, display_name, category").limit(2000),
+      c.from("doc_types").select("doc_type, display_name, category, status").limit(2000),
       c.from("doc_type_routing").select("doc_type, agent, is_primary"),
       c.from("doc_type_fields").select("doc_type").limit(20000),
       c.from("documents").select("doc_type").not("doc_type", "is", null).limit(20000),
@@ -122,11 +123,12 @@ export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
     const samplesBy = countBy(docRows.data as { doc_type: string }[] | null);
 
     const rows: DocTypeRow[] = (types.data ?? []).map((t) => {
-      const x = t as { doc_type: string; display_name: string; category: string | null };
+      const x = t as { doc_type: string; display_name: string; category: string | null; status: string | null };
       return {
         docType: x.doc_type, label: x.display_name || x.doc_type,
         category: x.category || "Uncategorized", agents: agentsBy.get(x.doc_type) ?? [],
         samples: samplesBy.get(x.doc_type) ?? 0, fields: fieldsBy.get(x.doc_type) ?? 0,
+        status: x.status || "parked",
       };
     });
     const byCat = new Map<string, DocTypeRow[]>();
@@ -152,4 +154,56 @@ export async function getKnowledgeVendors(): Promise<KnowledgeVendor[]> {
       return { name: x.canonical_name, aliases: x.aliases ?? [], entity: x.entity_code, source };
     }).sort((a, b) => a.name.localeCompare(b.name));
   } catch { return []; }
+}
+
+export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[] }
+export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null }
+export interface DocTypeDetail {
+  docType: string; label: string; category: string; status: string;
+  agent: string | null; purpose: string | null; context: string | null;
+  fields: DocTypeField[]; samples: DocTypeSample[]; sampleCount: number;
+}
+
+/** Full detail for one document type: AI context, fields (the "look for"), and real samples. */
+export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail | null> {
+  try {
+    const c = db();
+    const [{ data: t }, { data: route }, { data: fields }, { data: aliases }, { data: samples }, { count }] =
+      await Promise.all([
+        c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
+        c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
+        c.from("doc_type_fields").select("canonical_name, data_type, required").eq("doc_type", docType),
+        c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
+        c.from("documents").select("document_id, vendor_id, source, updated_at").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
+        c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
+      ]);
+    if (!t) return null;
+    const tt = t as { doc_type: string; display_name: string; category: string | null; status: string | null; purpose: string | null; context_template: string | null };
+    const aliasBy = new Map<string, string[]>();
+    for (const a of aliases ?? []) {
+      const x = a as { canonical_name: string; alias_text: string };
+      const arr = aliasBy.get(x.canonical_name) ?? []; arr.push(x.alias_text); aliasBy.set(x.canonical_name, arr);
+    }
+    const seen = new Set<string>();
+    const fieldRows: DocTypeField[] = [];
+    for (const f of fields ?? []) {
+      const x = f as { canonical_name: string; data_type: string | null; required: boolean | null };
+      if (!x.canonical_name || seen.has(x.canonical_name)) continue;
+      seen.add(x.canonical_name);
+      fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [] });
+    }
+    const sampleRows: DocTypeSample[] = (samples ?? []).map((s) => {
+      const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null };
+      return { id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null, vendor: x.vendor_id, source: x.source };
+    });
+    return {
+      docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",
+      status: tt.status || "parked", agent: (route as { agent?: string } | null)?.agent ?? null,
+      purpose: tt.purpose, context: tt.context_template,
+      fields: fieldRows.sort((a, b) => Number(b.required) - Number(a.required) || a.name.localeCompare(b.name)),
+      samples: sampleRows, sampleCount: count ?? sampleRows.length,
+    };
+  } catch {
+    return null;
+  }
 }

@@ -178,6 +178,77 @@ export async function getKnowledgeVendors(): Promise<KnowledgeVendor[]> {
   } catch { return []; }
 }
 
+/** A resolution rule (signal→outcome) in the LEARNED priority order, with its live fire stats. */
+export interface ResolutionRule { signal: string; label: string; desc: string; fires: number; accuracy: number | null; enabled: boolean; manual?: boolean }
+export interface ResolutionGroup { field: "vendor" | "entity" | "gl"; label: string; rules: ResolutionRule[] }
+export interface ConfidenceGate { field: string; desc: string; threshold: number; nMin: number | null }
+
+// Canonical signal catalog per decision field — mirrors agents/payables/core/vendor_resolution.py
+// SEED_ORDER and the multi-signal entity/GL priority (CLAUDE.md). The DISPLAY order is the seed
+// default; live accuracy from signal_stats is what the system actually orders by (LEARNED).
+const SIGNAL_CATALOG: Record<ResolutionGroup["field"], { label: string; signals: { kind: string; label: string; desc: string; manual?: boolean }[] }> = {
+  vendor: { label: "Vendor", signals: [
+    { kind: "sender_domain", label: "Sender domain → vendor", desc: "the email's real sender (e.g. alaskaair.com) — hard to fake" },
+    { kind: "model_named_known", label: "Model named a known vendor", desc: "the read matches a vendor we already know" },
+    { kind: "doc_position", label: "Name position in document", desc: "the biller at the top of the page" },
+    { kind: "fingerprint", label: "Learned fingerprint", desc: "filename / account # / past patterns" },
+  ] },
+  entity: { label: "Entity", signals: [
+    { kind: "trip", label: "Trip context", desc: "the charge falls inside a known trip's window" },
+    { kind: "property_address", label: "Ship-to / property address", desc: "the address on the invoice maps to an entity" },
+    { kind: "invoice", label: "Invoice / email content", desc: "language on the document names the entity" },
+    { kind: "vendor", label: "Vendor default", desc: "this vendor's learned default entity" },
+    { kind: "card", label: "Payment card", desc: "secondary only — never decides entity alone" },
+  ] },
+  gl: { label: "GL account", signals: [
+    { kind: "vendor", label: "Vendor history", desc: "what this vendor has coded to before" },
+    { kind: "line_item", label: "Line-item content", desc: "what was actually purchased (split per line)" },
+    { kind: "trip", label: "Trip context", desc: "travel GL when attached to a trip" },
+  ] },
+};
+
+const CONFIDENCE_GATES: ConfidenceGate[] = [
+  { field: "Entity", desc: "expensive to get wrong → high bar", threshold: 0.97, nMin: 3 },
+  { field: "GL account", desc: "", threshold: 0.95, nMin: 3 },
+  { field: "Vendor", desc: "", threshold: 0.90, nMin: null },
+  { field: "Memo", desc: "cosmetic → low bar", threshold: 0.60, nMin: null },
+];
+
+export function getConfidenceGates(): ConfidenceGate[] { return CONFIDENCE_GATES; }
+
+/** Resolution rules per decision field, overlaid with LIVE fire counts + accuracy from
+ *  signal_stats (the learned priority). Order shown = seed default; accuracy is the truth. */
+export async function getResolutionRules(): Promise<ResolutionGroup[]> {
+  let statsByField = new Map<string, Map<string, { fires: number; agree: number }>>();
+  try {
+    const c = db();
+    const { data } = await c.from("signal_stats").select("field, signal_kind, agree_count, total_count").limit(5000);
+    for (const r of data ?? []) {
+      const x = r as { field: string; signal_kind: string; agree_count: number; total_count: number };
+      const m = statsByField.get(x.field) ?? new Map();
+      const e = m.get(x.signal_kind) ?? { fires: 0, agree: 0 };
+      e.fires += x.total_count ?? 0; e.agree += x.agree_count ?? 0;
+      m.set(x.signal_kind, e); statsByField.set(x.field, m);
+    }
+  } catch { statsByField = new Map(); }
+  return (Object.keys(SIGNAL_CATALOG) as ResolutionGroup["field"][]).map((field) => {
+    const cat = SIGNAL_CATALOG[field];
+    const fm = statsByField.get(field) ?? new Map();
+    return {
+      field, label: cat.label,
+      rules: cat.signals.map((s) => {
+        const st = fm.get(s.kind);
+        return {
+          signal: s.kind, label: s.label, desc: s.desc, manual: s.manual,
+          fires: st?.fires ?? 0,
+          accuracy: st && st.fires > 0 ? st.agree / st.fires : null,
+          enabled: true,
+        };
+      }),
+    };
+  });
+}
+
 export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null }
 export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null }
 export interface DocTypeDetail {

@@ -1733,9 +1733,18 @@ export default function Payables({
           </div>
         )}
 
+        {/* For a TRAVEL charge the QB vendor is the trip rollup; the real merchant (payee)
+            is what was actually paid — show it explicitly, don't bury it. */}
+        {r.vendorDisplay && r.vendorDisplay !== r.vendor && (
+          <div>
+            <div className={DLBL}>Payee (merchant paid)</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] font-medium text-slate-900">{r.vendorDisplay}</div>
+          </div>
+        )}
+
         {/* vendor — re-point to an existing vendor from the list (typeahead) */}
         <div>
-          <div className={DLBL}>Vendor</div>
+          <div className={DLBL}>{r.vendorDisplay && r.vendorDisplay !== r.vendor ? "Vendor (QuickBooks name)" : "Vendor"}</div>
           <input
             key={r.id}
             list="fc-vendor-list"

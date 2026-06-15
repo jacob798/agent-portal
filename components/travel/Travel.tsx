@@ -879,7 +879,7 @@ function TripDetail({
               <span className="text-lg">{i.ic}</span>
               <span className="w-24 shrink-0 text-[12.5px] text-slate-500">{i.when || "—"}</span>
               <div className="min-w-0 flex-1">
-                <div className="font-medium">{i.what}</div>
+                <div className="font-medium">{i.what}{i.who ? <span className="ml-2 text-[12px] font-normal text-slate-500">· {i.who}</span> : null}</div>
                 <div className="truncate text-[12.5px] text-slate-500">{i.sub}</div>
               </div>
               <div className="shrink-0 text-right">

@@ -50,9 +50,10 @@ function payableToLedger(r: {
 
 export interface ItinItem {
   ic: string;
+  what: string;             // the PAYEE — the merchant (Delta Air Lines), not the QB trip vendor
   when: string;
-  what: string;
   sub: string;
+  who?: string;             // the traveler/passenger on the ticket
   amount?: number | null;   // present for prepaid items (the confirmation = the receipt)
   prepaid?: boolean;        // true → posts to QB from the confirmation; false → awaits its invoice
 }

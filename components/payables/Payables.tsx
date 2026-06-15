@@ -1673,7 +1673,7 @@ export default function Payables({
           {travelBtn}
         </>
       );
-    if (r.exception === "vendor")
+    if (r.exception === "vendor" && !r.tripId)
       return (
         <>
           <Chip solid onClick={() => setLearnId(r.id)}>
@@ -2049,9 +2049,13 @@ export default function Payables({
     return (
       <>
         <Button className="flex-1" onClick={() => saveAndRemember(r)} disabled={posting}>Save</Button>
-        <Button className="flex-1" variant="secondary" onClick={() => setLearnId(r.id)}>
-          {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "Learn vendor…" : "Edit vendor…"}
-        </Button>
+        {/* Travel rows: the QB vendor is the trip rollup, auto-created by the trip — not an
+            editable vendor record. Don't offer Learn/Edit vendor for them. */}
+        {!r.tripId && (
+          <Button className="flex-1" variant="secondary" onClick={() => setLearnId(r.id)}>
+            {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "Learn vendor…" : "Edit vendor…"}
+          </Button>
+        )}
         <Button className="flex-1 !bg-brand !text-white hover:!opacity-90" onClick={() => approveAndPost(r)} disabled={posting}>
           {posting ? "Posting…" : "Post"}
         </Button>

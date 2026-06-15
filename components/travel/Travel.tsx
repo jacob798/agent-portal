@@ -95,6 +95,22 @@ export default function Travel({
     }
   }
 
+  // Assign a 'needs a trip' itinerary to an EXISTING trip — the worker then populates that trip's
+  // itinerary + stages any prepaid items on its next pass (records assigned_trip_id).
+  async function assignNeeds(id: string, tripId: string) {
+    if (!tripId) return;
+    setNeeds((n) => n.filter((x) => x.id !== id));
+    try {
+      await fetch("/api/travel/needs-trip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, tripId }),
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+
   function createFromNeeds(item: NeedsTripItem) {
     setPrefill({ dest: item.destination, start: item.startDate ?? "", end: item.endDate ?? "", needsId: item.id });
     setNewTripOpen(true);
@@ -209,7 +225,7 @@ export default function Travel({
             }
           />
           {needs.length > 0 && (
-            <NeedsTripInbox items={needs} onCreate={createFromNeeds} onDismiss={dismissNeeds} />
+            <NeedsTripInbox items={needs} trips={trips} onCreate={createFromNeeds} onAssign={assignNeeds} onDismiss={dismissNeeds} />
           )}
           <TripsList
             trips={trips}
@@ -646,13 +662,19 @@ function TripsList({
 
 function NeedsTripInbox({
   items,
+  trips,
   onCreate,
+  onAssign,
   onDismiss,
 }: {
   items: NeedsTripItem[];
+  trips: Trip[];
   onCreate: (item: NeedsTripItem) => void;
+  onAssign: (id: string, tripId: string) => void;
   onDismiss: (id: string) => void;
 }) {
+  // most-recent trips first — what an unmatched itinerary most likely belongs to
+  const tripOpts = [...trips].sort((a, b) => (b.start || "").localeCompare(a.start || ""));
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60">
       <div className="border-b border-amber-200 px-4 py-2.5 text-[13px] font-semibold text-amber-900">
@@ -673,11 +695,24 @@ function NeedsTripInbox({
               {it.summary && it.destination && it.destination !== "—" ? ` · ${it.summary}` : ""}
             </div>
           </div>
+          {/* assign to an EXISTING trip (the common case — trips are created manually) */}
+          <select
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) onAssign(it.id, e.target.value); }}
+            className="max-w-[200px] rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[12.5px] font-medium text-slate-700"
+          >
+            <option value="" disabled>Assign to trip…</option>
+            {tripOpts.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.dest}{t.dates ? ` · ${t.dates}` : ""}
+              </option>
+            ))}
+          </select>
           <button
             onClick={() => onCreate(it)}
-            className="rounded-lg bg-brand-navy px-3 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:border-slate-300"
           >
-            Create trip
+            New trip
           </button>
           <button
             onClick={() => onDismiss(it.id)}
@@ -842,10 +877,18 @@ function TripDetail({
           trip.itin.map((i, k) => (
             <div key={k} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
               <span className="text-lg">{i.ic}</span>
-              <span className="w-24 shrink-0 text-[12.5px] text-slate-500">{i.when}</span>
-              <div>
+              <span className="w-24 shrink-0 text-[12.5px] text-slate-500">{i.when || "—"}</span>
+              <div className="min-w-0 flex-1">
                 <div className="font-medium">{i.what}</div>
-                <div className="text-[12.5px] text-slate-500">{i.sub}</div>
+                <div className="truncate text-[12.5px] text-slate-500">{i.sub}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                {typeof i.amount === "number" ? (
+                  <div className="text-[13px] font-semibold tabular-nums">${i.amount.toFixed(2)}</div>
+                ) : null}
+                <div className={`text-[11px] font-medium ${i.prepaid ? "text-emerald-600" : "text-slate-400"}`}>
+                  {i.prepaid ? "posts to QB" : "awaits invoice"}
+                </div>
               </div>
             </div>
           ))

@@ -53,6 +53,8 @@ export interface ItinItem {
   when: string;
   what: string;
   sub: string;
+  amount?: number | null;   // present for prepaid items (the confirmation = the receipt)
+  prepaid?: boolean;        // true → posts to QB from the confirmation; false → awaits its invoice
 }
 // Posting lifecycle of a single attributed invoice in the trip ledger.
 //   open   = attributed, not yet staged (operator can post it)

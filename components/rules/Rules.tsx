@@ -33,6 +33,7 @@ export default function Rules({
   const [tab, setTab] = useState<Tab>("learned");
   const [learnedItems, setLearnedItems] = useState(learned);
   const [busy, setBusy] = useState<string | null>(null);
+  const [reviewKind, setReviewKind] = useState("all");
   const maxN = Math.max(1, ...report.map((r) => r.count));
 
   async function actLearned(it: LearnedItem, action: "approve" | "reject") {
@@ -98,30 +99,51 @@ export default function Rules({
         </Panel>
       )}
 
-      {tab === "learned" && (
-        <Panel title="Learned" hint="captured from your corrections & postings — review/keep">
-          {learnedItems.length === 0 ? <Empty>Nothing pending — corrections and postings will show here.</Empty> : (
-            <div className="divide-y divide-slate-100">
-              {learnedItems.map((x, i) => {
-                const tag = x.actionKind + x.key;
-                return (
-                  <div key={i} className="flex items-center gap-3 px-4 py-3">
-                    <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700">{x.kind}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-semibold text-slate-900">{x.title}</div>
-                      <div className="text-[12px] text-slate-500">{x.detail}</div>
-                    </div>
-                    <button disabled={busy === tag} onClick={() => actLearned(x, "approve")}
-                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50">✓ Approve</button>
-                    <button disabled={busy === tag} onClick={() => actLearned(x, "reject")}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-[12.5px] font-semibold text-red-600 disabled:opacity-50">Reject</button>
-                  </div>
-                );
-              })}
+      {tab === "learned" && (() => {
+        const kinds = ["all", ...Array.from(new Set(learnedItems.map((x) => x.kind)))];
+        const shown = learnedItems.filter((x) => reviewKind === "all" || x.kind === reviewKind);
+        return (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {kinds.map((k) => (
+                <button key={k} onClick={() => setReviewKind(k)}
+                  className={`rounded-lg px-3 py-1.5 text-[12.5px] font-medium ${reviewKind === k ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:text-slate-900"}`}>
+                  {k === "all" ? `All ${learnedItems.length}` : `${k} ${learnedItems.filter((x) => x.kind === k).length}`}
+                </button>
+              ))}
             </div>
-          )}
-        </Panel>
-      )}
+            <div className="overflow-hidden rounded-2xl border border-slate-200">
+              {shown.length === 0 ? <Empty>Nothing pending — corrections and postings will show here.</Empty> : (
+                <table className="w-full text-[13px]">
+                  <thead><tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                    <th className="px-4 py-2 font-semibold">What was learned</th>
+                    <th className="px-4 py-2 font-semibold">Kind</th>
+                    <th className="px-4 py-2 font-semibold">From</th>
+                    <th className="px-4 py-2 text-right font-semibold">Action</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {shown.map((x, i) => {
+                      const tag = x.actionKind + x.key;
+                      return (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-medium text-slate-900">{x.title}</td>
+                          <td className="px-4 py-2.5"><span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">{x.kind}</span></td>
+                          <td className="px-4 py-2.5 text-slate-500">{x.detail}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                            <button disabled={busy === tag} onClick={() => actLearned(x, "approve")}
+                              className="mr-3 font-semibold text-emerald-600 disabled:opacity-50" title="Approve">✓</button>
+                            <button disabled={busy === tag} onClick={() => actLearned(x, "reject")}
+                              className="font-semibold text-red-600 disabled:opacity-50" title="Reject">✕</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === "routing" && <RoutingCatalog catalog={catalog} />}
 

@@ -250,10 +250,10 @@ export async function getResolutionRules(): Promise<ResolutionGroup[]> {
 }
 
 export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null; scope: string; fieldKey: string | null }
-export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null; url: string | null; path: string | null }
+export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null; url: string | null; path: string | null; outcome: "auto" | "review" | null }
 export interface DocTypeDetail {
   docType: string; label: string; category: string; status: string;
-  agent: string | null; purpose: string | null; context: string | null;
+  agent: string | null; agents: string[]; purpose: string | null; context: string | null;
   fields: DocTypeField[]; samples: DocTypeSample[]; sampleCount: number;
 }
 
@@ -264,10 +264,10 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     const [{ data: t }, { data: route }, { data: fields }, { data: aliases }, { data: samples }, { count }] =
       await Promise.all([
         c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
-        c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
+        c.from("doc_type_routing").select("agent, is_primary").eq("doc_type", docType),
         c.from("doc_type_fields").select("canonical_name, required, source, last_value, scope, field_key").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
-        c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
+        c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path, status, exception_fields").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
       ]);
     if (!t) return null;
@@ -305,33 +305,39 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     try {
       const { data: pq, count: pc } = await c
         .from("payables_queue")
-        .select("id, vendor, vendor_display, doc_url, doc_path, created_at", { count: "exact" })
+        .select("id, vendor, vendor_display, doc_url, doc_path, created_at, status", { count: "exact" })
         .eq("doc_type", docType)
         .order("created_at", { ascending: false })
         .limit(25);
       pqCount = pc ?? 0;
       sampleRows = (pq ?? []).map((s) => {
-        const x = s as { id: string; vendor: string | null; vendor_display: string | null; doc_url: string | null; doc_path: string | null; created_at: string | null };
+        const x = s as { id: string; vendor: string | null; vendor_display: string | null; doc_url: string | null; doc_path: string | null; created_at: string | null; status: string | null };
+        const review = ["open", "exception", "review", "new"].includes((x.status ?? "").toLowerCase());
         return {
           id: x.id, date: x.created_at ? x.created_at.slice(0, 10) : null,
           vendor: x.vendor_display || x.vendor, source: null,
           path: x.doc_path ?? null, url: x.doc_url ?? null,
+          outcome: x.status ? (review ? "review" : "auto") as "auto" | "review" : null,
         };
       });
     } catch { sampleRows = []; }
     // fall back to the learning `documents` mirror only if there are no payables rows
     if (sampleRows.length === 0) {
       sampleRows = (samples ?? []).map((s) => {
-        const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null; dropbox_path: string | null };
+        const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null; dropbox_path: string | null; status: string | null; exception_fields: unknown[] | null };
+        const needs = (x.status ?? "").toLowerCase() === "exception" || (Array.isArray(x.exception_fields) && x.exception_fields.length > 0);
         return {
           id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null,
           vendor: x.vendor_id, source: x.source, path: x.dropbox_path ?? null, url: null,
+          outcome: x.status ? (needs ? "review" : "auto") as "auto" | "review" : null,
         };
       });
     }
+    const routeRows = (route ?? []) as { agent: string; is_primary: boolean | null }[];
+    const agents = [...routeRows].sort((a, b) => Number(b.is_primary) - Number(a.is_primary)).map((r) => r.agent).filter(Boolean);
     return {
       docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",
-      status: tt.status || "parked", agent: (route as { agent?: string } | null)?.agent ?? null,
+      status: tt.status || "parked", agent: agents[0] ?? null, agents,
       purpose: tt.purpose, context: tt.context_template,
       fields: fieldRows.sort((a, b) =>
         (a.scope === "document" ? 0 : 1) - (b.scope === "document" ? 0 : 1)

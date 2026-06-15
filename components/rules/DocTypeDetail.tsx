@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DocTypeDetail } from "@/lib/data/rules";
 
@@ -26,21 +26,32 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [fields, setFields] = useState(detail.fields);
   const [newField, setNewField] = useState("");
   const [newRequired, setNewRequired] = useState(false);
-  const [agent, setAgentState] = useState(detail.agent ?? "");
+  const [agents, setAgents] = useState<string[]>(detail.agents ?? []);
+  const [agentsOpen, setAgentsOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [samplesOpen, setSamplesOpen] = useState(false);
   const [samplePage, setSamplePage] = useState(0);
   const SAMPLES_PER_PAGE = 8;
 
-  async function changeAgent(a: string) {
-    setAgentState(a);
+  async function saveAgents(next: string[]) {
+    setAgents(next);
     try {
       await fetch("/api/rules/set-routing", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docType: detail.docType, agents: a ? [a] : [] }),
+        body: JSON.stringify({ docType: detail.docType, agents: next }),
       });
     } catch { /* best-effort */ }
   }
+  const toggleAgent = (a: string) =>
+    saveAgents(agents.includes(a) ? agents.filter((x) => x !== a) : [...agents, a]);
+
+  const agentsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!agentsOpen) return;
+    const onDoc = (e: MouseEvent) => { if (agentsRef.current && !agentsRef.current.contains(e.target as Node)) setAgentsOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [agentsOpen]);
 
   async function generate() {
     setBusy("gen"); setMsg(null);
@@ -233,11 +244,25 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
               <span>{detail.category}</span><span className="text-slate-300">·</span>
               <span className="inline-flex items-center gap-1.5">
                 Routes to
-                <select value={agent} onChange={(e) => changeAgent(e.target.value)}
-                  className={`rounded-md border px-1.5 py-0.5 text-[12px] ${agent ? "border-transparent bg-sky-50 font-semibold text-sky-700" : "border-amber-300 text-amber-600"}`}>
-                  <option value="">— unrouted —</option>
-                  {AGENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+                <span ref={agentsRef} className="relative inline-block">
+                  <button onClick={() => setAgentsOpen((v) => !v)}
+                    className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12px] ${agents.length ? "border-transparent bg-sky-50" : "border-amber-300 text-amber-600"}`}>
+                    {agents.length === 0 ? <span>— unrouted —</span> : agents.map((a) => (
+                      <span key={a} className="font-semibold text-sky-700">{a}</span>
+                    )).reduce((prev, cur, i) => i === 0 ? [cur] : [...prev, <span key={`s${i}`} className="text-sky-300">,</span>, cur], [] as React.ReactNode[])}
+                    <span className="text-slate-400">▾</span>
+                  </button>
+                  {agentsOpen && (
+                    <span className="absolute left-0 z-30 mt-1 block w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                      {AGENTS.map((a) => (
+                        <label key={a} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[12.5px] hover:bg-slate-50">
+                          <input type="checkbox" checked={agents.includes(a)} onChange={() => toggleAgent(a)} />
+                          <span>{a}</span>
+                        </label>
+                      ))}
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="text-slate-300">·</span><span>{fields.length} fields</span>
               <span className="text-slate-300">·</span><span>{detail.sampleCount} samples</span>
@@ -245,10 +270,10 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <button onClick={copyPrompt} disabled={copied}
-              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
+              className={`inline-flex h-9 min-w-[168px] items-center justify-center rounded-lg border border-transparent px-3.5 text-[12.5px] font-semibold text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
               {copied ? "✓ Copied" : "⧉ Copy Claude prompt"}</button>
             <button onClick={() => setShowImport((v) => !v)}
-              className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${showImport ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
+              className={`inline-flex h-9 items-center justify-center rounded-lg border px-3.5 text-[12.5px] font-semibold ${showImport ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
               ⬆ Import CSV</button>
           </div>
         </div>
@@ -367,6 +392,7 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
                 <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-2 font-semibold">Date</th>
                   <th className="px-4 py-2 font-semibold">Source</th>
+                  <th className="px-4 py-2 font-semibold">Outcome</th>
                   <th className="px-4 py-2 text-right font-semibold">Document</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
@@ -374,6 +400,13 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
                     <tr key={s.id} className="hover:bg-slate-50/60">
                       <td className="w-32 px-4 py-2.5 text-slate-500">{s.date ?? "—"}</td>
                       <td className="px-4 py-2.5 font-medium text-slate-800">{sampleLabel(s)}</td>
+                      <td className="px-4 py-2.5">
+                        {s.outcome === "auto"
+                          ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">auto-processed</span>
+                          : s.outcome === "review"
+                          ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">needed review</span>
+                          : <span className="text-[12px] text-slate-300">—</span>}
+                      </td>
                       <td className="px-4 py-2.5 text-right">
                         {s.url
                           ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-blue-600">Open ↗</a>

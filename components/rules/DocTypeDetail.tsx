@@ -59,18 +59,27 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
 
   function claudePrompt() {
     return `You are setting up the field spec for one document type in our finance system: "${detail.label}".
-I'll paste or attach one or more example ${detail.label.toLowerCase()} documents.
+I'll paste or attach one or more example documents of that type.
 
-Output ONLY a CSV (with the header row, no commentary, no code fences) with EXACTLY these columns:
+Produce a CSV with EXACTLY these columns:
 field,type,required,aliases,example
-
-- field: short snake_case name for a REUSABLE field this document TYPE carries (e.g. confirmation_code, passenger_name, flight_number, origin, destination, depart_datetime, total_amount, invoice_number, vendor_name, account_number, service_period). One row per field.
+- field: short snake_case name for a REUSABLE field this document TYPE carries
+  (e.g. confirmation_code, passenger_name, flight_number, origin, destination,
+  depart_datetime, total_amount, invoice_number, vendor_name, account_number,
+  service_period). One row per field.
 - type: one of text, number, currency, date, datetime, boolean.
 - required: yes or no (yes = every document of this type must have it).
-- aliases: the literal labels seen on the document for this field, separated by semicolons (e.g. Confirmation Code;Record Locator;Conf #). Blank if none.
+- aliases: the literal labels seen on the document for this field, separated by
+  semicolons (e.g. Confirmation Code;Record Locator;Conf #). Blank if none.
 - example: an example value taken from the document.
 
-Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that cell in double quotes.`;
+Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal
+boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that
+cell in double quotes.
+
+Output: write the result directly to a downloadable .csv file (named
+${detail.docType}_field_spec.csv) and give me the download link. Do not print the CSV in chat
+and do not wrap it in code fences — the file is the only deliverable.`;
   }
 
   async function copyPrompt() {

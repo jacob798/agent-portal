@@ -77,6 +77,80 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
     } catch { /* best-effort */ }
   }
 
+  function claudePrompt() {
+    return `You are setting up the field spec for one document type in our finance system: "${detail.label}".
+I'll paste or attach one or more example ${detail.label.toLowerCase()} documents.
+
+Output ONLY a CSV (with the header row, no commentary, no code fences) with EXACTLY these columns:
+field,type,required,aliases,example
+
+- field: short snake_case name for a REUSABLE field this document TYPE carries (e.g. confirmation_code, passenger_name, flight_number, origin, destination, depart_datetime, total_amount, invoice_number, vendor_name, account_number, service_period). One row per field.
+- type: one of text, number, currency, date, datetime, boolean.
+- required: yes or no (yes = every document of this type must have it).
+- aliases: the literal labels seen on the document for this field, separated by semicolons (e.g. Confirmation Code;Record Locator;Conf #). Blank if none.
+- example: an example value taken from the document.
+
+Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that cell in double quotes.`;
+  }
+
+  async function copyPrompt() {
+    try { await navigator.clipboard.writeText(claudePrompt()); setMsg("Prompt copied — paste it into Claude with your example document(s)."); }
+    catch { setMsg("Couldn't copy — select the prompt text manually."); }
+  }
+
+  // tiny CSV parser: handles quoted cells (with commas/newlines) + a header row
+  function parseCsv(text: string): Record<string, string>[] {
+    const rows: string[][] = [];
+    let row: string[] = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') q = false;
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ",") { row.push(cell); cell = ""; }
+      else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        if (cell !== "" || row.length) { row.push(cell); rows.push(row); row = []; cell = ""; }
+      } else cell += ch;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    if (!rows.length) return [];
+    const header = rows[0].map((h) => h.trim().toLowerCase());
+    return rows.slice(1).filter((r) => r.some((c) => c.trim())).map((r) =>
+      Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
+  }
+
+  async function importCsv(file: File) {
+    setBusy("csv"); setMsg(null);
+    try {
+      const text = await file.text();
+      const recs = parseCsv(text);
+      const fieldsIn = recs.map((r) => ({
+        name: r.field || r.name || "",
+        type: r.type || "text",
+        required: /^(y|yes|true|1|required)$/i.test(r.required || ""),
+        aliases: (r.aliases || "").split(";").map((a) => a.trim()).filter(Boolean),
+        example: r.example || "",
+      })).filter((f) => f.name);
+      if (!fieldsIn.length) { setMsg("No fields found — check the CSV has a header row: field,type,required,aliases,example"); setBusy(null); return; }
+      const r = await fetch("/api/rules/import-fields", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docType: detail.docType, fields: fieldsIn }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        setMsg(`Imported ${j.imported} fields${j.aliases ? ` + ${j.aliases} aliases` : ""} ✓`);
+        setTimeout(() => router.refresh(), 800);
+      } else {
+        const j = await r.json().catch(() => ({}));
+        setMsg(`Import failed: ${j.error ?? r.statusText}`);
+      }
+    } catch (e) { setMsg(`Import failed: ${e instanceof Error ? e.message : "error"}`); }
+    setBusy(null);
+  }
+
   async function addField() {
     const name = newField.trim();
     if (!name || fields.some((f) => f.name.toLowerCase() === name.toLowerCase())) { setNewField(""); return; }
@@ -200,6 +274,22 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Import the field spec from a CSV (generated in Claude) */}
+      <div className="rounded-xl border border-slate-300/70 bg-white p-4 shadow-sm">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-[13.5px] font-semibold text-slate-900">📑 Import fields from a CSV</span>
+          <span className="text-[11.5px] text-slate-400">run the prompt in Claude → upload the CSV it gives you</span>
+          <button onClick={copyPrompt}
+            className="ml-auto rounded-md bg-slate-900 px-2.5 py-1 text-[12px] font-medium text-white">⧉ Copy the Claude prompt</button>
+        </div>
+        <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+          <input type="file" accept=".csv,text/csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
+          <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
+          <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, type, required, aliases, example</span> — adds them to this type’s spec.</div>
+        </label>
       </div>
 
       {/* Teach from a sample */}

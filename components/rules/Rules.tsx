@@ -386,6 +386,29 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
   const [saving, setSaving] = useState<string | null>(null);
   const router = useRouter();
 
+  // + Add type
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newCat, setNewCat] = useState("");
+  const [newAgent, setNewAgent] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const [addErr, setAddErr] = useState<string | null>(null);
+  async function addType() {
+    const label = newLabel.trim();
+    if (!label) return;
+    setAddBusy(true); setAddErr(null);
+    try {
+      const r = await fetch("/api/rules/add-type", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, category: newCat.trim() || undefined, agents: newAgent ? [newAgent] : [] }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) router.push(`/rules/types/${encodeURIComponent(j.docType)}?tab=routing`);
+      else setAddErr(j.error ?? "Couldn't create type");
+    } catch (e) { setAddErr(e instanceof Error ? e.message : "error"); }
+    setAddBusy(false);
+  }
+
   const onSort = (c: RouteSortCol) => setSort((s) => (s.col === c ? { col: c, dir: (s.dir === 1 ? -1 : 1) } : { col: c, dir: 1 }));
 
   const view = useMemo(() => {
@@ -447,8 +470,32 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
             className={`rounded-lg px-3 py-1.5 text-[13px] font-medium ${state === f ? "bg-brand-navy text-white" : "bg-white text-slate-500 hover:text-slate-800 border border-slate-200"}`}>
             {f === "all" ? "All" : f === "unrouted" ? "Unrouted" : f === "unsampled" ? "No sample" : "Sampled"}</button>
         ))}
+        <button onClick={() => setAdding((v) => !v)}
+          className="rounded-lg bg-brand-navy px-3 py-1.5 text-[13px] font-semibold text-white">+ Add type</button>
         <span className="ml-auto text-[12.5px] text-slate-500">{view.length} shown · {allRows.length} types · {routedN} routed · {sampled} sampled</span>
       </div>
+
+      {adding && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <input autoFocus value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addType(); }}
+            placeholder="New type name (e.g. Train confirmation)"
+            className="w-64 rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
+          <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Category (e.g. Travel & Misc)"
+            className="w-52 rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
+          <select value={newAgent} onChange={(e) => setNewAgent(e.target.value)}
+            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[13px] text-slate-700">
+            <option value="">Route to… (optional)</option>
+            {AGENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <button onClick={addType} disabled={!newLabel.trim() || addBusy}
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50">
+            {addBusy ? "Creating…" : "Create"}</button>
+          <button onClick={() => { setAdding(false); setAddErr(null); }} className="text-[13px] text-slate-500">Cancel</button>
+          {newLabel.trim() && <span className="text-[11.5px] text-slate-400">slug: {newLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}</span>}
+          {addErr && <span className="text-[12px] text-red-600">{addErr}</span>}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-[13px]">

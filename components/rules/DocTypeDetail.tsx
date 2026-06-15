@@ -233,6 +233,21 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
     setBusy(null);
   }
 
+  const [editMeta, setEditMeta] = useState(false);
+  const [mLabel, setMLabel] = useState(detail.label);
+  const [mCat, setMCat] = useState(detail.category);
+  async function saveMeta() {
+    setEditMeta(false);
+    if (mLabel.trim() === detail.label && mCat.trim() === detail.category) return;
+    try {
+      await fetch("/api/rules/set-type-meta", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docType: detail.docType, label: mLabel, category: mCat }),
+      });
+      router.refresh();
+    } catch { /* best-effort */ }
+  }
+
   async function addField() {
     const name = newField.trim();
     if (!name || fields.some((f) => f.name.toLowerCase() === name.toLowerCase())) { setNewField(""); return; }
@@ -269,12 +284,25 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[20px] font-semibold tracking-tight text-brand-navy">{detail.label}</h1>
+              {editMeta ? (
+                <input autoFocus value={mLabel} onChange={(e) => setMLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveMeta(); }}
+                  className="rounded-md border border-slate-300 px-2 py-0.5 text-[19px] font-semibold text-brand-navy" />
+              ) : (
+                <h1 className="text-[20px] font-semibold tracking-tight text-brand-navy">{detail.label}</h1>
+              )}
               <span className="font-mono text-[11px] text-slate-400">{detail.docType}</span>
               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${st.cls}`}>{st.icon} {st.label}</span>
+              {editMeta
+                ? <button onClick={saveMeta} className="text-[12px] font-medium text-emerald-600">save</button>
+                : <button onClick={() => { setMLabel(detail.label); setMCat(detail.category); setEditMeta(true); }} className="text-[12px] text-slate-400 hover:text-slate-600">✎ rename</button>}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-slate-500">
-              <span>{detail.category}</span><span className="text-slate-300">·</span>
+              {editMeta
+                ? <input value={mCat} onChange={(e) => setMCat(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveMeta(); }}
+                    placeholder="Category" className="rounded-md border border-slate-300 px-2 py-0.5 text-[12.5px]" />
+                : <span>{detail.category}</span>}
+              <span className="text-slate-300">·</span>
               <span className="inline-flex items-center gap-1.5">
                 Routes to
                 <span ref={agentsRef} className="relative inline-block">

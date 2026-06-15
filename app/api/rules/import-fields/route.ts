@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
   const token = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
+  // REPLACE semantics: the imported CSV is the authoritative spec for this type. Clear the
+  // type's existing fields + type-scoped aliases first, so re-importing a corrected CSV doesn't
+  // accumulate and the seed's universal fields don't linger alongside it.
+  await c.from("doc_type_fields").delete().eq("doc_type", docType);
+  await c.from("field_aliases").delete().eq("scope", "type").eq("scope_key", docType);
+
   let imported = 0, aliasCount = 0;
   for (const f of fields) {
     const name = (f.name ?? "").trim();

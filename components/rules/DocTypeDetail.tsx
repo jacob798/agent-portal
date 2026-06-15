@@ -20,7 +20,6 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [ctxSaved, setCtxSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
   const st = STATUS[detail.status] ?? STATUS.parked;
 
   const [fields, setFields] = useState(detail.fields);
@@ -28,7 +27,6 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [newRequired, setNewRequired] = useState(false);
   const [agents, setAgents] = useState<string[]>(detail.agents ?? []);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [samplesOpen, setSamplesOpen] = useState(false);
   const [samplePage, setSamplePage] = useState(0);
   const SAMPLES_PER_PAGE = 8;
@@ -86,150 +84,21 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
     } catch { /* best-effort */ }
   }
 
-  function claudePrompt() {
-    const contextNarrative = (detail.context || detail.purpose || "(no context authored yet — infer it from the documents.)").trim();
-    return `You are building the FIELD SPEC for one document type in our extraction system.
-Document type: "${detail.label}"   (If blank, infer it from the documents and the context below, and
-state what you inferred.)
-
-DOCUMENT TYPE CONTEXT — a narrative of what this document is and what the business uses it for.
-Authored at the type level; NOT extracted from any single document. Read it FIRST:
-"""
-${contextNarrative}
-"""
-Use the context to:
-- confirm the document type and resolve ambiguous classification;
-- prioritize the fields that serve the stated business use;
-- identify information the PURPOSE requires that the documents themselves do NOT contain.
-Do NOT invent values for purpose-implied fields that aren't on the page.
-
-The spec is the ONLY per-type configuration in our system — the extraction prompt, database, and
-code are constant across every document type. I will attach one or more example documents, which
-may come from DIFFERENT vendors that word the same information differently. Build ONE unified spec
-across ALL of them — never one spec per document.
-
-1) HEADER vs REPEATING GROUPS
-Treat each document as a HEADER (parent: values appearing once per document — confirmation number,
-parties, totals) plus zero or more REPEATING GROUPS (child tables: sub-records occurring many times
-— flight segments, invoice line items, installments, draw lines). One document has many group rows.
-- scope = document for header fields; scope = a single snake_case GROUP NAME for repeating fields.
-- Define each group's fields ONCE. Never flight_1_number / flight_2_number — that is ONE field
-  "flight_number", scope=segment; several in a document is DATA, not more fields.
-- Same repeating thing under different vendor labels ("Flight 1 / Flight 2" vs a table) is ONE group.
-- Link the tables: mark the document's unique identifier key=primary (scope=document); in EVERY
-  group add a field copying it (same name, scope=<group>, key=parent) and an ordinal <group>_index
-  (type=number, key=primary).
-
-2) MERGE VENDOR WORDING — one row per logical field PER SCOPE
-- A field is identified by MEANING, not by any one vendor's label.
-- Same meaning under different labels → ONE row; put every distinct on-document label in \`aliases\`
-  (semicolon-separated, deduped). Vendor wording is aliases, never new fields.
-- Only merge when terms truly mean the same thing. If two could differ — even if values match on
-  these samples (fare-only total vs all-in charged total) — keep them SEPARATE and note the pair.
-- Before finalizing, scan each scope for two rows that mean the same thing and collapse them.
-
-3) SOURCE — where each field's value comes from (driven by the context above)
-- document — read directly off the document.
-- derived  — computable from other document fields (e.g. trip_duration from depart/arrive).
-- manual   — required by the stated purpose but NOT on the document (e.g. entity, project, client,
-             business_purpose, gl_code for cost allocation). Include these as rows so the system
-             knows to collect them; leave example and aliases blank. Never fill them from the document.
-
-4) REPRESENTATION CONSISTENCY — so values join cleanly downstream
-Pick ONE canonical form per field and record it in \`format\`; extraction must convert to it
-regardless of how the document printed it:
-- locations → IATA code (format=iata_code); dates → ISO 8601 (iso_date); datetimes → iso_datetime;
-  currency → plain decimal, no symbol/separators (decimal); otherwise leave format blank.
-- Where a location is useful as both key and label, emit TWO fields: <thing>_code (iata_code) and
-  <thing>_name (text). The same logical place uses the same field names and format everywhere.
-
-5) SCOPE OF CAPTURE
-Capture identifiers, parties, dates, amounts, locations. Do NOT capture marketing or legal
-boilerplate (disclaimers, ads, terms, baggage policy, hazmat notices).
-
-OUTPUT — a CSV with EXACTLY these columns:
-field,scope,type,required,source,key,format,aliases,example
-- field: snake_case logical field name.
-- scope: document, or a single snake_case repeating-group name.
-- type: text, number, currency, date, datetime, boolean.
-- required: yes ONLY if present in every example (document scope) or every group instance (group
-  scope); otherwise no.  (For source=manual, base required on the business need, not the samples.)
-- source: document, derived, or manual.
-- key: primary, parent, or blank.
-- format: iata_code, iso_date, iso_datetime, decimal, or blank.
-- aliases: literal labels across the documents, semicolon-separated; blank if none.
-- example: one example value in the field's canonical format; blank for manual fields.
-Field and group names lowercase snake_case. If a value contains a comma, wrap that cell in quotes.
-
-DELIVERY:
-Write the result to a downloadable .csv file named ${detail.docType}_field_spec.csv and give me the link.
-After the file, briefly note: the type (if inferred), any look-alike fields kept separate, any merge
-or group-boundary call you were unsure about, any location you couldn't resolve to a code, and any
-\`manual\` fields you added from the context that the documents don't supply. Otherwise just the file.`;
-  }
-
-  async function copyPrompt() {
+  async function populateFromAgents() {
+    setBusy("materialize"); setMsg(null);
     try {
-      await navigator.clipboard.writeText(claudePrompt());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { setMsg("Couldn't copy — select the prompt text manually."); }
-  }
-
-  // tiny CSV parser: handles quoted cells (with commas/newlines) + a header row
-  function parseCsv(text: string): Record<string, string>[] {
-    const rows: string[][] = [];
-    let row: string[] = [], cell = "", q = false;
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (q) {
-        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-        else if (ch === '"') q = false;
-        else cell += ch;
-      } else if (ch === '"') q = true;
-      else if (ch === ",") { row.push(cell); cell = ""; }
-      else if (ch === "\n" || ch === "\r") {
-        if (ch === "\r" && text[i + 1] === "\n") i++;
-        if (cell !== "" || row.length) { row.push(cell); rows.push(row); row = []; cell = ""; }
-      } else cell += ch;
-    }
-    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
-    if (!rows.length) return [];
-    const header = rows[0].map((h) => h.trim().toLowerCase());
-    return rows.slice(1).filter((r) => r.some((c) => c.trim())).map((r) =>
-      Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
-  }
-
-  async function importCsv(file: File) {
-    setBusy("csv"); setMsg(null);
-    try {
-      const text = await file.text();
-      const recs = parseCsv(text);
-      const fieldsIn = recs.map((r) => ({
-        name: r.field || r.name || "",
-        scope: r.scope || "document",        // 'document' (header) or a repeating-group name
-        type: r.type || "text",
-        required: /^(y|yes|true|1|required)$/i.test(r.required || ""),
-        source: r.source || "document",      // document | derived | manual
-        key: r.key || "",                    // primary | parent | blank
-        format: r.format || "",              // iata_code | iso_date | iso_datetime | decimal
-        aliases: (r.aliases || "").split(";").map((a) => a.trim()).filter(Boolean),
-        example: r.example || "",
-      })).filter((f) => f.name);
-      if (!fieldsIn.length) { setMsg("No fields found — check the CSV header row: field,scope,type,required,source,key,format,aliases,example"); setBusy(null); return; }
-      const r = await fetch("/api/rules/import-fields", {
+      const r = await fetch("/api/rules/materialize-fields", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docType: detail.docType, fields: fieldsIn }),
+        body: JSON.stringify({ docType: detail.docType }),
       });
+      const j = await r.json().catch(() => ({}));
       if (r.ok) {
-        const j = await r.json();
-        setMsg(`Imported ${j.imported} fields${j.aliases ? ` + ${j.aliases} aliases` : ""} ✓`);
-        setTimeout(() => router.refresh(), 800);
-      } else {
-        const j = await r.json().catch(() => ({}));
-        setMsg(`Import failed: ${j.error ?? r.statusText}`);
-      }
-    } catch (e) { setMsg(`Import failed: ${e instanceof Error ? e.message : "error"}`); }
+        setMsg(j.agents?.length
+          ? `Populating from ${j.agents.join(" + ")} — the fields they need appear here in a few seconds.`
+          : "This type isn't routed to an agent yet — set 'Routes to' first, then populate.");
+        setTimeout(() => router.refresh(), 4000);
+      } else setMsg(`Couldn't populate: ${j.error ?? r.statusText}`);
+    } catch (e) { setMsg(`Couldn't populate: ${e instanceof Error ? e.message : "error"}`); }
     setBusy(null);
   }
 
@@ -340,30 +209,13 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
             </div>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <button onClick={copyPrompt} disabled={copied}
-              className={`inline-flex h-9 min-w-[168px] items-center justify-center rounded-lg border border-transparent px-3.5 text-[12.5px] font-semibold text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
-              {copied ? "✓ Copied" : "⧉ Copy Claude prompt"}</button>
-            <button onClick={() => setShowImport((v) => !v)}
-              className={`inline-flex h-9 items-center justify-center rounded-lg border px-3.5 text-[12.5px] font-semibold ${showImport ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
-              ⬆ Import CSV</button>
+            <button onClick={populateFromAgents} disabled={busy === "materialize"}
+              title="Set this type's fields to exactly what its routed agents need"
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-brand-navy px-3.5 text-[12.5px] font-semibold text-white disabled:opacity-50">
+              {busy === "materialize" ? "Populating…" : "↻ Populate fields from agents"}</button>
           </div>
         </div>
-
-        {/* Import panel — opens inline at the top, no scrolling */}
-        {showImport && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-2 text-[12.5px] text-slate-600">
-              Run <b>Copy Claude prompt</b> against your example documents, then drop the CSV here.
-            </div>
-            <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-white p-4 text-center">
-              <input type="file" accept=".csv,text/csv" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
-              <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
-              <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, source, key, format, aliases, example</span> — replaces this type’s spec.</div>
-            </label>
-            {msg && <div className="mt-2 text-[12px] text-emerald-700">{msg}</div>}
-          </div>
-        )}
+        {msg && <div className="mt-3 text-[12px] text-emerald-700">{msg}</div>}
       </div>
 
       {/* AI document-type context — editable + saved */}
@@ -401,7 +253,7 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
           </tr></thead>
           <tbody className="divide-y divide-slate-100">
             {fields.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — add one below, or import a CSV.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — route this type to an agent and hit “Populate fields from agents”, or add one below.</td></tr>
             )}
             {fields.slice(0, 120).map((f) => (
               <tr key={`${f.scope}:${f.name}`}>

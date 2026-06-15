@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DocTypeDetail } from "@/lib/data/rules";
 
+const AGENTS = ["payables", "travel", "bookkeeper", "reconciliation", "valuation", "contacts", "proforma"];
+
 const STATUS: Record<string, { label: string; cls: string; icon: string }> = {
   parked:   { label: "Parked",   cls: "bg-slate-100 text-slate-500",   icon: "○" },
   in_setup: { label: "In setup", cls: "bg-amber-50 text-amber-700",    icon: "◔" },
@@ -24,6 +26,21 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [fields, setFields] = useState(detail.fields);
   const [newField, setNewField] = useState("");
   const [newRequired, setNewRequired] = useState(false);
+  const [agent, setAgentState] = useState(detail.agent ?? "");
+  const [showImport, setShowImport] = useState(false);
+  const [samplesOpen, setSamplesOpen] = useState(false);
+  const [samplePage, setSamplePage] = useState(0);
+  const SAMPLES_PER_PAGE = 8;
+
+  async function changeAgent(a: string) {
+    setAgentState(a);
+    try {
+      await fetch("/api/rules/set-routing", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docType: detail.docType, agents: a ? [a] : [] }),
+      });
+    } catch { /* best-effort */ }
+  }
 
   async function generate() {
     setBusy("gen"); setMsg(null);
@@ -185,16 +202,72 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
     } catch { /* best-effort */ }
   }
 
+  const idLike = (v: string | null) => !!v && /^[A-Z]{2,6}:\d+$/.test(v);
+  const sampleLabel = (s: { vendor: string | null; source: string | null }) =>
+    (s.vendor && !idLike(s.vendor) ? s.vendor : s.source) || "—";
+  const sampleCount = detail.samples.length;
+  const pageCount = Math.max(1, Math.ceil(sampleCount / SAMPLES_PER_PAGE));
+  const pageSamples = detail.samples.slice(samplePage * SAMPLES_PER_PAGE, (samplePage + 1) * SAMPLES_PER_PAGE);
+
   return (
-    <div className="mx-auto max-w-5xl space-y-4 px-6 py-8">
-      <a href="/rules?tab=routing" className="text-[12.5px] text-blue-600">← Document types</a>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="text-[19px] font-semibold tracking-tight text-brand-navy">{detail.label}</span>
-        <span className="font-mono text-[11.5px] text-slate-400">{detail.docType}</span>
-        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${st.cls}`}>{st.icon} {st.label}</span>
-        <span className="text-[12.5px] text-slate-500">
-          {detail.category} · routes to <span className="text-blue-600">{detail.agent ?? "— unrouted"}</span> · {fields.length} fields · {detail.sampleCount} samples
-        </span>
+    <div className="mx-auto max-w-5xl space-y-4 px-6 py-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-[12.5px] text-slate-400">
+        <a href="/rules" className="hover:text-slate-600">Rules &amp; Learning</a>
+        <span>›</span>
+        <a href="/rules?tab=routing" className="hover:text-slate-600">Document types</a>
+        <span>›</span>
+        <span className="text-slate-600">{detail.label}</span>
+      </nav>
+
+      {/* Header card */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[20px] font-semibold tracking-tight text-brand-navy">{detail.label}</h1>
+              <span className="font-mono text-[11px] text-slate-400">{detail.docType}</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${st.cls}`}>{st.icon} {st.label}</span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-slate-500">
+              <span>{detail.category}</span><span className="text-slate-300">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                Routes to
+                <select value={agent} onChange={(e) => changeAgent(e.target.value)}
+                  className={`rounded-md border px-1.5 py-0.5 text-[12px] ${agent ? "border-transparent bg-sky-50 font-semibold text-sky-700" : "border-amber-300 text-amber-600"}`}>
+                  <option value="">— unrouted —</option>
+                  {AGENTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </span>
+              <span className="text-slate-300">·</span><span>{fields.length} fields</span>
+              <span className="text-slate-300">·</span><span>{detail.sampleCount} samples</span>
+            </div>
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <button onClick={copyPrompt} disabled={copied}
+              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
+              {copied ? "✓ Copied" : "⧉ Copy Claude prompt"}</button>
+            <button onClick={() => setShowImport((v) => !v)}
+              className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${showImport ? "border-brand-navy bg-brand-navy text-white" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
+              ⬆ Import CSV</button>
+          </div>
+        </div>
+
+        {/* Import panel — opens inline at the top, no scrolling */}
+        {showImport && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 text-[12.5px] text-slate-600">
+              Run <b>Copy Claude prompt</b> against your example documents, then drop the CSV here.
+            </div>
+            <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-white p-4 text-center">
+              <input type="file" accept=".csv,text/csv" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
+              <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
+              <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, key, aliases, example</span> — replaces this type’s spec.</div>
+            </label>
+            {msg && <div className="mt-2 text-[12px] text-emerald-700">{msg}</div>}
+          </div>
+        )}
       </div>
 
       {/* AI document-type context — editable + saved */}
@@ -276,51 +349,55 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
         </table>
       </div>
 
-      {/* Sample documents — clickable */}
+      {/* Sample documents — collapsible + paginated */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+        <button onClick={() => setSamplesOpen((v) => !v)}
+          className="flex w-full items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-left">
+          <span className="text-slate-400">{samplesOpen ? "▾" : "▸"}</span>
           <span className="text-[13.5px] font-semibold text-slate-900">Sample documents</span>
-          <span className="text-[12px] text-slate-500">{detail.sampleCount}</span>
-        </div>
-        {detail.samples.length === 0 ? (
-          <div className="px-4 py-6 text-center text-[13px] text-slate-400">No documents of this type yet.</div>
-        ) : (
-          <table className="w-full text-[13px]">
-            <tbody className="divide-y divide-slate-100">
-              {detail.samples.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/60">
-                  <td className="w-28 px-4 py-2.5 text-slate-500">{s.date ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-800">{s.vendor ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-slate-400">{s.source ?? ""}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    {s.url
-                      ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-blue-600">Open ↗</a>
-                      : <span className="text-[12px] text-slate-300" title={s.path ?? ""}>filed</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{detail.sampleCount}</span>
+          <span className="ml-auto text-[12px] text-slate-400">real documents we&apos;ve seen of this type</span>
+        </button>
+        {samplesOpen && (
+          detail.samples.length === 0 ? (
+            <div className="px-4 py-6 text-center text-[13px] text-slate-400">No documents of this type yet.</div>
+          ) : (
+            <>
+              <table className="w-full text-[13px]">
+                <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
+                  <th className="px-4 py-2 font-semibold">Date</th>
+                  <th className="px-4 py-2 font-semibold">Source</th>
+                  <th className="px-4 py-2 text-right font-semibold">Document</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pageSamples.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50/60">
+                      <td className="w-32 px-4 py-2.5 text-slate-500">{s.date ?? "—"}</td>
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{sampleLabel(s)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {s.url
+                          ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium text-blue-600">Open ↗</a>
+                          : <span className="text-[12px] text-slate-300" title={s.path ?? "not filed to Dropbox"}>not filed</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-[12px] text-slate-500">
+                  <span>{samplePage * SAMPLES_PER_PAGE + 1}–{Math.min((samplePage + 1) * SAMPLES_PER_PAGE, sampleCount)} of {sampleCount}{detail.sampleCount > sampleCount ? ` (newest ${sampleCount})` : ""}</span>
+                  <span className="flex gap-1">
+                    <button disabled={samplePage === 0} onClick={() => setSamplePage((p) => Math.max(0, p - 1))}
+                      className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40">‹ Prev</button>
+                    <button disabled={samplePage >= pageCount - 1} onClick={() => setSamplePage((p) => Math.min(pageCount - 1, p + 1))}
+                      className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40">Next ›</button>
+                  </span>
+                </div>
+              )}
+            </>
+          )
         )}
       </div>
-
-      {/* Import the field spec from a CSV (generated in Claude) */}
-      <div className="rounded-xl border border-slate-300/70 bg-white p-4 shadow-sm">
-        <div className="mb-1.5 flex flex-wrap items-center gap-2">
-          <span className="text-[13.5px] font-semibold text-slate-900">📑 Import fields from a CSV</span>
-          <span className="text-[11.5px] text-slate-400">run the prompt in Claude → upload the CSV it gives you</span>
-          <button onClick={copyPrompt} disabled={copied}
-            className={`ml-auto rounded-md px-2.5 py-1 text-[12px] font-medium text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
-            {copied ? "✓ Copied to clipboard" : "⧉ Copy the Claude prompt"}</button>
-        </div>
-        <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
-          <input type="file" accept=".csv,text/csv" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
-          <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
-          <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, key, aliases, example</span> — replaces this type’s spec.</div>
-        </label>
-      </div>
-
     </div>
   );
 }

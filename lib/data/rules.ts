@@ -285,31 +285,44 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       seen.add(x.canonical_name);
       fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
     }
-    // Clickable samples: the learning `documents` rows store a dropbox_path; the shareable
-    // link lives on payables_queue.doc_url for the same path — join on it (L1).
-    const paths = [...new Set((samples ?? []).map((s) => (s as { dropbox_path?: string }).dropbox_path).filter(Boolean) as string[])];
-    const urlByPath = new Map<string, string>();
-    if (paths.length) {
-      const { data: pq } = await c.from("payables_queue").select("doc_path, doc_url").in("doc_path", paths);
-      for (const r of pq ?? []) {
-        const x = r as { doc_path: string | null; doc_url: string | null };
-        if (x.doc_path && x.doc_url) urlByPath.set(x.doc_path, x.doc_url);
-      }
+    // Clickable samples: the REAL documents of this type are the payables_queue rows — they
+    // carry the shareable doc_url directly, so the operator can open each one. (The learning
+    // `documents` mirror often has no share link, which is why samples weren't clickable.)
+    let sampleRows: DocTypeSample[] = [];
+    let pqCount = 0;
+    try {
+      const { data: pq, count: pc } = await c
+        .from("payables_queue")
+        .select("id, vendor, vendor_display, doc_url, doc_path, created_at", { count: "exact" })
+        .eq("doc_type", docType)
+        .order("created_at", { ascending: false })
+        .limit(25);
+      pqCount = pc ?? 0;
+      sampleRows = (pq ?? []).map((s) => {
+        const x = s as { id: string; vendor: string | null; vendor_display: string | null; doc_url: string | null; doc_path: string | null; created_at: string | null };
+        return {
+          id: x.id, date: x.created_at ? x.created_at.slice(0, 10) : null,
+          vendor: x.vendor_display || x.vendor, source: null,
+          path: x.doc_path ?? null, url: x.doc_url ?? null,
+        };
+      });
+    } catch { sampleRows = []; }
+    // fall back to the learning `documents` mirror only if there are no payables rows
+    if (sampleRows.length === 0) {
+      sampleRows = (samples ?? []).map((s) => {
+        const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null; dropbox_path: string | null };
+        return {
+          id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null,
+          vendor: x.vendor_id, source: x.source, path: x.dropbox_path ?? null, url: null,
+        };
+      });
     }
-    const sampleRows: DocTypeSample[] = (samples ?? []).map((s) => {
-      const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null; dropbox_path: string | null };
-      return {
-        id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null,
-        vendor: x.vendor_id, source: x.source, path: x.dropbox_path ?? null,
-        url: x.dropbox_path ? urlByPath.get(x.dropbox_path) ?? null : null,
-      };
-    });
     return {
       docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",
       status: tt.status || "parked", agent: (route as { agent?: string } | null)?.agent ?? null,
       purpose: tt.purpose, context: tt.context_template,
       fields: fieldRows.sort((a, b) => Number(b.required) - Number(a.required) || a.name.localeCompare(b.name)),
-      samples: sampleRows, sampleCount: count ?? sampleRows.length,
+      samples: sampleRows, sampleCount: pqCount || count || sampleRows.length,
     };
   } catch {
     return null;

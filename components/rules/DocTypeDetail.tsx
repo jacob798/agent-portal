@@ -18,6 +18,7 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [ctxSaved, setCtxSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
   const st = STATUS[detail.status] ?? STATUS.parked;
 
   const [fields, setFields] = useState(detail.fields);
@@ -109,8 +110,11 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
   }
 
   async function copyPrompt() {
-    try { await navigator.clipboard.writeText(claudePrompt()); setMsg("Prompt copied — paste it into Claude with your example document(s)."); }
-    catch { setMsg("Couldn't copy — select the prompt text manually."); }
+    try {
+      await navigator.clipboard.writeText(claudePrompt());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { setMsg("Couldn't copy — select the prompt text manually."); }
   }
 
   // tiny CSV parser: handles quoted cells (with commas/newlines) + a header row
@@ -305,8 +309,9 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <span className="text-[13.5px] font-semibold text-slate-900">📑 Import fields from a CSV</span>
           <span className="text-[11.5px] text-slate-400">run the prompt in Claude → upload the CSV it gives you</span>
-          <button onClick={copyPrompt}
-            className="ml-auto rounded-md bg-slate-900 px-2.5 py-1 text-[12px] font-medium text-white">⧉ Copy the Claude prompt</button>
+          <button onClick={copyPrompt} disabled={copied}
+            className={`ml-auto rounded-md px-2.5 py-1 text-[12px] font-medium text-white transition-colors ${copied ? "bg-emerald-600" : "bg-slate-900 hover:bg-slate-700"}`}>
+            {copied ? "✓ Copied to clipboard" : "⧉ Copy the Claude prompt"}</button>
         </div>
         <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
           <input type="file" accept=".csv,text/csv" className="hidden"

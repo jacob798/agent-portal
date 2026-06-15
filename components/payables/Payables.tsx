@@ -2314,10 +2314,10 @@ function DocTypeCombobox({
         <div className="absolute z-30 mt-1 w-72 rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-1.5">
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 200+ types…"
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search types…"
               className="w-full rounded-md border border-slate-200 px-2 py-1 text-[12px] outline-none focus:border-blue-300" />
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-96 overflow-y-auto py-1">
             <button onClick={() => { onChange(""); setOpen(false); }}
               className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-400 hover:bg-slate-50">— identify type —</button>
             {value && !current && (

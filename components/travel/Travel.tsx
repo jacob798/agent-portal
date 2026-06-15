@@ -662,11 +662,15 @@ function NeedsTripInbox({
         <div key={it.id} className="flex items-center gap-3 border-b border-amber-100 px-4 py-2.5 last:border-0">
           <span className="text-lg">🧭</span>
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-slate-900">{it.destination}</div>
+            {/* headline = destination when we have one, else the booking identity (vendor/type/
+                conf) so a no-destination itinerary is still recognizable enough to assign */}
+            <div className="truncate font-semibold text-slate-900">
+              {it.destination && it.destination !== "—" ? it.destination : (it.summary || "Unidentified itinerary")}
+            </div>
             <div className="truncate text-[12.5px] text-slate-500">
               {it.dates
                 || (it.startDate ? `${it.startDate}${it.endDate && it.endDate !== it.startDate ? " – " + it.endDate : ""}` : "dates TBD")}
-              {it.summary && it.summary !== it.destination ? ` · ${it.summary}` : ""}
+              {it.summary && it.destination && it.destination !== "—" ? ` · ${it.summary}` : ""}
             </div>
           </div>
           <button

@@ -21,7 +21,7 @@ export interface DocTypeRow {
   status: string;        // parked | in_setup | active | drifting | archived
 }
 export interface DocTypeCategory { category: string; rows: DocTypeRow[] }
-export interface KnowledgeVendor { name: string; aliases: string[]; entity: string | null; source: "learned" | "curated" | "synced" }
+export interface KnowledgeVendor { name: string; aliases: string[]; entity: string | null; gl: string | null; source: "learned" | "curated" | "synced" }
 export interface LearningStats { documents: number; predictions: number; learnedIdentifiers: number; signals: number }
 
 function db() { return createAdminClient(); }
@@ -147,16 +147,16 @@ export async function getKnowledgeVendors(): Promise<KnowledgeVendor[]> {
   try {
     const c = db();
     const { data } = await c.from("vendors")
-      .select("canonical_name, aliases, entity_code, accepted, auto_added").limit(80);
+      .select("canonical_name, aliases, entity_code, gl_full_name, accepted, auto_added").limit(200);
     return (data ?? []).map((r) => {
-      const x = r as { canonical_name: string; aliases: string[] | null; entity_code: string | null; accepted: boolean | null; auto_added: boolean | null };
+      const x = r as { canonical_name: string; aliases: string[] | null; entity_code: string | null; gl_full_name: string | null; accepted: boolean | null; auto_added: boolean | null };
       const source: KnowledgeVendor["source"] = x.auto_added ? "learned" : "curated";
-      return { name: x.canonical_name, aliases: x.aliases ?? [], entity: x.entity_code, source };
+      return { name: x.canonical_name, aliases: x.aliases ?? [], entity: x.entity_code, gl: x.gl_full_name, source };
     }).sort((a, b) => a.name.localeCompare(b.name));
   } catch { return []; }
 }
 
-export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[] }
+export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null }
 export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null }
 export interface DocTypeDetail {
   docType: string; label: string; category: string; status: string;
@@ -172,7 +172,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       await Promise.all([
         c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
         c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
-        c.from("doc_type_fields").select("canonical_name, data_type, required").eq("doc_type", docType),
+        c.from("doc_type_fields").select("canonical_name, data_type, required, source, last_value").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
         c.from("documents").select("document_id, vendor_id, source, updated_at").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
@@ -187,10 +187,10 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     const seen = new Set<string>();
     const fieldRows: DocTypeField[] = [];
     for (const f of fields ?? []) {
-      const x = f as { canonical_name: string; data_type: string | null; required: boolean | null };
+      const x = f as { canonical_name: string; data_type: string | null; required: boolean | null; source: string | null; last_value: string | null };
       if (!x.canonical_name || seen.has(x.canonical_name)) continue;
       seen.add(x.canonical_name);
-      fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [] });
+      fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
     }
     const sampleRows: DocTypeSample[] = (samples ?? []).map((s) => {
       const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null };

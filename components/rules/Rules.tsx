@@ -82,18 +82,26 @@ export default function Rules({
         <Panel title="Why analysis needed review" hint="why a document didn't auto-process — fix the top causes first">
           {report.length === 0 ? <Empty>Nothing pending — everything auto-processed.</Empty> : (
             <div className="divide-y divide-slate-100">
-              {report.map((r) => (
-                <div key={r.reason} className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-56 shrink-0 text-[13px] text-slate-700">{r.reason}</span>
-                    <div className="h-2 w-full max-w-xs rounded-full bg-slate-100">
-                      <div className={`h-full rounded-full ${r.tone === "red" ? "bg-red-500" : r.tone === "amber" ? "bg-amber-500" : "bg-sky-500"}`}
-                        style={{ width: `${(r.count / maxN) * 100}%` }} />
+              {report.map((r) => {
+                const dest: Tab = /identif|type|agent|owns/i.test(r.reason) ? "routing" : /vendor/i.test(r.reason) ? "knowledge" : "learned";
+                const fix = dest === "routing" ? "→ Document types" : dest === "knowledge" ? "→ Vendors" : "→ Review";
+                return (
+                  <button key={r.reason} onClick={() => setTab(dest)}
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-4 py-2.5 text-left hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <span className="w-56 shrink-0 text-[13px] text-slate-700">{r.reason}</span>
+                      <div className="h-2 w-full max-w-xs rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${r.tone === "red" ? "bg-red-500" : r.tone === "amber" ? "bg-amber-500" : "bg-sky-500"}`}
+                          style={{ width: `${(r.count / maxN) * 100}%` }} />
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-right font-semibold tabular-nums">{r.count}</span>
-                </div>
-              ))}
+                    <span className="flex items-center gap-3 text-right">
+                      <span className="text-[11.5px] text-blue-600">{fix}</span>
+                      <span className="font-semibold tabular-nums">{r.count}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </Panel>
@@ -147,24 +155,7 @@ export default function Rules({
 
       {tab === "routing" && <RoutingCatalog catalog={catalog} />}
 
-      {tab === "knowledge" && (
-        <Panel title="Knowledge — vendors" hint="master data the agents resolve against · Learned = from your corrections">
-          {vendors.length === 0 ? <Empty>No vendors yet.</Empty> : (
-            <table className="w-full text-[13px]">
-              <thead><tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
-                <th className="px-4 py-2 font-semibold">Vendor</th><th className="px-4 py-2 font-semibold">Aliases</th><th className="px-4 py-2 font-semibold">Entity</th><th className="px-4 py-2 font-semibold">Source</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {vendors.map((v) => (
-                  <tr key={v.name}><td className="px-4 py-2.5 font-semibold text-slate-900">{v.name}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{v.aliases.join(" · ") || "—"}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{v.entity ?? "—"}</td>
-                    <td className="px-4 py-2.5"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.source === "learned" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-700"}`}>{v.source === "learned" ? "✨ Learned" : "Set by you"}</span></td></tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Panel>
-      )}
+      {tab === "knowledge" && <KnowledgeVendors vendors={vendors} />}
     </div>
   );
 }
@@ -190,6 +181,70 @@ function Panel({ title, hint, children }: { title: string; hint: string; childre
 }
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-8 text-center text-[13px] text-slate-400">{children}</div>;
+}
+
+/** Editable vendor master — set each vendor's default entity + GL inline (saves on blur). */
+function KnowledgeVendors({ vendors }: { vendors: KnowledgeVendor[] }) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(() => Object.fromEntries(vendors.map((v) => [v.name, { entity: v.entity ?? "", gl: v.gl ?? "" }])));
+  const [saved, setSaved] = useState<string | null>(null);
+
+  async function save(name: string, patch: { entity?: string; gl?: string }) {
+    try {
+      await fetch("/api/rules/set-vendor-defaults", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vendor: name, ...patch }),
+      });
+      setSaved(name); setTimeout(() => setSaved((s) => (s === name ? null : s)), 1500);
+    } catch { /* best-effort */ }
+  }
+
+  const needle = q.trim().toLowerCase();
+  const view = vendors.filter((v) => !needle || v.name.toLowerCase().includes(needle) || v.aliases.some((a) => a.toLowerCase().includes(needle)));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search vendors…"
+          className="w-64 rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
+        <span className="ml-auto text-[12.5px] text-slate-500">{view.length} of {vendors.length} vendors · entity + GL editable</span>
+      </div>
+      <Panel title="Knowledge — vendors" hint="master data the agents resolve against · edit a default to set it · Learned = from your corrections">
+        {view.length === 0 ? <Empty>No vendors match.</Empty> : (
+          <table className="w-full text-[13px]">
+            <thead><tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
+              <th className="px-4 py-2 font-semibold">Vendor</th><th className="px-4 py-2 font-semibold">Aliases</th>
+              <th className="px-4 py-2 font-semibold">Default entity</th><th className="px-4 py-2 font-semibold">Default GL</th>
+              <th className="px-4 py-2 font-semibold">Source</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {view.map((v) => {
+                const r = rows[v.name] ?? { entity: "", gl: "" };
+                return (
+                  <tr key={v.name}>
+                    <td className="px-4 py-2.5 font-semibold text-slate-900">{v.name}{saved === v.name && <span className="ml-2 text-[11px] font-normal text-emerald-600">saved ✓</span>}</td>
+                    <td className="px-4 py-2.5 text-slate-500">{v.aliases.join(" · ") || "—"}</td>
+                    <td className="px-4 py-2.5">
+                      <input value={r.entity}
+                        onChange={(e) => setRows((m) => ({ ...m, [v.name]: { ...r, entity: e.target.value } }))}
+                        onBlur={() => { if (r.entity !== (v.entity ?? "")) save(v.name, { entity: r.entity }); }}
+                        placeholder="—" className="w-24 rounded-md border border-slate-200 px-2 py-1 text-[12.5px] uppercase" />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <input value={r.gl}
+                        onChange={(e) => setRows((m) => ({ ...m, [v.name]: { ...r, gl: e.target.value } }))}
+                        onBlur={() => { if (r.gl !== (v.gl ?? "")) save(v.name, { gl: r.gl }); }}
+                        placeholder="—" className="w-56 rounded-md border border-slate-200 px-2 py-1 text-[12.5px]" />
+                    </td>
+                    <td className="px-4 py-2.5"><span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.source === "learned" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-700"}`}>{v.source === "learned" ? "✨ Learned" : "Set by you"}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </div>
+  );
 }
 
 /**

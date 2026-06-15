@@ -17,6 +17,8 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   const [msg, setMsg] = useState<string | null>(null);
   const st = STATUS[detail.status] ?? STATUS.parked;
 
+  const [fields, setFields] = useState(detail.fields);
+
   async function generate() {
     setBusy("gen"); setMsg(null);
     try {
@@ -27,6 +29,28 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
       setMsg(r.ok ? "Queued — the worker will draft it from samples + fields, refresh shortly." : "Couldn't queue generation.");
     } catch { setMsg("Couldn't queue generation."); }
     setBusy(null);
+  }
+
+  async function uploadSample(file: File) {
+    setBusy("teach"); setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("files", file);
+      fd.append("teachDocType", detail.docType);
+      const r = await fetch("/api/ingest", { method: "POST", body: fd });
+      setMsg(r.ok ? "Uploaded — the worker is reading it; refresh shortly to see captured values + suggested fields." : "Upload failed.");
+    } catch { setMsg("Upload failed."); }
+    setBusy(null);
+  }
+
+  async function confirmField(name: string) {
+    setFields((fs) => fs.map((f) => (f.name === name ? { ...f, source: "curated" } : f)));
+    try {
+      await fetch("/api/rules/confirm-field", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docType: detail.docType, field: name }),
+      });
+    } catch { /* best-effort */ }
   }
 
   return (
@@ -64,20 +88,28 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
       <div className="overflow-hidden rounded-xl border border-slate-200">
         <div className="flex items-center gap-2 bg-slate-50 px-3.5 py-2.5">
           <span className="text-[13.5px] font-medium">Fields</span>
-          <span className="text-[12px] text-slate-500">{detail.fields.length} · {detail.fields.filter((f) => f.required).length} required · = the “look for”</span>
+          <span className="text-[12px] text-slate-500">{fields.length} · {fields.filter((f) => f.required).length} required · = the “look for”</span>
         </div>
-        {detail.fields.length === 0 ? (
+        {fields.length === 0 ? (
           <div className="px-4 py-6 text-center text-[13px] text-slate-400">No fields defined yet — teach from a sample below.</div>
         ) : (
           <table className="w-full text-[13px]">
             <thead><tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-              <th className="px-3.5 py-2 font-medium">Field</th><th className="px-3.5 py-2 font-medium">Type</th><th className="px-3.5 py-2 font-medium">Labels (aliases)</th></tr></thead>
+              <th className="px-3.5 py-2 font-medium">Field</th><th className="px-3.5 py-2 font-medium">Type</th><th className="px-3.5 py-2 font-medium">Labels (aliases)</th><th className="px-3.5 py-2 font-medium">Last captured</th></tr></thead>
             <tbody>
-              {detail.fields.slice(0, 40).map((f) => (
+              {fields.slice(0, 60).map((f) => (
                 <tr key={f.name} className="border-t border-slate-100">
-                  <td className="px-3.5 py-2"><span className={f.required ? "text-red-500" : "text-slate-300"}>●</span> <span className="font-medium">{f.name}</span></td>
+                  <td className="px-3.5 py-2">
+                    <span className={f.required ? "text-red-500" : "text-slate-300"}>●</span> <span className="font-medium">{f.name}</span>
+                    {f.source === "learned" && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-700">suggested</span>}
+                  </td>
                   <td className="px-3.5 py-2 text-slate-500">{f.dataType}</td>
                   <td className="px-3.5 py-2 text-slate-500">{f.aliases.length ? f.aliases.map((a) => `"${a}"`).join(", ") : "—"}</td>
+                  <td className="px-3.5 py-2">
+                    {f.source === "learned"
+                      ? <button onClick={() => confirmField(f.name)} className="text-[12px] font-medium text-emerald-600">Confirm</button>
+                      : <span className="font-mono text-[11.5px] text-slate-500">{f.lastValue ?? "—"}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -111,10 +143,12 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
       {/* Teach from a sample */}
       <div className="rounded-xl border border-slate-300/70 bg-slate-50 p-4">
         <div className="mb-2.5 text-[13.5px] font-medium">⬆ Add a new document — teach from a sample</div>
-        <div className="rounded-md border border-dashed border-slate-300 bg-white p-5 text-center">
-          <div className="text-[13px]">Drop a {detail.label.toLowerCase()} here, or <span className="text-blue-600">browse</span></div>
-          <div className="mt-1 text-[11.5px] text-slate-400">Reads it, fills the captured values, and suggests new fields/labels to confirm — and refreshes the context. <span className="italic">(processing wired next)</span></div>
-        </div>
+        <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-white p-5 text-center">
+          <input type="file" accept="application/pdf,image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSample(f); }} />
+          <div className="text-[13px]">{busy === "teach" ? "Uploading…" : <>Drop a {detail.label.toLowerCase()} here, or <span className="text-blue-600">browse</span></>}</div>
+          <div className="mt-1 text-[11.5px] text-slate-400">Reads it, fills the captured values, and suggests new fields/labels to confirm — and refreshes the context.</div>
+        </label>
       </div>
     </div>
   );

@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
   }
   const files = form.getAll("files").filter((f): f is File => f instanceof File);
   if (!files.length) return NextResponse.json({ error: "no files provided" }, { status: 400 });
+  // teach-from-a-sample: when set, the worker extracts AGAINST this type + suggests fields
+  // instead of creating a payables row.
+  const teachDocType = ((form.get("teachDocType") as string) || "").trim() || null;
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json(
@@ -49,10 +52,11 @@ export async function POST(req: NextRequest) {
     const ins = await admin
       .from("ingestion_jobs")
       .insert({
-        source: "upload",
+        source: teachDocType ? "teach" : "upload",
         storage_path: path,
         original_filename: file.name,
         uploaded_by: uploadedBy,
+        teach_doc_type: teachDocType,
       })
       .select("id")
       .single();

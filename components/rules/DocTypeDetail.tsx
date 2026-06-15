@@ -248,6 +248,16 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
     } catch { /* best-effort */ }
   }
 
+  async function removeField(name: string, scope: string) {
+    setFields((fs) => fs.filter((f) => !(f.name === name && f.scope === scope)));
+    try {
+      await fetch("/api/rules/remove-field", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docType: detail.docType, field: name, scope }),
+      });
+    } catch { /* best-effort */ }
+  }
+
   async function addField() {
     const name = newField.trim();
     if (!name || fields.some((f) => f.name.toLowerCase() === name.toLowerCase())) { setNewField(""); return; }
@@ -387,10 +397,11 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
             <th className="px-4 py-2 font-semibold">Type</th>
             <th className="px-4 py-2 font-semibold">Labels (aliases)</th>
             <th className="px-4 py-2 font-semibold">Last captured</th>
+            <th className="px-4 py-2"></th>
           </tr></thead>
           <tbody className="divide-y divide-slate-100">
             {fields.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — add one below, or import a CSV.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — add one below, or import a CSV.</td></tr>
             )}
             {fields.slice(0, 120).map((f) => (
               <tr key={`${f.scope}:${f.name}`}>
@@ -413,6 +424,10 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
                     ? <button onClick={() => confirmField(f.name)} className="text-[12px] font-medium text-emerald-600">Confirm</button>
                     : <span className="font-mono text-[11.5px] text-slate-500">{f.lastValue ?? "—"}</span>}
                 </td>
+                <td className="px-2 py-2.5 text-right">
+                  <button onClick={() => removeField(f.name, f.scope)} title="Remove this field"
+                    className="text-[13px] text-slate-300 hover:text-red-500">✕</button>
+                </td>
               </tr>
             ))}
             {/* add-field row */}
@@ -432,6 +447,7 @@ or group-boundary call you were unsure about, any location you couldn't resolve 
                 <button onClick={addField} disabled={!newField.trim()}
                   className="rounded-md bg-brand-navy px-3 py-1 text-[12px] font-semibold text-white disabled:opacity-40">+ Add field</button>
               </td>
+              <td />
             </tr>
           </tbody>
         </table>

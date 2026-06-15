@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: "not configured" }, { status: 500 });
 
-  let body: { docType?: string; fields?: { name?: string; type?: string; required?: boolean; aliases?: string[]; example?: string; scope?: string; key?: string }[] };
+  let body: { docType?: string; fields?: { name?: string; type?: string; required?: boolean; aliases?: string[]; example?: string; scope?: string; key?: string; source?: string; format?: string }[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "expected JSON" }, { status: 400 }); }
   const docType = (body.docType ?? "").trim();
   const fields = Array.isArray(body.fields) ? body.fields : [];
@@ -44,10 +44,13 @@ export async function POST(req: NextRequest) {
       { canonical_name: name, data_type: dataType, source: "curated" },
       { onConflict: "canonical_name" },
     );
+    const valueSource = (f.source ?? "document").trim().toLowerCase() || "document";  // document|derived|manual
+    const valueFormat = (f.format ?? "").trim().toLowerCase() || null;                 // iata_code|iso_date|…
     // 2) doc_type_fields — this type's "look for" (scope = document | a repeating-group name)
     await c.from("doc_type_fields").upsert(
       { doc_type: docType, field_token: ft, canonical_name: name, role: "payload",
         required: !!f.required, source: "curated", scope, field_key: fieldKey,
+        value_source: valueSource, value_format: valueFormat,
         last_value: f.example ? String(f.example).slice(0, 200) : null },
       { onConflict: "doc_type,field_token,role" },
     );

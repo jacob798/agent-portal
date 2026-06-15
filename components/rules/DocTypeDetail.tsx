@@ -87,54 +87,85 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   }
 
   function claudePrompt() {
-    return `You are building the FIELD SPEC for one document type in our extraction system: "${detail.label}".
-The spec is the only per-type config — our prompt, tables, and code are constant. So the spec
-must fully and unambiguously describe this type.
+    const contextNarrative = (detail.context || detail.purpose || "(no context authored yet — infer it from the documents.)").trim();
+    return `You are building the FIELD SPEC for one document type in our extraction system.
+Document type: "${detail.label}"   (If blank, infer it from the documents and the context below, and
+state what you inferred.)
 
-I'll paste or attach one or more example documents of that type. The examples may come from
-DIFFERENT vendors that word the same information differently. Build ONE unified spec across ALL
-of them — not one spec per document.
+DOCUMENT TYPE CONTEXT — a narrative of what this document is and what the business uses it for.
+Authored at the type level; NOT extracted from any single document. Read it FIRST:
+"""
+${contextNarrative}
+"""
+Use the context to:
+- confirm the document type and resolve ambiguous classification;
+- prioritize the fields that serve the stated business use;
+- identify information the PURPOSE requires that the documents themselves do NOT contain.
+Do NOT invent values for purpose-implied fields that aren't on the page.
 
-HEADER vs REPEATING GROUPS (most important):
-- Some information appears ONCE per document (header): confirmation number, passenger, totals.
-  Give these scope = document.
-- Some information REPEATS within one document (a detail/line group): each flight segment, each
-  invoice line item, each draw line, each installment. Put each such field under a single
-  repeating-GROUP name as its scope (e.g. segment, line_item, draw_line). Define the group's
-  fields ONCE — never flight_1_number / flight_2_number; that is ONE field "flight_number" with
-  scope = segment, and the document having two flights is data, not two fields.
-- For each repeating group add: one row with key = parent (the document field copied into every
-  instance — usually the confirmation/invoice number), and, if the group has its own identifier,
-  one row with key = primary. Header fields leave key blank.
+The spec is the ONLY per-type configuration in our system — the extraction prompt, database, and
+code are constant across every document type. I will attach one or more example documents, which
+may come from DIFFERENT vendors that word the same information differently. Build ONE unified spec
+across ALL of them — never one spec per document.
 
-MERGE vendor wording:
-- A field is a logical piece of information, identified by MEANING, not by any one vendor's label.
-  One row per logical field per scope.
-- Same meaning under different labels across vendors → ONE row; put every distinct on-document
-  label in aliases (semicolon-separated, deduped). Vendor wording differences are aliases, never
-  new fields (confirmation_code = "Confirmation Number" = "Record Locator" = "Booking Ref").
-- Only merge when the terms truly mean the same thing. If two could differ — even if values match
-  on these samples (fare-only total vs all-in charged total; per-person vs reservation total) —
-  keep them SEPARATE. When unsure, do not merge; note the pair after the file.
-- Before finalizing, scan for any two rows that mean the same thing within a scope and collapse them.
+1) HEADER vs REPEATING GROUPS
+Treat each document as a HEADER (parent: values appearing once per document — confirmation number,
+parties, totals) plus zero or more REPEATING GROUPS (child tables: sub-records occurring many times
+— flight segments, invoice line items, installments, draw lines). One document has many group rows.
+- scope = document for header fields; scope = a single snake_case GROUP NAME for repeating fields.
+- Define each group's fields ONCE. Never flight_1_number / flight_2_number — that is ONE field
+  "flight_number", scope=segment; several in a document is DATA, not more fields.
+- Same repeating thing under different vendor labels ("Flight 1 / Flight 2" vs a table) is ONE group.
+- Link the tables: mark the document's unique identifier key=primary (scope=document); in EVERY
+  group add a field copying it (same name, scope=<group>, key=parent) and an ordinal <group>_index
+  (type=number, key=primary).
 
-Produce a CSV with EXACTLY these columns:
-field,scope,type,required,key,aliases,example
-- field: short snake_case name for the logical field.
-- scope: document, OR a single repeating-group name (snake_case) shared by every field in that group.
-- type: one of text, number, currency, date, datetime, boolean.
-- required: yes ONLY if every example document has it; otherwise no.
-- key: parent or primary for the group-reference rows described above; otherwise blank.
-- aliases: the literal labels seen across the documents, semicolon-separated. Blank if none.
-- example: one example value taken from any document.
+2) MERGE VENDOR WORDING — one row per logical field PER SCOPE
+- A field is identified by MEANING, not by any one vendor's label.
+- Same meaning under different labels → ONE row; put every distinct on-document label in \`aliases\`
+  (semicolon-separated, deduped). Vendor wording is aliases, never new fields.
+- Only merge when terms truly mean the same thing. If two could differ — even if values match on
+  these samples (fare-only total vs all-in charged total) — keep them SEPARATE and note the pair.
+- Before finalizing, scan each scope for two rows that mean the same thing and collapse them.
 
-Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal boilerplate.
-Field names and scope names lowercase snake_case. If a value contains a comma, wrap that cell in
-double quotes.
+3) SOURCE — where each field's value comes from (driven by the context above)
+- document — read directly off the document.
+- derived  — computable from other document fields (e.g. trip_duration from depart/arrive).
+- manual   — required by the stated purpose but NOT on the document (e.g. entity, project, client,
+             business_purpose, gl_code for cost allocation). Include these as rows so the system
+             knows to collect them; leave example and aliases blank. Never fill them from the document.
 
-Output: write the result directly to a downloadable .csv file (named ${detail.docType}_field_spec.csv)
-and give me the download link. If you kept any look-alike fields separate or were unsure about a
-merge or a group boundary, note those briefly after the file. Otherwise just the file.`;
+4) REPRESENTATION CONSISTENCY — so values join cleanly downstream
+Pick ONE canonical form per field and record it in \`format\`; extraction must convert to it
+regardless of how the document printed it:
+- locations → IATA code (format=iata_code); dates → ISO 8601 (iso_date); datetimes → iso_datetime;
+  currency → plain decimal, no symbol/separators (decimal); otherwise leave format blank.
+- Where a location is useful as both key and label, emit TWO fields: <thing>_code (iata_code) and
+  <thing>_name (text). The same logical place uses the same field names and format everywhere.
+
+5) SCOPE OF CAPTURE
+Capture identifiers, parties, dates, amounts, locations. Do NOT capture marketing or legal
+boilerplate (disclaimers, ads, terms, baggage policy, hazmat notices).
+
+OUTPUT — a CSV with EXACTLY these columns:
+field,scope,type,required,source,key,format,aliases,example
+- field: snake_case logical field name.
+- scope: document, or a single snake_case repeating-group name.
+- type: text, number, currency, date, datetime, boolean.
+- required: yes ONLY if present in every example (document scope) or every group instance (group
+  scope); otherwise no.  (For source=manual, base required on the business need, not the samples.)
+- source: document, derived, or manual.
+- key: primary, parent, or blank.
+- format: iata_code, iso_date, iso_datetime, decimal, or blank.
+- aliases: literal labels across the documents, semicolon-separated; blank if none.
+- example: one example value in the field's canonical format; blank for manual fields.
+Field and group names lowercase snake_case. If a value contains a comma, wrap that cell in quotes.
+
+DELIVERY:
+Write the result to a downloadable .csv file named ${detail.docType}_field_spec.csv and give me the link.
+After the file, briefly note: the type (if inferred), any look-alike fields kept separate, any merge
+or group-boundary call you were unsure about, any location you couldn't resolve to a code, and any
+\`manual\` fields you added from the context that the documents don't supply. Otherwise just the file.`;
   }
 
   async function copyPrompt() {
@@ -179,11 +210,13 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
         scope: r.scope || "document",        // 'document' (header) or a repeating-group name
         type: r.type || "text",
         required: /^(y|yes|true|1|required)$/i.test(r.required || ""),
+        source: r.source || "document",      // document | derived | manual
         key: r.key || "",                    // primary | parent | blank
+        format: r.format || "",              // iata_code | iso_date | iso_datetime | decimal
         aliases: (r.aliases || "").split(";").map((a) => a.trim()).filter(Boolean),
         example: r.example || "",
       })).filter((f) => f.name);
-      if (!fieldsIn.length) { setMsg("No fields found — check the CSV header row: field,scope,type,required,key,aliases,example"); setBusy(null); return; }
+      if (!fieldsIn.length) { setMsg("No fields found — check the CSV header row: field,scope,type,required,source,key,format,aliases,example"); setBusy(null); return; }
       const r = await fetch("/api/rules/import-fields", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ docType: detail.docType, fields: fieldsIn }),
@@ -203,7 +236,7 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
   async function addField() {
     const name = newField.trim();
     if (!name || fields.some((f) => f.name.toLowerCase() === name.toLowerCase())) { setNewField(""); return; }
-    setFields((fs) => [...fs, { name, dataType: "text", required: newRequired, aliases: [], source: "curated", lastValue: null, scope: "document", fieldKey: null }]);
+    setFields((fs) => [...fs, { name, dataType: "text", required: newRequired, aliases: [], source: "curated", lastValue: null, scope: "document", fieldKey: null, valueSource: "document", format: null }]);
     setNewField(""); setNewRequired(false);
     try {
       await fetch("/api/rules/add-field", {
@@ -288,7 +321,7 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
               <input type="file" accept=".csv,text/csv" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
               <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
-              <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, key, aliases, example</span> — replaces this type’s spec.</div>
+              <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, source, key, format, aliases, example</span> — replaces this type’s spec.</div>
             </label>
             {msg && <div className="mt-2 text-[12px] text-emerald-700">{msg}</div>}
           </div>
@@ -336,6 +369,8 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
                 <td className="px-4 py-2.5">
                   <span className={f.required ? "text-red-500" : "text-slate-300"}>●</span> <span className="font-medium text-slate-800">{f.name}</span>
                   {f.fieldKey && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{f.fieldKey}</span>}
+                  {f.valueSource === "derived" && <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[10.5px] font-semibold text-violet-700">derived</span>}
+                  {f.valueSource === "manual" && <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10.5px] font-semibold text-blue-700">you provide</span>}
                   {f.source === "learned" && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-700">suggested</span>}
                 </td>
                 <td className="px-4 py-2.5">
@@ -343,7 +378,7 @@ merge or a group boundary, note those briefly after the file. Otherwise just the
                     ? <span className="text-[12px] text-slate-400">document</span>
                     : <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">⛓ {f.scope}</span>}
                 </td>
-                <td className="px-4 py-2.5 text-slate-500">{f.dataType}</td>
+                <td className="px-4 py-2.5 text-slate-500">{f.dataType}{f.format && <span className="ml-1 text-[11px] text-slate-400">· {f.format}</span>}</td>
                 <td className="px-4 py-2.5 text-slate-500">{f.aliases.length ? f.aliases.map((a) => `"${a}"`).join(", ") : "—"}</td>
                 <td className="px-4 py-2.5">
                   {f.source === "learned"

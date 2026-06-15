@@ -296,7 +296,7 @@ export async function getDocTypes(): Promise<DocTypeOption[]> {
     return (data ?? []).map((r) => ({
       docType: r.doc_type as string,
       label: (r.display_name as string) || (r.doc_type as string),
-      category: (r.category as string) || "Other",
+      category: ((r.category as string) || "").replace(/^[A-Za-z]\.\s*/, "").trim() || "Other",
     }));
   } catch {
     return [];

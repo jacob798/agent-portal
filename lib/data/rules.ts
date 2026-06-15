@@ -26,6 +26,11 @@ export interface LearningStats { documents: number; predictions: number; learned
 
 function db() { return createAdminClient(); }
 
+/** Drop the registry's ordering prefix ("L. Travel & Misc" -> "Travel & Misc") for display. */
+function cleanCategory(s: string | null | undefined): string {
+  return (s ?? "").replace(/^[A-Za-z]\.\s*/, "").trim() || "Uncategorized";
+}
+
 export async function getLearningStats(): Promise<LearningStats> {
   try {
     const c = db();
@@ -148,7 +153,7 @@ export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
       const x = t as { doc_type: string; display_name: string; category: string | null; status: string | null };
       return {
         docType: x.doc_type, label: x.display_name || x.doc_type,
-        category: x.category || "Uncategorized", agents: agentsBy.get(x.doc_type) ?? [],
+        category: cleanCategory(x.category), agents: agentsBy.get(x.doc_type) ?? [],
         samples: samplesBy.get(x.doc_type) ?? 0, fields: fieldsBy.get(x.doc_type) ?? 0,
         status: x.status || "parked",
       };
@@ -249,7 +254,7 @@ export async function getResolutionRules(): Promise<ResolutionGroup[]> {
   });
 }
 
-export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null; scope: string; fieldKey: string | null }
+export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null; scope: string; fieldKey: string | null; valueSource: string; format: string | null }
 export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null; url: string | null; path: string | null; outcome: "auto" | "review" | null }
 export interface DocTypeDetail {
   docType: string; label: string; category: string; status: string;
@@ -265,7 +270,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       await Promise.all([
         c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
         c.from("doc_type_routing").select("agent, is_primary").eq("doc_type", docType),
-        c.from("doc_type_fields").select("canonical_name, required, source, last_value, scope, field_key").eq("doc_type", docType),
+        c.from("doc_type_fields").select("canonical_name, required, source, last_value, scope, field_key, value_source, value_format").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
         c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path, status, exception_fields").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
@@ -290,12 +295,12 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     const seen = new Set<string>();
     const fieldRows: DocTypeField[] = [];
     for (const f of fields ?? []) {
-      const x = f as { canonical_name: string; required: boolean | null; source: string | null; last_value: string | null; scope: string | null; field_key: string | null };
+      const x = f as { canonical_name: string; required: boolean | null; source: string | null; last_value: string | null; scope: string | null; field_key: string | null; value_source: string | null; value_format: string | null };
       const scope = x.scope || "document";
       const dedup = `${scope}:${x.canonical_name}`;   // a field is unique per (scope, name)
       if (!x.canonical_name || seen.has(dedup)) continue;
       seen.add(dedup);
-      fieldRows.push({ name: x.canonical_name, dataType: dtByName.get(x.canonical_name) || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null, scope, fieldKey: x.field_key ?? null });
+      fieldRows.push({ name: x.canonical_name, dataType: dtByName.get(x.canonical_name) || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null, scope, fieldKey: x.field_key ?? null, valueSource: x.value_source || "document", format: x.value_format ?? null });
     }
     // Clickable samples: the REAL documents of this type are the payables_queue rows — they
     // carry the shareable doc_url directly, so the operator can open each one. (The learning
@@ -336,7 +341,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     const routeRows = (route ?? []) as { agent: string; is_primary: boolean | null }[];
     const agents = [...routeRows].sort((a, b) => Number(b.is_primary) - Number(a.is_primary)).map((r) => r.agent).filter(Boolean);
     return {
-      docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",
+      docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: cleanCategory(tt.category),
       status: tt.status || "parked", agent: agents[0] ?? null, agents,
       purpose: tt.purpose, context: tt.context_template,
       fields: fieldRows.sort((a, b) =>

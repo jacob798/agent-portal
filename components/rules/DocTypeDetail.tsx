@@ -47,16 +47,18 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
     } catch { /* best-effort */ }
   }
 
-  async function uploadSample(file: File) {
+  async function uploadSamples(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (!list.length) return;
     setBusy("teach"); setMsg(null);
     try {
       const fd = new FormData();
-      fd.append("files", file);
+      for (const f of list) fd.append("files", f);   // /api/ingest accepts many
       fd.append("teachDocType", detail.docType);
       const r = await fetch("/api/ingest", { method: "POST", body: fd });
       if (r.ok) {
-        setMsg("Uploaded ✓ — the worker is reading it; captured values + suggested fields appear here shortly.");
-        setTimeout(() => router.refresh(), 4000);
+        setMsg(`Uploaded ${list.length} ✓ — the worker is reading ${list.length === 1 ? "it" : "them"}; captured values + suggested fields appear here shortly.`);
+        setTimeout(() => router.refresh(), 5000);
       } else {
         const j = await r.json().catch(() => ({}));
         setMsg(`Upload failed: ${j.error ?? r.statusText}`);
@@ -204,10 +206,10 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div className="mb-2.5 text-[13.5px] font-semibold text-slate-900">⬆ Add a new document — teach from a sample</div>
         <label className="block cursor-pointer rounded-md border border-dashed border-slate-300 bg-white p-5 text-center">
-          <input type="file" accept="application/pdf,image/*" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSample(f); }} />
-          <div className="text-[13px] text-slate-700">{busy === "teach" ? "Uploading…" : <>Drop a {detail.label.toLowerCase()} here, or <span className="text-blue-600">browse</span></>}</div>
-          <div className="mt-1 text-[11.5px] text-slate-400">Reads it, fills the captured values, and suggests new fields/labels to confirm — and refreshes the context.</div>
+          <input type="file" accept="application/pdf,image/*" multiple className="hidden"
+            onChange={(e) => { if (e.target.files?.length) uploadSamples(e.target.files); }} />
+          <div className="text-[13px] text-slate-700">{busy === "teach" ? "Uploading…" : <>Drop one or more {detail.label.toLowerCase()}s here, or <span className="text-blue-600">browse</span></>}</div>
+          <div className="mt-1 text-[11.5px] text-slate-400">Reads them, fills the captured values, and suggests new fields/labels to confirm — and refreshes the context.</div>
         </label>
       </div>
     </div>

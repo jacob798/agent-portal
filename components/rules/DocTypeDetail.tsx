@@ -58,44 +58,54 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   }
 
   function claudePrompt() {
-    return `You are setting up the field spec for one document type in our document system: "${detail.label}".
+    return `You are building the FIELD SPEC for one document type in our extraction system: "${detail.label}".
+The spec is the only per-type config — our prompt, tables, and code are constant. So the spec
+must fully and unambiguously describe this type.
 
 I'll paste or attach one or more example documents of that type. The examples may come from
-DIFFERENT vendors that use different wording for the same information.
+DIFFERENT vendors that word the same information differently. Build ONE unified spec across ALL
+of them — not one spec per document.
 
-Build ONE unified spec across ALL the examples — not one spec per document. The whole point
-is to reconcile vendor differences into shared fields:
-- A "field" is a logical piece of information, identified by its MEANING, not by the label
-  any single vendor prints. Output exactly one row per logical field.
-- When two or more documents carry the same logical field under different labels, MERGE them
-  into a SINGLE row. Do NOT create separate or vendor-specific fields for it
-  (e.g. confirmation_code, record_locator, and booking_ref are ONE field, not three).
-- Capture every distinct on-document label you saw for that field in the aliases column,
-  separated by semicolons and deduplicated. Vendor wording differences belong in aliases —
-  never as new fields.
-- Only merge when the terms truly mean the same thing. If two terms could carry a different
-  meaning — even if their values happen to match on these particular samples (e.g. a fare-only
-  total vs. an all-in charged total, or a per-person total vs. a reservation total) — keep them
-  as SEPARATE fields. When unsure, do not merge; flag the pair instead.
-- Before finalizing, scan your field list for any two rows that mean the same thing and
-  collapse them.
+HEADER vs REPEATING GROUPS (most important):
+- Some information appears ONCE per document (header): confirmation number, passenger, totals.
+  Give these scope = document.
+- Some information REPEATS within one document (a detail/line group): each flight segment, each
+  invoice line item, each draw line, each installment. Put each such field under a single
+  repeating-GROUP name as its scope (e.g. segment, line_item, draw_line). Define the group's
+  fields ONCE — never flight_1_number / flight_2_number; that is ONE field "flight_number" with
+  scope = segment, and the document having two flights is data, not two fields.
+- For each repeating group add: one row with key = parent (the document field copied into every
+  instance — usually the confirmation/invoice number), and, if the group has its own identifier,
+  one row with key = primary. Header fields leave key blank.
+
+MERGE vendor wording:
+- A field is a logical piece of information, identified by MEANING, not by any one vendor's label.
+  One row per logical field per scope.
+- Same meaning under different labels across vendors → ONE row; put every distinct on-document
+  label in aliases (semicolon-separated, deduped). Vendor wording differences are aliases, never
+  new fields (confirmation_code = "Confirmation Number" = "Record Locator" = "Booking Ref").
+- Only merge when the terms truly mean the same thing. If two could differ — even if values match
+  on these samples (fare-only total vs all-in charged total; per-person vs reservation total) —
+  keep them SEPARATE. When unsure, do not merge; note the pair after the file.
+- Before finalizing, scan for any two rows that mean the same thing within a scope and collapse them.
 
 Produce a CSV with EXACTLY these columns:
-field,type,required,aliases,example
-- field: short snake_case name for the logical field (e.g. confirmation_code, passenger_name,
-  flight_number, origin, destination, depart_datetime, total_amount).
+field,scope,type,required,key,aliases,example
+- field: short snake_case name for the logical field.
+- scope: document, OR a single repeating-group name (snake_case) shared by every field in that group.
 - type: one of text, number, currency, date, datetime, boolean.
 - required: yes ONLY if every example document has it; otherwise no.
+- key: parent or primary for the group-reference rows described above; otherwise blank.
 - aliases: the literal labels seen across the documents, semicolon-separated. Blank if none.
-- example: one example value, taken from any of the documents.
+- example: one example value taken from any document.
 
-Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal
-boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that cell
-in double quotes.
+Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal boilerplate.
+Field names and scope names lowercase snake_case. If a value contains a comma, wrap that cell in
+double quotes.
 
 Output: write the result directly to a downloadable .csv file (named ${detail.docType}_field_spec.csv)
-and give me the download link. If you had to keep any look-alike fields separate or were unsure
-about a merge, note those briefly after the file. Otherwise just the file.`;
+and give me the download link. If you kept any look-alike fields separate or were unsure about a
+merge or a group boundary, note those briefly after the file. Otherwise just the file.`;
   }
 
   async function copyPrompt() {
@@ -134,12 +144,14 @@ about a merge, note those briefly after the file. Otherwise just the file.`;
       const recs = parseCsv(text);
       const fieldsIn = recs.map((r) => ({
         name: r.field || r.name || "",
+        scope: r.scope || "document",        // 'document' (header) or a repeating-group name
         type: r.type || "text",
         required: /^(y|yes|true|1|required)$/i.test(r.required || ""),
+        key: r.key || "",                    // primary | parent | blank
         aliases: (r.aliases || "").split(";").map((a) => a.trim()).filter(Boolean),
         example: r.example || "",
       })).filter((f) => f.name);
-      if (!fieldsIn.length) { setMsg("No fields found — check the CSV has a header row: field,type,required,aliases,example"); setBusy(null); return; }
+      if (!fieldsIn.length) { setMsg("No fields found — check the CSV header row: field,scope,type,required,key,aliases,example"); setBusy(null); return; }
       const r = await fetch("/api/rules/import-fields", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ docType: detail.docType, fields: fieldsIn }),
@@ -159,7 +171,7 @@ about a merge, note those briefly after the file. Otherwise just the file.`;
   async function addField() {
     const name = newField.trim();
     if (!name || fields.some((f) => f.name.toLowerCase() === name.toLowerCase())) { setNewField(""); return; }
-    setFields((fs) => [...fs, { name, dataType: "text", required: newRequired, aliases: [], source: "curated", lastValue: null }]);
+    setFields((fs) => [...fs, { name, dataType: "text", required: newRequired, aliases: [], source: "curated", lastValue: null, scope: "document", fieldKey: null }]);
     setNewField(""); setNewRequired(false);
     try {
       await fetch("/api/rules/add-field", {
@@ -208,19 +220,26 @@ about a merge, note those briefly after the file. Otherwise just the file.`;
         <table className="w-full text-[13px]">
           <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
             <th className="px-4 py-2 font-semibold">Field</th>
+            <th className="px-4 py-2 font-semibold">Scope</th>
             <th className="px-4 py-2 font-semibold">Type</th>
             <th className="px-4 py-2 font-semibold">Labels (aliases)</th>
             <th className="px-4 py-2 font-semibold">Last captured</th>
           </tr></thead>
           <tbody className="divide-y divide-slate-100">
             {fields.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — add one below, or import a CSV.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-[13px] text-slate-400">No fields yet — add one below, or import a CSV.</td></tr>
             )}
-            {fields.slice(0, 80).map((f) => (
-              <tr key={f.name}>
+            {fields.slice(0, 120).map((f) => (
+              <tr key={`${f.scope}:${f.name}`}>
                 <td className="px-4 py-2.5">
                   <span className={f.required ? "text-red-500" : "text-slate-300"}>●</span> <span className="font-medium text-slate-800">{f.name}</span>
+                  {f.fieldKey && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{f.fieldKey}</span>}
                   {f.source === "learned" && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-700">suggested</span>}
+                </td>
+                <td className="px-4 py-2.5">
+                  {f.scope === "document"
+                    ? <span className="text-[12px] text-slate-400">document</span>
+                    : <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">⛓ {f.scope}</span>}
                 </td>
                 <td className="px-4 py-2.5 text-slate-500">{f.dataType}</td>
                 <td className="px-4 py-2.5 text-slate-500">{f.aliases.length ? f.aliases.map((a) => `"${a}"`).join(", ") : "—"}</td>
@@ -233,7 +252,7 @@ about a merge, note those briefly after the file. Otherwise just the file.`;
             ))}
             {/* add-field row */}
             <tr className="bg-slate-50/60">
-              <td className="px-4 py-2.5" colSpan={2}>
+              <td className="px-4 py-2.5" colSpan={3}>
                 <input value={newField} onChange={(e) => setNewField(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addField(); }}
                   placeholder="Add a field (e.g. policy_number)…"
@@ -293,7 +312,7 @@ about a merge, note those briefly after the file. Otherwise just the file.`;
           <input type="file" accept=".csv,text/csv" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) importCsv(f); }} />
           <div className="text-[13px] text-slate-700">{busy === "csv" ? "Importing…" : <>Drop the <span className="font-medium">CSV</span> here, or <span className="text-blue-600">browse</span></>}</div>
-          <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, type, required, aliases, example</span> — adds them to this type’s spec.</div>
+          <div className="mt-1 text-[11.5px] text-slate-400">Columns: <span className="font-mono">field, scope, type, required, key, aliases, example</span> — replaces this type’s spec.</div>
         </label>
       </div>
 

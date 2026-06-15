@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: "not configured" }, { status: 500 });
 
-  let body: { docType?: string; fields?: { name?: string; type?: string; required?: boolean; aliases?: string[]; example?: string }[] };
+  let body: { docType?: string; fields?: { name?: string; type?: string; required?: boolean; aliases?: string[]; example?: string; scope?: string; key?: string }[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "expected JSON" }, { status: 400 }); }
   const docType = (body.docType ?? "").trim();
   const fields = Array.isArray(body.fields) ? body.fields : [];
@@ -34,15 +34,21 @@ export async function POST(req: NextRequest) {
     const name = (f.name ?? "").trim();
     if (!name) continue;
     const dataType = (f.type ?? "text").trim().toLowerCase() || "text";
+    const scope = (f.scope ?? "document").trim().toLowerCase() || "document";
+    const fieldKey = (f.key ?? "").trim().toLowerCase() || null;
+    // field_token includes the scope so the SAME logical field name can live in two scopes
+    // (header vs a repeating group) without colliding on the (doc_type, field_token, role) key.
+    const ft = scope === "document" ? token(name) : `${token(scope)}.${token(name)}`;
     // 1) field_dictionary — needed before any alias (FK target)
     await c.from("field_dictionary").upsert(
       { canonical_name: name, data_type: dataType, source: "curated" },
       { onConflict: "canonical_name" },
     );
-    // 2) doc_type_fields — this type's "look for"
+    // 2) doc_type_fields — this type's "look for" (scope = document | a repeating-group name)
     await c.from("doc_type_fields").upsert(
-      { doc_type: docType, field_token: token(name), canonical_name: name, role: "payload",
-        required: !!f.required, source: "curated", last_value: f.example ? String(f.example).slice(0, 200) : null },
+      { doc_type: docType, field_token: ft, canonical_name: name, role: "payload",
+        required: !!f.required, source: "curated", scope, field_key: fieldKey,
+        last_value: f.example ? String(f.example).slice(0, 200) : null },
       { onConflict: "doc_type,field_token,role" },
     );
     imported++;

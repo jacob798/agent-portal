@@ -249,7 +249,7 @@ export async function getResolutionRules(): Promise<ResolutionGroup[]> {
   });
 }
 
-export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null }
+export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null; scope: string; fieldKey: string | null }
 export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null; url: string | null; path: string | null }
 export interface DocTypeDetail {
   docType: string; label: string; category: string; status: string;
@@ -265,7 +265,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       await Promise.all([
         c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
         c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
-        c.from("doc_type_fields").select("canonical_name, required, source, last_value").eq("doc_type", docType),
+        c.from("doc_type_fields").select("canonical_name, required, source, last_value, scope, field_key").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
         c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
@@ -290,10 +290,12 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
     const seen = new Set<string>();
     const fieldRows: DocTypeField[] = [];
     for (const f of fields ?? []) {
-      const x = f as { canonical_name: string; required: boolean | null; source: string | null; last_value: string | null };
-      if (!x.canonical_name || seen.has(x.canonical_name)) continue;
-      seen.add(x.canonical_name);
-      fieldRows.push({ name: x.canonical_name, dataType: dtByName.get(x.canonical_name) || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
+      const x = f as { canonical_name: string; required: boolean | null; source: string | null; last_value: string | null; scope: string | null; field_key: string | null };
+      const scope = x.scope || "document";
+      const dedup = `${scope}:${x.canonical_name}`;   // a field is unique per (scope, name)
+      if (!x.canonical_name || seen.has(dedup)) continue;
+      seen.add(dedup);
+      fieldRows.push({ name: x.canonical_name, dataType: dtByName.get(x.canonical_name) || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null, scope, fieldKey: x.field_key ?? null });
     }
     // Clickable samples: the REAL documents of this type are the payables_queue rows — they
     // carry the shareable doc_url directly, so the operator can open each one. (The learning
@@ -331,7 +333,10 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",
       status: tt.status || "parked", agent: (route as { agent?: string } | null)?.agent ?? null,
       purpose: tt.purpose, context: tt.context_template,
-      fields: fieldRows.sort((a, b) => Number(b.required) - Number(a.required) || a.name.localeCompare(b.name)),
+      fields: fieldRows.sort((a, b) =>
+        (a.scope === "document" ? 0 : 1) - (b.scope === "document" ? 0 : 1)
+        || a.scope.localeCompare(b.scope)
+        || Number(b.required) - Number(a.required) || a.name.localeCompare(b.name)),
       samples: sampleRows, sampleCount: pqCount || count || sampleRows.length,
     };
   } catch {

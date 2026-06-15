@@ -664,7 +664,8 @@ function NeedsTripInbox({
           <div className="min-w-0 flex-1">
             <div className="font-semibold text-slate-900">{it.destination}</div>
             <div className="truncate text-[12.5px] text-slate-500">
-              {it.dates || "dates TBD"}
+              {it.dates
+                || (it.startDate ? `${it.startDate}${it.endDate && it.endDate !== it.startDate ? " – " + it.endDate : ""}` : "dates TBD")}
               {it.summary && it.summary !== it.destination ? ` · ${it.summary}` : ""}
             </div>
           </div>

@@ -265,7 +265,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       await Promise.all([
         c.from("doc_types").select("doc_type, display_name, category, status, purpose, context_template").eq("doc_type", docType).maybeSingle(),
         c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
-        c.from("doc_type_fields").select("canonical_name, data_type, required, source, last_value").eq("doc_type", docType),
+        c.from("doc_type_fields").select("canonical_name, required, source, last_value").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
         c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
@@ -277,13 +277,23 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       const x = a as { canonical_name: string; alias_text: string };
       const arr = aliasBy.get(x.canonical_name) ?? []; arr.push(x.alias_text); aliasBy.set(x.canonical_name, arr);
     }
+    // data_type lives in field_dictionary (NOT doc_type_fields) — look it up by name.
+    const names = [...new Set((fields ?? []).map((f) => (f as { canonical_name: string | null }).canonical_name).filter(Boolean) as string[])];
+    const dtByName = new Map<string, string>();
+    if (names.length) {
+      const { data: fd } = await c.from("field_dictionary").select("canonical_name, data_type").in("canonical_name", names);
+      for (const r of fd ?? []) {
+        const x = r as { canonical_name: string; data_type: string | null };
+        if (x.data_type) dtByName.set(x.canonical_name, x.data_type);
+      }
+    }
     const seen = new Set<string>();
     const fieldRows: DocTypeField[] = [];
     for (const f of fields ?? []) {
-      const x = f as { canonical_name: string; data_type: string | null; required: boolean | null; source: string | null; last_value: string | null };
+      const x = f as { canonical_name: string; required: boolean | null; source: string | null; last_value: string | null };
       if (!x.canonical_name || seen.has(x.canonical_name)) continue;
       seen.add(x.canonical_name);
-      fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
+      fieldRows.push({ name: x.canonical_name, dataType: dtByName.get(x.canonical_name) || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
     }
     // Clickable samples: the REAL documents of this type are the payables_queue rows — they
     // carry the shareable doc_url directly, so the operator can open each one. (The learning

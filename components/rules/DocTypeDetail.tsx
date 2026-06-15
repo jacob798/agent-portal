@@ -58,28 +58,44 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
   }
 
   function claudePrompt() {
-    return `You are setting up the field spec for one document type in our finance system: "${detail.label}".
-I'll paste or attach one or more example documents of that type.
+    return `You are setting up the field spec for one document type in our document system: "${detail.label}".
+
+I'll paste or attach one or more example documents of that type. The examples may come from
+DIFFERENT vendors that use different wording for the same information.
+
+Build ONE unified spec across ALL the examples — not one spec per document. The whole point
+is to reconcile vendor differences into shared fields:
+- A "field" is a logical piece of information, identified by its MEANING, not by the label
+  any single vendor prints. Output exactly one row per logical field.
+- When two or more documents carry the same logical field under different labels, MERGE them
+  into a SINGLE row. Do NOT create separate or vendor-specific fields for it
+  (e.g. confirmation_code, record_locator, and booking_ref are ONE field, not three).
+- Capture every distinct on-document label you saw for that field in the aliases column,
+  separated by semicolons and deduplicated. Vendor wording differences belong in aliases —
+  never as new fields.
+- Only merge when the terms truly mean the same thing. If two terms could carry a different
+  meaning — even if their values happen to match on these particular samples (e.g. a fare-only
+  total vs. an all-in charged total, or a per-person total vs. a reservation total) — keep them
+  as SEPARATE fields. When unsure, do not merge; flag the pair instead.
+- Before finalizing, scan your field list for any two rows that mean the same thing and
+  collapse them.
 
 Produce a CSV with EXACTLY these columns:
 field,type,required,aliases,example
-- field: short snake_case name for a REUSABLE field this document TYPE carries
-  (e.g. confirmation_code, passenger_name, flight_number, origin, destination,
-  depart_datetime, total_amount, invoice_number, vendor_name, account_number,
-  service_period). One row per field.
+- field: short snake_case name for the logical field (e.g. confirmation_code, passenger_name,
+  flight_number, origin, destination, depart_datetime, total_amount).
 - type: one of text, number, currency, date, datetime, boolean.
-- required: yes or no (yes = every document of this type must have it).
-- aliases: the literal labels seen on the document for this field, separated by
-  semicolons (e.g. Confirmation Code;Record Locator;Conf #). Blank if none.
-- example: an example value taken from the document.
+- required: yes ONLY if every example document has it; otherwise no.
+- aliases: the literal labels seen across the documents, semicolon-separated. Blank if none.
+- example: one example value, taken from any of the documents.
 
 Rules: capture identifiers, parties, dates, amounts, locations — NOT marketing/legal
-boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that
-cell in double quotes.
+boilerplate. Field names lowercase snake_case. If a value contains a comma, wrap that cell
+in double quotes.
 
-Output: write the result directly to a downloadable .csv file (named
-${detail.docType}_field_spec.csv) and give me the download link. Do not print the CSV in chat
-and do not wrap it in code fences — the file is the only deliverable.`;
+Output: write the result directly to a downloadable .csv file (named ${detail.docType}_field_spec.csv)
+and give me the download link. If you had to keep any look-alike fields separate or were unsure
+about a merge, note those briefly after the file. Otherwise just the file.`;
   }
 
   async function copyPrompt() {

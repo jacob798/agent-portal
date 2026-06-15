@@ -3,9 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 
 /**
- * Assign (or clear) the owning agent for a document type — the editable routing the
- * console was missing. agent="" clears the routing (unrouted). Sets the chosen agent as
- * primary; we keep it simple (one primary owner) — fan-out can be layered later.
+ * Set the owning agent(s) for a document type — supports FAN-OUT to multiple agents
+ * (L5). Accepts `agents: string[]` (first = primary) or the legacy single `agent`.
+ * Empty list clears the routing (unrouted).
  */
 export async function POST(req: NextRequest) {
   const profile = await getProfile();
@@ -14,24 +14,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Server not configured: SUPABASE_SERVICE_ROLE_KEY missing" }, { status: 500 });
   }
 
-  let body: { docType?: string; agent?: string };
+  let body: { docType?: string; agent?: string; agents?: string[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "expected JSON body" }, { status: 400 });
   }
   const docType = (body.docType ?? "").trim();
-  const agent = (body.agent ?? "").trim();
   if (!docType) return NextResponse.json({ error: "docType required" }, { status: 400 });
+  const list = (Array.isArray(body.agents) ? body.agents : [body.agent])
+    .map((a) => (a ?? "").trim()).filter(Boolean);
+  const ordered = [...new Set(list)]; // de-dup, preserve order (first = primary)
 
   const admin = createAdminClient();
-  // replace the routing for this type (single primary owner)
   await admin.from("doc_type_routing").delete().eq("doc_type", docType);
-  if (agent) {
-    const { error } = await admin
-      .from("doc_type_routing")
-      .insert({ doc_type: docType, agent, is_primary: true });
+  if (ordered.length) {
+    const rows = ordered.map((agent, i) => ({ doc_type: docType, agent, is_primary: i === 0 }));
+    const { error } = await admin.from("doc_type_routing").insert(rows);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, agent: agent || null });
+  return NextResponse.json({ ok: true, agents: ordered });
 }

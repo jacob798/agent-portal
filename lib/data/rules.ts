@@ -250,7 +250,7 @@ export async function getResolutionRules(): Promise<ResolutionGroup[]> {
 }
 
 export interface DocTypeField { name: string; dataType: string; required: boolean; aliases: string[]; source: string; lastValue: string | null }
-export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null }
+export interface DocTypeSample { id: string; date: string | null; vendor: string | null; source: string | null; url: string | null; path: string | null }
 export interface DocTypeDetail {
   docType: string; label: string; category: string; status: string;
   agent: string | null; purpose: string | null; context: string | null;
@@ -267,7 +267,7 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
         c.from("doc_type_routing").select("agent").eq("doc_type", docType).eq("is_primary", true).maybeSingle(),
         c.from("doc_type_fields").select("canonical_name, data_type, required, source, last_value").eq("doc_type", docType),
         c.from("field_aliases").select("canonical_name, alias_text").eq("scope", "type").eq("scope_key", docType),
-        c.from("documents").select("document_id, vendor_id, source, updated_at").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
+        c.from("documents").select("document_id, vendor_id, source, updated_at, dropbox_path").eq("doc_type", docType).order("updated_at", { ascending: false }).limit(25),
         c.from("documents").select("*", { count: "exact", head: true }).eq("doc_type", docType),
       ]);
     if (!t) return null;
@@ -285,9 +285,24 @@ export async function getDocTypeDetail(docType: string): Promise<DocTypeDetail |
       seen.add(x.canonical_name);
       fieldRows.push({ name: x.canonical_name, dataType: x.data_type || "text", required: !!x.required, aliases: aliasBy.get(x.canonical_name) ?? [], source: x.source || "curated", lastValue: x.last_value ?? null });
     }
+    // Clickable samples: the learning `documents` rows store a dropbox_path; the shareable
+    // link lives on payables_queue.doc_url for the same path — join on it (L1).
+    const paths = [...new Set((samples ?? []).map((s) => (s as { dropbox_path?: string }).dropbox_path).filter(Boolean) as string[])];
+    const urlByPath = new Map<string, string>();
+    if (paths.length) {
+      const { data: pq } = await c.from("payables_queue").select("doc_path, doc_url").in("doc_path", paths);
+      for (const r of pq ?? []) {
+        const x = r as { doc_path: string | null; doc_url: string | null };
+        if (x.doc_path && x.doc_url) urlByPath.set(x.doc_path, x.doc_url);
+      }
+    }
     const sampleRows: DocTypeSample[] = (samples ?? []).map((s) => {
-      const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null };
-      return { id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null, vendor: x.vendor_id, source: x.source };
+      const x = s as { document_id: string; vendor_id: string | null; source: string | null; updated_at: string | null; dropbox_path: string | null };
+      return {
+        id: x.document_id, date: x.updated_at ? x.updated_at.slice(0, 10) : null,
+        vendor: x.vendor_id, source: x.source, path: x.dropbox_path ?? null,
+        url: x.dropbox_path ? urlByPath.get(x.dropbox_path) ?? null : null,
+      };
     });
     return {
       docType: tt.doc_type, label: tt.display_name || tt.doc_type, category: tt.category || "Uncategorized",

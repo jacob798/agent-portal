@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
   FailureReason, LearnedItem, DocTypeCategory, DocTypeRow, KnowledgeVendor, LearningStats,
   ResolutionGroup, ConfidenceGate,
@@ -332,6 +333,39 @@ function KnowledgeVendors({ vendors }: { vendors: KnowledgeVendor[] }) {
   );
 }
 
+/** Multi-agent "Routes to" picker (fan-out, L5). Chips + a checkbox popover; stops row-click. */
+function AgentMultiSelect({ selected, onToggle }: { selected: string[]; onToggle: (a: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen((v) => !v)}
+        className={`flex flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-[12px] ${selected.length ? "border-slate-200" : "border-amber-300 text-amber-600"}`}>
+        {selected.length === 0 ? <span>— unrouted —</span> : selected.map((a) => (
+          <span key={a} className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${AGENT_TONE[a] ?? "bg-slate-100 text-slate-700"}`}>{a}</span>
+        ))}
+        <span className="text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {AGENTS.map((a) => (
+            <label key={a} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[12.5px] hover:bg-slate-50">
+              <input type="checkbox" checked={selected.includes(a)} onChange={() => onToggle(a)} />
+              <span>{a}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type RouteSortCol = "label" | "category" | "status" | "agent" | "fields" | "samples";
 
 /**
@@ -346,9 +380,11 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
   const [cat, setCat] = useState<string>("all");
   const [state, setState] = useState<"all" | "unrouted" | "unsampled" | "sampled">("all");
   const [sort, setSort] = useState<{ col: RouteSortCol; dir: 1 | -1 }>({ col: "samples", dir: -1 });
-  const [routed, setRouted] = useState<Record<string, string>>(() =>
-    Object.fromEntries(allRows.map((r) => [r.docType, r.agents[0] ?? ""])));
+  // Routing supports FAN-OUT: a type can be owned by several agents (L5).
+  const [routed, setRouted] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(allRows.map((r) => [r.docType, [...r.agents]])));
   const [saving, setSaving] = useState<string | null>(null);
+  const router = useRouter();
 
   const onSort = (c: RouteSortCol) => setSort((s) => (s.col === c ? { col: c, dir: (s.dir === 1 ? -1 : 1) } : { col: c, dir: 1 }));
 
@@ -357,7 +393,7 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
     const filtered = allRows.filter((r) => {
       if (cat !== "all" && r.category !== cat) return false;
       if (needle && !r.label.toLowerCase().includes(needle) && !r.docType.toLowerCase().includes(needle)) return false;
-      if (state === "unrouted") return !(routed[r.docType] ?? "");
+      if (state === "unrouted") return (routed[r.docType] ?? []).length === 0;
       if (state === "unsampled") return r.samples === 0;
       if (state === "sampled") return r.samples > 0;
       return true;
@@ -366,7 +402,7 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
       sort.col === "label" ? r.label.toLowerCase()
       : sort.col === "category" ? r.category.toLowerCase()
       : sort.col === "status" ? r.status
-      : sort.col === "agent" ? (routed[r.docType] ?? "")
+      : sort.col === "agent" ? ((routed[r.docType] ?? [])[0] ?? "")
       : sort.col === "fields" ? r.fields
       : r.samples;
     return [...filtered].sort((a, b) => {
@@ -378,19 +414,23 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
   }, [allRows, q, cat, state, sort, routed]);
 
   const sampled = allRows.filter((r) => r.samples > 0).length;
-  const routedN = allRows.filter((r) => routed[r.docType]).length;
+  const routedN = allRows.filter((r) => (routed[r.docType] ?? []).length > 0).length;
 
-  async function setAgent(docType: string, agent: string) {
-    setRouted((m) => ({ ...m, [docType]: agent }));
+  async function saveAgents(docType: string, agents: string[]) {
+    setRouted((m) => ({ ...m, [docType]: agents }));
     setSaving(docType);
     try {
       await fetch("/api/rules/set-routing", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docType, agent }),
+        body: JSON.stringify({ docType, agents }),
       });
     } catch { /* best-effort */ }
     setSaving(null);
   }
+  const toggleAgent = (docType: string, agent: string) => {
+    const cur = routed[docType] ?? [];
+    saveAgents(docType, cur.includes(agent) ? cur.filter((a) => a !== agent) : [...cur, agent]);
+  };
 
   return (
     <div className="space-y-3">
@@ -424,19 +464,17 @@ function RoutingCatalog({ catalog }: { catalog: DocTypeCategory[] }) {
             {view.length === 0 ? (
               <tr><td colSpan={6}><Empty>No document types match.</Empty></td></tr>
             ) : view.map((r) => (
-              <tr key={r.docType} className="hover:bg-slate-50/60">
+              <tr key={r.docType}
+                onClick={() => router.push(`/rules/types/${encodeURIComponent(r.docType)}?tab=routing`)}
+                className="cursor-pointer hover:bg-slate-50/60">
                 <td className="px-4 py-2.5">
-                  <a href={`/rules/types/${encodeURIComponent(r.docType)}?tab=routing`} className="font-medium text-slate-900 hover:text-blue-600">{r.label}</a>
+                  <span className="font-medium text-slate-900">{r.label}</span>
                   <div className="text-[11px] text-slate-400">{r.docType}</div>
                 </td>
                 <td className="px-4 py-2.5 text-slate-500">{r.category}</td>
                 <td className="px-4 py-2.5">{statusBadge(r.status)}</td>
                 <td className="px-4 py-2.5">
-                  <select value={routed[r.docType] ?? ""} onChange={(e) => setAgent(r.docType, e.target.value)}
-                    className={`rounded-md border px-2 py-1 text-[12.5px] ${routed[r.docType] ? `border-transparent font-semibold ${AGENT_TONE[routed[r.docType]] ?? "bg-slate-100 text-slate-700"}` : "border-amber-300 text-amber-600"}`}>
-                    <option value="">— unrouted —</option>
-                    {AGENTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </select>
+                  <AgentMultiSelect selected={routed[r.docType] ?? []} onToggle={(a) => toggleAgent(r.docType, a)} />
                   {saving === r.docType && <span className="ml-1 text-[11px] text-slate-400">saving…</span>}
                 </td>
                 <td className="px-4 py-2.5 text-right text-slate-600">{r.fields}</td>

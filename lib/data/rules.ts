@@ -131,8 +131,10 @@ export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
     const [types, routes, fieldRows, docRows] = await Promise.all([
       c.from("doc_types").select("doc_type, display_name, category, status").limit(2000),
       c.from("doc_type_routing").select("doc_type, agent, is_primary"),
-      c.from("doc_type_fields").select("doc_type").limit(20000),
-      c.from("documents").select("doc_type").not("doc_type", "is", null).limit(20000),
+      // count in the DB (one row per type) — counting raw field rows client-side hit PostgREST's
+      // row cap and zeroed most types.
+      c.from("doc_type_field_counts").select("doc_type, field_count").limit(2000),
+      c.from("doc_type_sample_counts").select("doc_type, sample_count").limit(2000),
     ]);
     const agentsBy = new Map<string, string[]>();
     for (const r of routes.data ?? []) {
@@ -141,13 +143,13 @@ export async function getDocTypeCatalog(): Promise<DocTypeCategory[]> {
       if (x.is_primary) arr.unshift(x.agent); else arr.push(x.agent);
       agentsBy.set(x.doc_type, arr);
     }
-    const countBy = (rows: { doc_type: string }[] | null) => {
+    const mapCount = (rows: Record<string, unknown>[] | null, col: string) => {
       const m = new Map<string, number>();
-      for (const r of rows ?? []) m.set(r.doc_type, (m.get(r.doc_type) ?? 0) + 1);
+      for (const r of rows ?? []) m.set(r.doc_type as string, Number(r[col]) || 0);
       return m;
     };
-    const fieldsBy = countBy(fieldRows.data as { doc_type: string }[] | null);
-    const samplesBy = countBy(docRows.data as { doc_type: string }[] | null);
+    const fieldsBy = mapCount(fieldRows.data as Record<string, unknown>[] | null, "field_count");
+    const samplesBy = mapCount(docRows.data as Record<string, unknown>[] | null, "sample_count");
 
     const rows: DocTypeRow[] = (types.data ?? []).map((t) => {
       const x = t as { doc_type: string; display_name: string; category: string | null; status: string | null };

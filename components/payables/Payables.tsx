@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Zap, Upload, FileText, Plane } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
@@ -259,6 +259,26 @@ export default function Payables({
     glsForEntity(gls, entity).map((g) => g.fullName);
   const glGroups = (entity?: string | null) => glGroupsForEntity(gls, entity);
   const firstGl = (entity?: string | null) => glLabels(entity)[0] ?? "";
+  // Is this string an actual GL account (vs. a loose parser category like "Insurance")?
+  const isRealGl = (gl?: string | null) => !!gl && gls.some((g) => g.fullName === gl);
+  // P4: a PROPOSED coding must follow through to the chosen entity's GL line. If the row
+  // already carries a real account for this entity, use it; else try to resolve the proposed
+  // category text to one of THIS entity's accounts by name; else leave BLANK (an honest
+  // exception for the operator — never auto-pick a random first account on a low-confidence guess).
+  const resolveProposedGl = (entity: string, r: Row): string => {
+    if (entity === "BC") return BC_ROUTE.gl;
+    if (isRealGl(r.gl) && glLabels(entity).includes(r.gl!)) return r.gl!;
+    const want = ((isRealGl(r.gl) ? "" : r.gl) || r.category || "").toLowerCase().trim();
+    if (want) {
+      const opts = glsForEntity(gls, entity);
+      const hit =
+        opts.find((g) => (g.name ?? g.fullName).toLowerCase() === want) ||
+        opts.find((g) => glShort(g.fullName).toLowerCase() === want) ||
+        opts.find((g) => (g.name ?? g.fullName).toLowerCase().includes(want));
+      if (hit) return hit.fullName;
+    }
+    return "";
+  };
   const [filter, setFilter] = useState("need");
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [travelRow, setTravelRow] = useState<string | null>(null);
@@ -336,11 +356,11 @@ export default function Payables({
         ? r.lines.map((l) => ({
             desc: l.desc,
             amount: l.amount,
-            gl: ent === "BC" ? BC_ROUTE.gl : l.gl ?? firstGl(ent),
+            gl: ent === "BC" ? BC_ROUTE.gl : (isRealGl(l.gl) && glLabels(ent).includes(l.gl) ? l.gl : resolveProposedGl(ent, r)),
             entity: ent,
             bcCategory: bc,
           }))
-        : [{ desc: r.sub || r.vendor, amount: r.amount, gl: ent === "BC" ? BC_ROUTE.gl : r.gl ?? firstGl(ent), entity: ent, bcCategory: bc }];
+        : [{ desc: r.sub || r.vendor, amount: r.amount, gl: resolveProposedGl(ent, r), entity: ent, bcCategory: bc }];
     setLines(base);
     setMemo(r.memo ?? "");
     setInvoiceNumber(r.invoiceNumber ?? "");
@@ -498,10 +518,15 @@ export default function Payables({
   }, [rows]);
 
   const rowDate = (r: Row) => r.txnDate || (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
-  // Show what it's actually CODED to (the GL leaf, e.g. "Communication"), not the
-  // parser's loose invoice_category ("Utilities" isn't a real account) — so the queue
-  // matches the drawer's coding line.
-  const rowCategory = (r: Row) => glShort(r.gl) || r.category || "";
+  // Show what it's actually CODED to (the GL leaf, e.g. "Communication") — and keep the
+  // queue CONSISTENT with the drawer (P4): if the row only carries a loose parser guess
+  // ("Insurance") rather than a real account, show what that guess RESOLVES to on its
+  // entity; if it can't resolve, show nothing (needs coding) rather than a misleading label.
+  const rowCategory = (r: Row) => {
+    if (isRealGl(r.gl)) return glShort(r.gl);
+    const resolved = resolveProposedGl(r.entity ?? r.recommended ?? "PER", r);
+    return resolved ? glShort(resolved) : "";
+  };
   // Vendors we've already coded somewhere in the queue — so we don't keep
   // calling every one of their invoices a "first invoice".
   const knownVendors = useMemo(
@@ -1203,19 +1228,11 @@ export default function Payables({
                     here → the worker re-runs extraction with the right type's spec + learns. */}
                 <div className="mt-0.5 flex items-center gap-1 text-[11px]">
                   <span className="text-slate-400">Type:</span>
-                  <select
+                  <DocTypeCombobox
                     value={r.docType ?? ""}
-                    onChange={(e) => setDocType(r.id, e.target.value)}
-                    title="Identified document type — correct it to re-run extraction with the right spec"
-                    className={`max-w-[180px] truncate rounded border px-1 py-0.5 text-[11px] ${
-                      r.docType ? "border-slate-200 text-slate-600" : "border-amber-300 text-amber-600"
-                    }`}
-                  >
-                    <option value="">— identify type —</option>
-                    {docTypes.map((d) => (
-                      <option key={d.docType} value={d.docType}>{d.label}</option>
-                    ))}
-                  </select>
+                    options={docTypes}
+                    onChange={(dt) => setDocType(r.id, dt)}
+                  />
                 </div>
                 {/* payee vs posting name made explicit: for a travel charge the QB vendor is
                     the TRIP, the real merchant rides as the payee — show it, don't bury it on hover */}
@@ -2235,6 +2252,85 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Searchable document-type picker — replaces the unusable 222-row native <select>.
+ * Click opens a small popover with a search box + scrollable, category-grouped list
+ * (~10 rows visible). The row's CURRENT type is always shown/selectable even if it
+ * isn't in the catalog (so a learned/unregistered type is never invisible).
+ */
+function DocTypeCombobox({
+  value, options, onChange,
+}: { value: string; options: DocTypeOption[]; onChange: (dt: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const current = options.find((o) => o.docType === value);
+  const currentLabel = current?.label ?? (value ? value : "");
+
+  const groups = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const filtered = options.filter((o) =>
+      !needle || o.label.toLowerCase().includes(needle) || o.docType.toLowerCase().includes(needle) || o.category.toLowerCase().includes(needle));
+    const byCat = new Map<string, DocTypeOption[]>();
+    for (const o of filtered) { const a = byCat.get(o.category) ?? []; a.push(o); byCat.set(o.category, a); }
+    return [...byCat.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [options, q]);
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
+        title="Identified document type — correct it to re-run extraction with the right spec"
+        className={`flex max-w-[180px] items-center gap-1 truncate rounded border px-1.5 py-0.5 text-[11px] ${
+          value ? "border-slate-200 text-slate-600" : "border-amber-300 text-amber-600"}`}>
+        <span className="truncate">{currentLabel || "— identify type —"}</span>
+        <span className="text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-72 rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-1.5">
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 200+ types…"
+              className="w-full rounded-md border border-slate-200 px-2 py-1 text-[12px] outline-none focus:border-blue-300" />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            <button onClick={() => { onChange(""); setOpen(false); }}
+              className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-400 hover:bg-slate-50">— identify type —</button>
+            {value && !current && (
+              <button onClick={() => setOpen(false)}
+                className="flex w-full items-center justify-between bg-blue-50/50 px-3 py-1.5 text-left text-[12px] text-slate-700">
+                <span className="truncate">{value}</span><span className="text-[10px] text-blue-500">current</span>
+              </button>
+            )}
+            {groups.length === 0 ? (
+              <div className="px-3 py-3 text-center text-[12px] text-slate-400">No types match.</div>
+            ) : groups.map(([cat, opts]) => (
+              <div key={cat}>
+                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{cat}</div>
+                {opts.map((o) => (
+                  <button key={o.docType} onClick={() => { onChange(o.docType); setOpen(false); }}
+                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] hover:bg-slate-50 ${
+                      o.docType === value ? "bg-blue-50 font-medium text-blue-700" : "text-slate-700"}`}>
+                    <span className="truncate">{o.label}</span>
+                    {o.docType === value && <span className="text-[11px] text-blue-500">✓</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

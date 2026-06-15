@@ -282,20 +282,21 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
   }
 }
 
-export interface DocTypeOption { docType: string; label: string }
+export interface DocTypeOption { docType: string; label: string; category: string }
 
-/** All document types (for the per-row "correct the identified type" dropdown). */
+/** All document types (for the per-row "correct the identified type" picker). */
 export async function getDocTypes(): Promise<DocTypeOption[]> {
   if (!isSupabaseConfigured()) return [];
   try {
     const supabase = await createClient();
     const { data } = await supabase
       .from("doc_types")
-      .select("doc_type, display_name")
+      .select("doc_type, display_name, category")
       .order("display_name");
     return (data ?? []).map((r) => ({
       docType: r.doc_type as string,
       label: (r.display_name as string) || (r.doc_type as string),
+      category: (r.category as string) || "Other",
     }));
   } catch {
     return [];

@@ -55,7 +55,7 @@ export default function DocTypeDetail({ detail }: { detail: DocTypeDetail }) {
 
   return (
     <div className="space-y-3.5">
-      <a href="/rules" className="text-[12.5px] text-blue-600">← Document types</a>
+      <a href="/rules?tab=routing" className="text-[12.5px] text-blue-600">← Document types</a>
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="text-[19px] font-medium">{detail.label}</span>
         <span className="font-mono text-[11.5px] text-slate-400">{detail.docType}</span>

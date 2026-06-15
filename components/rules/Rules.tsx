@@ -36,7 +36,7 @@ export default function Rules({
   const [reviewKind, setReviewKind] = useState("all");
   const maxN = Math.max(1, ...report.map((r) => r.count));
 
-  async function actLearned(it: LearnedItem, action: "approve" | "reject") {
+  async function actLearned(it: LearnedItem, action: "approve" | "reject" | "promote") {
     const tag = it.actionKind + it.key;
     setBusy(tag);
     try {
@@ -137,8 +137,13 @@ export default function Rules({
                           <td className="px-4 py-2.5"><span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">{x.kind}</span></td>
                           <td className="px-4 py-2.5 text-slate-500">{x.detail}</td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                            <button disabled={busy === tag} onClick={() => actLearned(x, "approve")}
-                              className="mr-3 font-semibold text-emerald-600 disabled:opacity-50" title="Approve">✓</button>
+                            {x.promote ? (
+                              <button disabled={busy === tag} onClick={() => actLearned(x, "promote")}
+                                className="mr-3 rounded-md bg-violet-50 px-2 py-1 text-[12px] font-semibold text-violet-700 disabled:opacity-50" title="Promote to global">↑ Promote</button>
+                            ) : (
+                              <button disabled={busy === tag} onClick={() => actLearned(x, "approve")}
+                                className="mr-3 font-semibold text-emerald-600 disabled:opacity-50" title="Approve">✓</button>
+                            )}
                             <button disabled={busy === tag} onClick={() => actLearned(x, "reject")}
                               className="font-semibold text-red-600 disabled:opacity-50" title="Reject">✕</button>
                           </td>

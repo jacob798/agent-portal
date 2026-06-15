@@ -8,7 +8,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface FailureReason { reason: string; count: number; tone: "blue" | "amber" | "red" }
-export interface LearnedItem { kind: string; title: string; detail: string; actionKind: "vendor" | "identifier" | "alias"; key: string }
+export interface LearnedItem { kind: string; title: string; detail: string; actionKind: "vendor" | "identifier" | "alias"; key: string; promote?: boolean }
 export interface RouteRow { docType: string; label: string; agents: string[]; status: string }
 /** A document type in the catalog — the unit the routing/setup console manages. */
 export interface DocTypeRow {
@@ -80,10 +80,32 @@ export async function getLearnedItems(): Promise<LearnedItem[]> {
       out.push({ kind: "Identifier rule", title: `${x.normalized} → ${x.maps_to_value}`, detail: `${x.id_kind} → ${x.maps_to_kind} · learned from your confirmations`, actionKind: "identifier", key: `${x.id_kind}|${x.normalized}` });
     }
     const { data: al } = await c.from("field_aliases")
-      .select("canonical_name, alias_text, normalized, source").eq("source", "learned").limit(20);
-    for (const r of al ?? []) {
-      const x = r as { canonical_name: string; alias_text: string; normalized: string };
-      out.push({ kind: "Field alias", title: `"${x.alias_text}" → ${x.canonical_name}`, detail: "learned document label mapping", actionKind: "alias", key: `${x.canonical_name}|${x.normalized}` });
+      .select("canonical_name, alias_text, normalized, scope, scope_key, source").eq("source", "learned").limit(200);
+    type Al = { canonical_name: string; alias_text: string; normalized: string; scope: string | null; scope_key: string | null };
+    // Pooled-alias promotion (P-E): a learned alias seen across MULTIPLE vendor/type scopes is a
+    // candidate to promote to GLOBAL — surface those first, distinct from one-off aliases.
+    const pooled = new Map<string, { canonical: string; alias: string; scopes: Set<string> }>();
+    for (const r of (al ?? []) as Al[]) {
+      if (!r.scope || r.scope === "global") continue;
+      const k = `${r.canonical_name}|${r.normalized}`;
+      const e = pooled.get(k) ?? { canonical: r.canonical_name, alias: r.alias_text, scopes: new Set<string>() };
+      e.scopes.add(`${r.scope}:${r.scope_key ?? ""}`);
+      pooled.set(k, e);
+    }
+    const promoted = new Set<string>();
+    for (const [k, e] of pooled) {
+      if (e.scopes.size >= 2) {
+        promoted.add(k);
+        out.push({ kind: "Promote to global", title: `"${e.alias}" → ${e.canonical}`, detail: `seen across ${e.scopes.size} vendors/types — promote to apply everywhere`, actionKind: "alias", key: k, promote: true });
+      }
+    }
+    const seenAlias = new Set<string>();
+    for (const r of (al ?? []) as Al[]) {
+      const k = `${r.canonical_name}|${r.normalized}`;
+      if (promoted.has(k) || seenAlias.has(k)) continue;
+      seenAlias.add(k);
+      out.push({ kind: "Field alias", title: `"${r.alias_text}" → ${r.canonical_name}`, detail: "learned document label mapping", actionKind: "alias", key: k });
+      if (seenAlias.size >= 20) break;
     }
     const { data: v } = await c.from("vendors")
       .select("canonical_name, entity_code, auto_added").eq("auto_added", true).limit(20);

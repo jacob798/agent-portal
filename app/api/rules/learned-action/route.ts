@@ -20,9 +20,9 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "expected JSON" }, { status: 400 }); }
   const kind = (body.kind ?? "").trim();
   const key = (body.key ?? "").trim();
-  const action = (body.action ?? "").trim(); // approve | reject
-  if (!kind || !key || !["approve", "reject"].includes(action))
-    return NextResponse.json({ error: "kind, key, action(approve|reject) required" }, { status: 400 });
+  const action = (body.action ?? "").trim(); // approve | reject | promote
+  if (!kind || !key || !["approve", "reject", "promote"].includes(action))
+    return NextResponse.json({ error: "kind, key, action(approve|reject|promote) required" }, { status: 400 });
 
   const c = createAdminClient();
   try {
@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
       else await c.from("identifier_index").delete().eq("id_kind", idKind).eq("normalized", normalized).eq("source", "learned");
     } else if (kind === "alias") {
       const [canonical, normalized] = key.split("|");
-      if (action === "approve") await c.from("field_aliases").update({ source: "curated" }).eq("canonical_name", canonical).eq("normalized", normalized);
+      if (action === "promote") {
+        // pool the scoped learned alias up to GLOBAL (apply everywhere) + lock it in
+        await c.from("field_aliases").update({ scope: "global", scope_key: null, source: "curated" }).eq("canonical_name", canonical).eq("normalized", normalized);
+      } else if (action === "approve") await c.from("field_aliases").update({ source: "curated" }).eq("canonical_name", canonical).eq("normalized", normalized);
       else await c.from("field_aliases").delete().eq("canonical_name", canonical).eq("normalized", normalized).eq("source", "learned");
     } else {
       return NextResponse.json({ error: `unknown kind ${kind}` }, { status: 400 });

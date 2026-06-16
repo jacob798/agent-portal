@@ -793,6 +793,47 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
   );
 }
 
+// BC reimbursement = the GROSS ticket price (claimed from BC via the exported report); QB posts
+// the net. Editable backstop for when extraction couldn't see the fare behind a credit.
+function BcReimburseCell({ e, ent }: { e: TripExpense; ent: string }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const claim = e.reimbursementAmount ?? e.amount;
+  const [val, setVal] = useState(claim.toFixed(2));
+  if (ent !== "BC" || !e.id) return null;
+  const hasCredit = claim > e.amount + 0.005 || !!e.creditNumber;
+  async function save() {
+    setEditing(false);
+    const amt = Number(val);
+    if (!Number.isFinite(amt) || Math.abs(amt - claim) < 0.005) return;
+    try {
+      await fetch("/api/payables/set-reimbursement", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: e.id, amount: amt }),
+      });
+      router.refresh();
+    } catch { /* best-effort */ }
+  }
+  return (
+    <div className="mt-0.5 text-[11.5px]" onClick={(ev) => ev.stopPropagation()}>
+      <span className={hasCredit ? "text-indigo-600" : "text-slate-400"}>BC claim: </span>
+      {editing ? (
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        <input autoFocus value={val} onChange={(ev) => setVal(ev.target.value)} onBlur={save}
+          onKeyDown={(ev) => { if (ev.key === "Enter") save(); if (ev.key === "Escape") setEditing(false); }}
+          className="w-20 rounded border border-indigo-300 px-1 py-0.5 text-[11.5px]" />
+      ) : (
+        <button onClick={() => setEditing(true)}
+          className={`font-semibold underline decoration-dotted ${hasCredit ? "text-indigo-700" : "text-slate-500"}`}>
+          {money(claim)}
+        </button>
+      )}
+      {e.creditNumber ? <span className="ml-1 text-slate-500">· credit {e.creditNumber}</span> : null}
+      {hasCredit ? <span className="ml-1 text-slate-400">(net {money(e.amount)} → QB)</span> : null}
+    </div>
+  );
+}
+
 function ExpenseStatusChip({ e }: { e: TripExpense }) {
   if (e.status === "error")
     return <Badge tone="red" dot>Error</Badge>;
@@ -940,6 +981,7 @@ function TripDetail({
                     <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">✓ receipt</span>
                   )}
                 </div>
+                <BcReimburseCell e={e} ent={trip.ent} />
               </div>
               <ExpenseStatusChip e={e} />
               <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>

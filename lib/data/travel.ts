@@ -24,9 +24,10 @@ const CAT_ICON: Record<string, string> = {
  *  the trip header, so the ledger shows the REAL payee (extracted.payee). */
 function payableToLedger(r: {
   id: string; vendor: string; memo: string | null; amount: number | string;
+  reimbursement_amount: number | string | null;
   gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
-  extracted: { payee?: string } | null;
+  extracted: { payee?: string; credit_number?: string | null } | null;
 }): TripExpense {
   const cat = (r.category ?? "").toLowerCase();
   const status: ExpenseStatus =
@@ -46,6 +47,8 @@ function payableToLedger(r: {
     status,
     needsDoc: !r.doc_url && !r.nodoc,
     docUrl: r.doc_url ?? null,
+    reimbursementAmount: r.reimbursement_amount != null ? Number(r.reimbursement_amount) : Number(r.amount),
+    creditNumber: r.extracted?.credit_number ?? null,
   };
 }
 
@@ -74,6 +77,8 @@ export interface TripExpense {
   status?: ExpenseStatus;
   needsDoc?: boolean; // attributed but no receipt on file yet (gap, not a blocker)
   docUrl?: string | null; // Dropbox share link to the receipt, when one is on file
+  reimbursementAmount?: number; // GROSS ticket price (the BC claim) — = amount when no credit
+  creditNumber?: string | null; // eCredit/certificate # applied, for visibility
 }
 export interface Trip {
   id: string;
@@ -204,7 +209,7 @@ export async function getTravel(): Promise<{
       // Real invoices attributed to a trip — the per-trip running ledger.
       supabase
         .from("payables_queue")
-        .select("id,vendor,memo,amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at")
+        .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at")
         .not("trip_id", "is", null),
     ]);
     // Group attributed invoices by trip → ledger lines.

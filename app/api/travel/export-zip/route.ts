@@ -6,9 +6,18 @@ import { getProfile } from "@/lib/auth/profile";
 
 type Exp = {
   vendor: string | null; memo: string | null; amount: number | string | null;
+  reimbursement_amount: number | string | null;  // GROSS (ticket price before credits) — the claim
   category: string | null; bc_category: string | null; gl: string | null;
-  doc_url: string | null; txn_date: string | null; extracted: { payee?: string } | null;
+  doc_url: string | null; txn_date: string | null;
+  extracted: { payee?: string; credit_number?: string | null } | null;
 };
+
+// The reimbursement report shows the claimable amount = the GROSS (ticket price before any
+// credit). reimbursement_amount defaults to the net, so non-credit lines are unchanged.
+function claimAmt(e: Exp): number {
+  const r = e.reimbursement_amount;
+  return Number((r === null || r === undefined || r === "" ? e.amount : r) || 0);
+}
 type Trip = { id: string; ent: string | null; dest: string | null; dates: string | null; purpose: string | null };
 
 const NAVY = rgb(0.05, 0.09, 0.16);
@@ -74,7 +83,7 @@ async function buildReportPdf(trip: Trip, exps: Exp[], tripVendor: string): Prom
     if (y < 90) { page = doc.addPage([612, 792]); y = 792 - M; }
     const merchant = e.extracted?.payee || e.memo || e.vendor || "";
     const cat = e.bc_category || e.category || e.gl || "";
-    const amt = Number(e.amount || 0); total += amt;
+    const amt = claimAmt(e); total += amt;
     cell(page, clip(font, String(e.txn_date || trip.dates || ""), 9, 85), M, y, 9, font);
     cell(page, clip(font, merchant, 9, cCat - cVendor - 8), cVendor, y, 9, font);
     cell(page, clip(font, cat, 9, cDoc - cCat - 8), cCat, y, 9, font);
@@ -136,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   const { data: rows } = await admin
     .from("payables_queue")
-    .select("vendor, memo, amount, category, bc_category, gl, doc_url, txn_date, extracted")
+    .select("vendor, memo, amount, reimbursement_amount, category, bc_category, gl, doc_url, txn_date, extracted")
     .eq("trip_id", tripId)
     .order("txn_date");
   const exps = rows ?? [];
@@ -145,12 +154,13 @@ export async function POST(req: NextRequest) {
   const tripVendor = exps[0]?.vendor ?? `Trip ${trip.dest}`;
 
   // 1) manifest CSV
-  const header = ["Date", "Merchant", "Category", "Amount", "Receipt", "QB Vendor"];
+  const header = ["Date", "Merchant", "Category", "Amount", "Credit #", "Receipt", "QB Vendor"];
   const lines = [header.map(csvCell).join(",")];
   for (const e of exps) {
     const merchant = (e.extracted as { payee?: string } | null)?.payee || e.memo || e.vendor;
     const cat = e.bc_category || e.category || e.gl || "";
-    lines.push([e.txn_date || trip.dates, merchant, cat, e.amount, e.doc_url ? "yes" : "MISSING", tripVendor].map(csvCell).join(","));
+    const credit = (e.extracted as { credit_number?: string | null } | null)?.credit_number || "";
+    lines.push([e.txn_date || trip.dates, merchant, cat, claimAmt(e).toFixed(2), credit, e.doc_url ? "yes" : "MISSING", tripVendor].map(csvCell).join(","));
   }
   zip.file("expense-summary.csv", lines.join("\n"));
 

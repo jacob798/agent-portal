@@ -13,7 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
 import type { Trip, TripExpense, ItinItem, NeedsTripItem } from "@/lib/data/travel";
-import { CALENDAR_CATEGORIES } from "@/lib/data/travel";
+import { CALENDAR_CATEGORIES } from "@/lib/data/travelCategories";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";

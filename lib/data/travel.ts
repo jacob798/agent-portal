@@ -13,24 +13,11 @@ export type TripStatus = "up" | "closed";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// The calendar's expense categories (the same buckets the calendar groups by). The worker stores
-// a fine-grained category on each row (Flight / Hotel / Car rental / Ride / Meal …); we roll it up
-// to one of these for the grouped trip-expense display. Order = display order.
-export const CALENDAR_CATEGORIES = ["Flights", "Trains", "Lodging", "Cars", "Rides", "Dining", "Other"] as const;
-const CALENDAR_CAT_ICON: Record<string, string> = {
-  Flights: "✈️", Trains: "🚆", Lodging: "🏨", Cars: "🚗", Rides: "🚕", Dining: "🍽️", Other: "🧾",
-};
-export function calendarCategory(raw: string | null | undefined): string {
-  const c = (raw ?? "").toLowerCase();
-  if (c.includes("flight") || c.includes("airfare") || c.includes("air ")) return "Flights";
-  if (c.includes("train") || c.includes("rail")) return "Trains";
-  if (c.includes("hotel") || c.includes("lodging") || c.includes("airbnb")) return "Lodging";
-  if (c.includes("car")) return "Cars";
-  if (c.includes("ride") || c.includes("ground") || c.includes("transport") ||
-      c.includes("uber") || c.includes("lyft") || c.includes("taxi")) return "Rides";
-  if (c.includes("meal") || c.includes("dining") || c.includes("food")) return "Dining";
-  return "Other";
-}
+// Calendar expense categories live in a CLIENT-SAFE module (no server imports) so the client
+// component can import them without pulling next/headers into the browser bundle. Re-exported here
+// for convenience.
+import { CALENDAR_CAT_ICON, calendarCategory } from "@/lib/data/travelCategories";
+export { CALENDAR_CATEGORIES, calendarCategory } from "@/lib/data/travelCategories";
 
 /** Map a trip-attributed payables_queue row into a ledger line. The QB vendor is
  *  the trip header, so the ledger shows the REAL payee (extracted.payee). */

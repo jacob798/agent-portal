@@ -5,6 +5,12 @@ import {
   Printer,
   Download,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  ArrowUp,
+  ArrowDown,
+  ExternalLink,
   FileText,
   Search,
   Plus,
@@ -13,7 +19,6 @@ import {
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
 import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf } from "@/lib/data/travel";
-import { CALENDAR_CATEGORIES } from "@/lib/data/travelCategories";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -808,61 +813,6 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
   );
 }
 
-// BC reimbursement = the GROSS ticket price (claimed from BC via the exported report); QB posts
-// the net. Editable backstop for when extraction couldn't see the fare behind a credit.
-function BcReimburseCell({ e, ent }: { e: TripExpense; ent: string }) {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const claim = e.reimbursementAmount ?? e.amount;
-  const [val, setVal] = useState(claim.toFixed(2));
-  if (ent !== "BC" || !e.id) return null;
-  const hasCredit = claim > e.amount + 0.005 || !!e.creditNumber;
-  async function save() {
-    setEditing(false);
-    const amt = Number(val);
-    if (!Number.isFinite(amt) || Math.abs(amt - claim) < 0.005) return;
-    try {
-      await fetch("/api/payables/set-reimbursement", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: e.id, amount: amt }),
-      });
-      router.refresh();
-    } catch { /* best-effort */ }
-  }
-  return (
-    <div className="mt-0.5 text-[11.5px]" onClick={(ev) => ev.stopPropagation()}>
-      <span className={hasCredit ? "text-indigo-600" : "text-slate-400"}>BC claim: </span>
-      {editing ? (
-        // eslint-disable-next-line jsx-a11y/no-autofocus
-        <input autoFocus value={val} onChange={(ev) => setVal(ev.target.value)} onBlur={save}
-          onKeyDown={(ev) => { if (ev.key === "Enter") save(); if (ev.key === "Escape") setEditing(false); }}
-          className="w-20 rounded border border-indigo-300 px-1 py-0.5 text-[11.5px]" />
-      ) : (
-        <button onClick={() => setEditing(true)}
-          className={`font-semibold underline decoration-dotted ${hasCredit ? "text-indigo-700" : "text-slate-500"}`}>
-          {money(claim)}
-        </button>
-      )}
-      {e.creditNumber ? <span className="ml-1 text-slate-500">· credit {e.creditNumber}</span> : null}
-      {hasCredit ? <span className="ml-1 text-slate-400">(net {money(e.amount)} → QB)</span> : null}
-    </div>
-  );
-}
-
-function ExpenseStatusChip({ e }: { e: TripExpense }) {
-  if (e.status === "error")
-    return <Badge tone="red" dot>Error</Badge>;
-  if (e.needsDoc)
-    return <Badge tone="amber">Needs doc</Badge>;
-  if (e.status === "posted")
-    return <Badge tone="green" dot>Posted</Badge>;
-  if (e.status === "accepted")
-    return <Badge tone="green">Accepted · in Payables</Badge>;
-  if (e.status === "staged")
-    return <Badge tone="indigo" dot>Review</Badge>;
-  return <Badge tone="neutral">Ready</Badge>;
-}
-
 // ---------- confirmation review (accept the ITINERARY, not the invoice) ----------
 function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
   const router = useRouter();
@@ -892,11 +842,7 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
         className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
       <button disabled={busy} onClick={() => act("accept_confirmation", targets)}
         className="rounded-md bg-indigo-50 px-2.5 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Accept confirmation</button>
-      <select disabled={busy} defaultValue="" onChange={(e) => { if (e.target.value) act("reassign", targets, e.target.value); }}
-        className="rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50">
-        <option value="">↪ Move trip…</option>
-        {others.map((t) => <option key={t.id} value={t.id}>{t.dest} · {tripDates(t)}</option>)}
-      </select>
+      <MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", targets, id)} />
       <button disabled={busy} onClick={() => { if (confirm("Remove this confirmation from the program?")) act("decline", targets); }}
         className="rounded-md bg-rose-50 px-2.5 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Decline</button>
     </div>
@@ -958,6 +904,198 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
   );
 }
 
+// ---------- searchable "move trip" picker (newest → oldest, type to filter) ----------
+function MoveTripSelect({
+  trips,
+  disabled,
+  onPick,
+}: {
+  trips: Trip[];
+  disabled?: boolean;
+  onPick: (tripId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  // newest first (by ISO start), then filter by the typed query
+  const opts = [...trips]
+    .sort((a, b) => (b.start || "").localeCompare(a.start || ""))
+    .filter((t) => !q || `${ENT[t.ent] ?? t.ent} ${t.dest} ${t.purpose ?? ""} ${tripDates(t)}`.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50"
+      >
+        ↪ Move trip… <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-20 mt-1 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+            <div className="relative border-b border-slate-100 p-1.5">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search trips…"
+                className="w-full rounded-md border border-slate-200 py-1.5 pl-8 pr-2 text-[12.5px] focus:border-brand focus:outline-none" />
+            </div>
+            <div className="max-h-64 overflow-y-auto py-1">
+              {opts.length === 0 ? (
+                <div className="px-3 py-2 text-[12px] text-slate-400">No matching trips.</div>
+              ) : opts.map((t) => (
+                <button key={t.id} onClick={() => { setOpen(false); setQ(""); onPick(t.id); }}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-brand/[0.06]">
+                  <span className="truncate font-medium text-slate-700">{t.dest}</span>
+                  <span className="shrink-0 text-[11.5px] text-slate-400">{ENT[t.ent] ?? t.ent} · {tripDates(t)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- posted-only expenses ledger (the QuickBooks tie-out) ----------
+type LedgerSort = "date" | "payee" | "account" | "payFrom" | "net" | "reimburse";
+const acctLeaf = (s: string) => s.split(/\s*:\s*/).pop() || s;
+function fmtMD(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00");
+  return Number.isNaN(+d) ? "—" : `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function TripExpensesLedger({ trip }: { trip: Trip }) {
+  // Only expenses POSTED to QuickBooks appear — nothing shows until it's approved + posted in
+  // Payables. Reimburse is a BC-only column (employer reimbursement); non-BC shows a single Amount.
+  const posted = trip.exps.filter((e) => e.status === "posted");
+  const accepted = trip.exps.filter((e) => e.status === "accepted" || e.status === "staged");
+  const showReimburse = trip.ent === "BC";
+  const total = posted.reduce((s, e) => s + e.amount, 0);
+  const reimburse = posted.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
+
+  const [sortK, setSortK] = useState<LedgerSort>("date");
+  const [dir, setDir] = useState<1 | -1>(1);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const allOpen = posted.length > 0 && posted.every((e) => open[e.id ?? ""]);
+
+  const val = (e: TripExpense): string | number => {
+    switch (sortK) {
+      case "payee": return (e.what ?? "").toLowerCase();
+      case "account": return acctLeaf(expenseCode(trip.ent, e)).toLowerCase();
+      case "payFrom": return (e.payFrom ?? "").toLowerCase();
+      case "net": return e.amount;
+      case "reimburse": return e.reimbursementAmount ?? e.amount;
+      default: return e.date ?? "";
+    }
+  };
+  const rows = [...posted].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+  const toggleSort = (k: LedgerSort) => { if (sortK === k) setDir((d) => (d === 1 ? -1 : 1)); else { setSortK(k); setDir(k === "payee" || k === "account" || k === "payFrom" ? 1 : -1); } };
+  const cols = 4 + (showReimburse ? 2 : 1) + 1; // date,payee,account,entity + (net[+reimburse]) + links
+
+  const Th = ({ k, label, right }: { k: LedgerSort; label: string; right?: boolean }) => (
+    <th onClick={() => toggleSort(k)}
+      className={`cursor-pointer select-none whitespace-nowrap px-2 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 ${right ? "text-right" : "text-left"} ${sortK === k ? "text-slate-700" : ""}`}>
+      <span className="inline-flex items-center gap-0.5">{label}
+        {sortK === k ? (dir > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+      </span>
+    </th>
+  );
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· posted to QuickBooks</span></div>
+        <div className="flex items-center gap-3">
+          {posted.length > 0 && (
+            <button onClick={() => setOpen(allOpen ? {} : Object.fromEntries(posted.map((e) => [e.id ?? "", true])))}
+              className="text-[11.5px] font-medium text-brand hover:underline">{allOpen ? "Collapse all" : "Expand all"}</button>
+          )}
+          <span className="text-[12px] text-slate-500">
+            {posted.length} posted{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(total)}`}
+          </span>
+        </div>
+      </div>
+
+      {posted.length === 0 ? (
+        <div className="px-4 py-4 text-[12.5px] text-slate-400">
+          Nothing posted yet — expenses appear here once they’re accepted and posted to QuickBooks in Payables.
+          {accepted.length > 0 && (
+            <span className="mt-1 block text-slate-500">
+              <b className="font-semibold text-amber-600">{accepted.length}</b> accepted · awaiting posting in Payables.
+            </span>
+          )}
+        </div>
+      ) : (
+        <table className="w-full" style={{ tableLayout: "auto" }}>
+          <thead>
+            <tr className="border-b border-slate-100">
+              <th className="w-px px-3 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-400" onClick={() => toggleSort("date")} role="button">
+                <span className="inline-flex cursor-pointer items-center gap-0.5">Date {sortK === "date" ? (dir > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-30" />}</span>
+              </th>
+              <Th k="payee" label="Payee" />
+              <Th k="account" label="Account" />
+              <th className="w-px px-2 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Entity</th>
+              <Th k="payFrom" label="Pay-from" />
+              <Th k="net" label={showReimburse ? "Net" : "Amount"} right />
+              {showReimburse && <Th k="reimburse" label="Reimburse" right />}
+              <th className="w-px px-3 py-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Links</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => {
+              const id = e.id ?? "";
+              const det = !!open[id];
+              const acct = acctLeaf(expenseCode(trip.ent, e));
+              return (
+                <Fragment key={id}>
+                  <tr className="border-t border-slate-100 align-top">
+                    <td className="whitespace-nowrap px-3 pt-2.5 text-[12.5px] text-slate-500">{fmtMD(e.date)}</td>
+                    <td className="px-2 pt-2.5">
+                      <button onClick={() => setOpen((s) => ({ ...s, [id]: !s[id] }))} className="inline-flex items-start gap-1 text-left">
+                        {det ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                        <span className="font-medium">{e.what}</span>
+                      </button>
+                    </td>
+                    <td className="px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}
+                      style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acct}</td>
+                    <td className="px-2 pt-2.5"><Badge tone="indigo">{ENT[trip.ent] ?? trip.ent}</Badge></td>
+                    <td className="px-2 pt-2.5 text-[12.5px] text-slate-600">{e.payFrom ?? "—"}</td>
+                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(e.amount)}</td>
+                    {showReimburse && <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] font-semibold tabular-nums">{money(e.reimbursementAmount ?? e.amount)}</td>}
+                    <td className="whitespace-nowrap px-3 pt-2.5 text-right">
+                      {e.docUrl && (
+                        <a href={e.docUrl} target="_blank" rel="noopener noreferrer" title="Open invoice" className="text-brand hover:text-brand-navy"><FileText className="inline h-4 w-4" /></a>
+                      )}
+                      {e.qbUrl && (
+                        <a href={e.qbUrl} target="_blank" rel="noopener noreferrer" title={`Open in QuickBooks${e.qbRef ? ` · ${e.qbRef}` : ""}`} className="ml-2 text-brand hover:text-brand-navy"><ExternalLink className="inline h-4 w-4" /></a>
+                      )}
+                    </td>
+                  </tr>
+                  {det && (
+                    <tr>
+                      <td />
+                      <td colSpan={cols - 1} className="px-2 pb-2.5 text-[11.5px] leading-relaxed text-slate-500" style={{ wordBreak: "break-word" }}>
+                        <span className="text-slate-400">QB vendor</span> {tripVendor(trip)}
+                        {e.creditAmount && e.creditAmount > 0 ? <> · <span className="text-slate-400">eCredit</span> {money(e.creditAmount)} applied{e.creditNumber ? ` · #${e.creditNumber}` : ""}</> : null}
+                        <br />
+                        {e.memo ? <><span className="text-slate-400">Memo</span> {e.memo}</> : null}
+                        {e.qbRef ? <> {e.memo ? "· " : ""}<span className="text-slate-400">QB txn</span> {e.qbRef}</> : null}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ---------- trip detail ----------
 function TripDetail({
   trip,
@@ -984,10 +1122,6 @@ function TripDetail({
   // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
   // collapsed by the worker (only the final row carries the claim), so this never double-counts.
   const reimburseTotal = trip.exps.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
-  // Expenses grouped by the calendar's categories, in display order, with a subtotal each.
-  const expGroups = CALENDAR_CATEGORIES
-    .map((name) => ({ name, rows: trip.exps.filter((e) => (e.category ?? "Other") === name) }))
-    .filter((g) => g.rows.length > 0);
   // "Needs receipt" gaps: an itinerary confirmation with no uploaded receipt yet. The confirmation
   // builds the schedule, never an expense — so these are computed (one per conf), not stored rows.
   const expConfs = new Set(trip.exps.map((e) => (e.confirmation ?? "").toUpperCase()).filter(Boolean));
@@ -1086,99 +1220,12 @@ function TripDetail({
 
       <ReviewSection trip={trip} trips={trips} />
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· from Payables</span></div>
-          <div className="flex items-center gap-3">
-            <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>
-          </div>
-        </div>
-        {expGroups.length || needsReceipt.length ? (
-          [...expGroups.map((g) => {
-            const sub = g.rows.reduce((s, e) => s + e.amount, 0);
-            return (
-              <Fragment key={g.name}>
-                <div className="flex items-center justify-between bg-slate-50/70 px-4 py-1.5 text-[12px] text-slate-500">
-                  <span>{g.name} <span className="text-slate-400">· {g.rows.length}</span></span>
-                  <span className="tabular-nums">{money(sub)}</span>
-                </div>
-                {g.rows.map((e, k) => {
-                  // A 'staged' (Review) row isn't in Payables yet — it gets there via the green
-                  // "Accept → Payables" button. Only rows that are actually in Payables
-                  // (accepted/posted/open) link to the drawer; a staged row would dead-end.
-                  const inPayables = !!e.id && e.status !== "staged";
-                  return (
-                  <div key={e.id ?? `${g.name}-${k}`}
-                    onClick={() => { if (inPayables) window.location.href = `/payables?open=${e.id}`; }}
-                    title={inPayables ? "Open in Payables to edit / post"
-                                      : e.status === "staged" ? "In Review — click “Accept → Payables” above to send it for coding & posting"
-                                      : undefined}
-                    className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0 ${inPayables ? "cursor-pointer hover:bg-slate-50" : ""}`}>
-                    <span className="text-lg">{e.ic}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{e.what}</div>
-                      <div className="truncate text-[12.5px] text-slate-500">
-                        {expenseCode(trip.ent, e)} ·{" "}
-                        {e.needsDoc ? (
-                          <span className="inline-flex items-center gap-0.5 font-semibold text-amber-600">⚠ no receipt</span>
-                        ) : e.docUrl ? (
-                          <a
-                            href={e.docUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(ev) => ev.stopPropagation()}
-                            className="inline-flex items-center gap-0.5 font-semibold text-emerald-600 hover:underline"
-                          >
-                            <FileText className="h-3 w-3" /> ✓ receipt
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">✓ receipt</span>
-                        )}
-                        {e.creditAmount && e.creditAmount > 0 ? (
-                          <span className="ml-1 text-indigo-600">· eCredit {money(e.creditAmount)} applied{e.creditNumber ? ` · #${e.creditNumber}` : ""}</span>
-                        ) : null}
-                      </div>
-                      <BcReimburseCell e={e} ent={trip.ent} />
-                    </div>
-                    <ExpenseStatusChip e={e} />
-                    <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>
-                  </div>
-                  );
-                })}
-              </Fragment>
-            );
-          }),
-          needsReceipt.length > 0 ? (
-            <Fragment key="__needs_receipt">
-              <div className="flex items-center justify-between bg-amber-50/70 px-4 py-1.5 text-[12px] text-amber-700">
-                <span>⚠ Needs receipts <span className="text-amber-500">· {needsReceipt.length}</span></span>
-                <span className="text-amber-500">upload to post</span>
-              </div>
-              {needsReceipt.map((g) => (
-                <div key={g.conf} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0">
-                  <span className="text-lg">✈️</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">Flight · conf {g.conf}</div>
-                    {g.sub && <div className="truncate text-[12.5px] text-slate-500">✈ {g.sub}</div>}
-                  </div>
-                  <Badge tone="amber">Needs receipt</Badge>
-                  <span className="w-20 text-right text-slate-300">—</span>
-                </div>
-              ))}
-            </Fragment>
-          ) : null,
-          ]
-        ) : (
-          <div className="px-4 py-3 text-[12.5px] text-slate-400">
-            No expenses yet — upload each flight’s receipt and it posts here, matched to this trip by confirmation.
-          </div>
-        )}
-      </div>
+      <TripExpensesLedger trip={trip} />
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-[13px] text-slate-600">
-        Posts to QuickBooks under one vendor — <b className="text-brand-navy">{tripVendor(trip)}</b>. Each merchant is a memo line, never its own vendor.
+        Posts to QuickBooks under one vendor — <b className="text-brand-navy">{tripVendor(trip)}</b>. Each merchant is a memo line (with the traveler), never its own vendor.
         <span className="mt-1.5 block text-[12.5px] text-slate-500">
-          The confirmation builds the <b>itinerary</b> only. The <b>receipt is the expense</b> — upload each flight’s receipt (matched to this trip by confirmation) and it posts; until then it shows as <b>needs receipt</b>.
+          The confirmation builds the <b>itinerary</b> and the review list above. Expenses here are the <b>QuickBooks tie-out</b> — each appears once it’s accepted and posted in Payables.
         </span>
       </div>
     </div>

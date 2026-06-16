@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Briefings — Review Queue (Mockup)</title>
+<style>
+  :root{
+    --navy:#0a2c4e; --blue:#1768a3; --sky:#5ba3d2;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --card:#fff;
+    --green:#0f9d58; --green-bg:#e8f6ee; --amber:#b7791f; --amber-bg:#fdf3e3;
+    --red:#c0392b; --red-bg:#fdecea; --purple:#6b3fa0; --purple-bg:#efeaf8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Poppins',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .top{display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:14px 22px}
+  .mark{width:30px;height:30px;display:block}
+  .top h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.2px}
+  .top .sub{color:#9bb8d4;font-size:12px}
+  .top .spacer{flex:1}
+  .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 12px;font-size:12px}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px}
+  .summary{display:flex;gap:14px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1}
+  .stat .n{font-size:24px;font-weight:600}
+  .stat .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .stat.need .n{color:var(--amber)} .stat.skip .n{color:#94a3b8}
+  .filters{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;gap:2px}
+  .filters button{border:0;background:none;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;font-weight:500}
+  .filters button.on{background:var(--navy);color:#fff}
+  .filters .cnt{opacity:.7;margin-left:6px;font-size:12px}
+  .queue{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .qhead{display:grid;grid-template-columns:26px 2.6fr 1.5fr 1.7fr 1fr;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);
+    font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:600;background:#f8fafc}
+  .row{display:grid;grid-template-columns:26px 2.6fr 1.5fr 1.7fr 1fr;gap:12px;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer}
+  .row:hover{background:#f8fbff}
+  .row:last-child{border-bottom:0}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .dot.rev{background:var(--amber)} .dot.skip{background:#cbd5e1} .dot.done{background:var(--green)}
+  .nt{font-weight:600}
+  .nsub{color:var(--muted);font-size:12.5px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid}
+  .b-ok{background:var(--green-bg);color:var(--green);border-color:#bfe6cd}
+  .b-unk{background:var(--amber-bg);color:var(--amber);border-color:#f3dcae}
+  .dealwrap .dsub{color:var(--muted);font-size:11.5px;margin-top:3px}
+  .chips{display:flex;gap:5px;flex-wrap:wrap}
+  .tg{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:6px}
+  .tg.call{background:#eaf1f8;color:var(--blue)} .tg.note{background:#eef2f7;color:#475569}
+  .tg.task{background:var(--green-bg);color:var(--green)} .tg.cap{background:var(--purple-bg);color:var(--purple)}
+  .act{display:flex;justify-content:flex-end}
+  .miniact{background:var(--navy);color:#fff;border:0;border-radius:8px;height:32px;padding:0 16px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .skiprow{color:#94a3b8;font-size:12.5px}
+  .restore{color:var(--blue);font-size:12px;cursor:pointer;text-decoration:none}.restore:hover{text-decoration:underline}
+  .hint{font-size:11px;color:#94a3b8;margin-top:10px}
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:rgba(10,44,78,.32);backdrop-filter:blur(2px);display:none}
+  .scrim.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:600px;max-width:96vw;background:#fff;box-shadow:-12px 0 40px rgba(10,44,78,.22);
+    transform:translateX(100%);transition:transform .2s ease;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .dhead{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .dhead .x{border:0;background:none;font-size:22px;color:#94a3b8;cursor:pointer;line-height:1}
+  .dbody{flex:1;overflow:auto;padding:0 22px 22px}
+  .sect{padding:16px 0;border-bottom:1px solid #f1f5f9}
+  .sect:last-child{border-bottom:0}
+  .sect h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .dest{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:5px;text-transform:none;letter-spacing:0}
+  .dest.pd{background:#eaf1f8;color:var(--blue)} .dest.as{background:var(--green-bg);color:var(--green)} .dest.sag{background:var(--purple-bg);color:var(--purple)}
+  .dest.open{background:var(--amber-bg);color:var(--amber);border:1px solid #f3dcae}
+  .dest.done{background:var(--green-bg);color:var(--green);border:1px solid #bfe6cd}
+  textarea.recap{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:13.5px;line-height:1.5;resize:vertical;min-height:78px;color:var(--ink)}
+  .transcript{font-size:12.5px;color:var(--muted);background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:10px 12px;line-height:1.5;font-style:italic}
+  .dealbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .corr{font-size:12px;color:var(--muted)}
+  .corr b{color:var(--ink)}
+  select.dealsel{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--ink);max-width:100%}
+  .item{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid #f6f8fb}
+  .item:last-child{border-bottom:0}
+  .item.dropped{opacity:.45}
+  .keep{width:18px;height:18px;accent-color:var(--green);margin-top:2px;flex:0 0 auto;cursor:pointer}
+  .item .body{flex:1}
+  .item .t{font-weight:500;font-size:13.5px}
+  .item .meta{display:flex;gap:7px;align-items:center;margin-top:5px;flex-wrap:wrap}
+  .kindsel{border:1px solid var(--line);border-radius:7px;padding:3px 7px;font:inherit;font-size:11.5px;font-weight:600;background:#fff;color:var(--blue)}
+  .due{font-size:11.5px;color:var(--muted)}
+  .interaction{display:flex;align-items:center;gap:10px;background:#f0f7fc;border:1px solid #cfe3f2;border-radius:10px;padding:11px 13px}
+  .interaction .ic{font-size:18px}
+  .interaction .body{flex:1}
+  .interaction .t{font-weight:600;font-size:13px}
+  .interaction .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .waiting{display:flex;gap:9px;align-items:flex-start;background:var(--amber-bg);border:1px solid #f3dcae;border-radius:10px;padding:11px 13px;font-size:13px;color:#7a5b12}
+  .dfoot{padding:14px 22px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+  .willdo{font-size:12px;color:var(--muted)}
+  .willdo b{color:var(--ink)}
+  .frow{display:flex;gap:10px;justify-content:flex-end}
+  .btn{border:0;border-radius:10px;height:44px;padding:0 22px;min-width:120px;display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--navy);color:#fff} .btn.primary:hover{opacity:.93}
+  .btn.ghost{background:#fff;color:#334155;border:1px solid var(--line)}
+  .btn.danger{background:#fff;color:var(--red);border:1px solid #f2c9c4}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 12px 30px rgba(10,44,78,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <svg class="mark" viewBox="0 0 950 950"><rect x="260" width="690" height="260" fill="#5ba3d2"/><polygon points="260,0 260,260 0,260" fill="#fff"/><rect y="260" width="260" height="690" fill="#1768a3"/><polygon points="510,510 950,510 510,950" fill="#fff"/></svg>
+  <div>
+    <h1>Foundry · Briefings</h1>
+    <div class="sub">Review what the agent drafted from your voice notes and meetings — nothing posts until you approve</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="pill">Last sync: today 10:04 AM · live</div>
+</div>
+
+<div class="wrap">
+  <div class="summary">
+    <div class="stat"><div class="n">4</div><div class="l">Notes today</div></div>
+    <div class="stat need"><div class="n" id="revN">3</div><div class="l">To review</div></div>
+    <div class="stat skip"><div class="n">1</div><div class="l">Skipped — no action</div></div>
+    <div class="stat"><div class="n" id="postN">0</div><div class="l">Posted</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="on" data-f="review">To review<span class="cnt" id="f-review">3</span></button>
+    <button data-f="skipped">Skipped<span class="cnt">1</span></button>
+    <button data-f="posted">Posted<span class="cnt" id="f-posted">0</span></button>
+    <button data-f="all">All<span class="cnt">4</span></button>
+  </div>
+
+  <div class="queue">
+    <div class="qhead"><div></div><div>Recording</div><div>Deal</div><div>Will file</div><div></div></div>
+    <div id="rows"></div>
+  </div>
+  <div class="hint">Tip: the agent drops notes with nothing actionable (the “Skipped” tab) so junk never reaches your CRM. Click a draft to review, edit, and approve.</div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dhead">
+    <div><div style="font-weight:600;font-size:16px" id="d-title">Review draft</div>
+      <div style="color:var(--muted);font-size:13px" id="d-when"></div></div>
+    <button class="x" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="dbody" id="d-body"></div>
+  <div class="dfoot" id="d-foot"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DEALS = [
+  {id:474, title:"Siena Valley Club: 8 Loans x 1 SFR"},
+  {id:142, title:"Talon Nashi Dev Only x 23 Lots"},
+  {id:208, title:"44th Street Dev x 20 MF doors Vertical"},
+  {id:260, title:"Morning Falls Development Project"},
+];
+// Drafts as produced by the prepare-and-hold workflow (held; nothing posted)
+const drafts = [
+  {
+    id:"vn1", status:"review", title:"Richard Zollinger — Siena call", when:"Today 10:01 AM",
+    transcript:"Talk to Richard Zollinger from Mesa Bridge on Ciena Dev, $10M development loan. He's going to follow up with his capital partners and let me know this week. My next action is probably to follow up with him on Friday.",
+    heard:"Ciena Dev",
+    deal:{id:474, confident:true},
+    recap:"6/10 — Call with Richard Zollinger (Mesa Bridge) on Siena Valley Club, $10M development loan. Richard is taking it to his capital partners and will report back this week.",
+    interaction:{type:"call"},
+    followups:[{text:"Follow up with Richard Zollinger (Mesa Bridge) — Siena Valley Club", kind:"call", due:"2026-06-12", pd:true, as:true, keep:true}],
+    todos:[], capital:"",
+    waiting:["Richard to report back from his capital partners — this week"],
+  },
+  {
+    id:"vn2", status:"review", title:"Hidden Mill walk + my to-dos", when:"Today 9:12 AM",
+    transcript:"Walked the Hidden Mill site, vertical looks about 70 percent. Need to send the updated draw schedule to the lender, and remind myself to book the Boise flight for the 24th.",
+    heard:"Hidden Mill",
+    deal:{id:null, confident:false},   // not confident -> pick
+    recap:"6/10 — Site walk at Hidden Mill: vertical ~70% complete.",
+    interaction:{type:"meeting"},
+    followups:[{text:"Send updated draw schedule to the lender", kind:"email", due:null, pd:true, as:true, keep:true}],
+    todos:[{text:"Book Boise flight for the 24th", keep:true}],
+    capital:"",
+    waiting:[],
+  },
+  {
+    id:"vn3", status:"review", title:"Aviator — capital update", when:"Yesterday 4:48 PM",
+    transcript:"Quick capital update on Aviator. Horizontal is done, vertical financing closed last week, first homes vertical starting. No new risk. On track.",
+    heard:"Aviator",
+    deal:{id:83, confident:true, title:"Aviator - Vertical 76 lots + 16 SFR"},
+    recap:"Aviator — horizontal complete; vertical financing closed last week; first homes starting vertical. On track, no new risk flags.",
+    interaction:null,
+    followups:[], todos:[],
+    capital:"Status: On Track. Horizontal complete. Vertical financing closed last week; first homes commencing vertical. No new risk flags this period.",
+    waiting:[],
+  },
+  {
+    id:"vn4", status:"skipped", title:"(thinking out loud)", when:"Today 7:30 AM",
+    transcript:"um, just thinking out loud about the week, nothing really, need coffee.",
+    skipReason:"No deal update and nothing actionable",
+  },
+];
+
+const dealTitle = id => (DEALS.find(d=>d.id===id)||{}).title || (drafts.flatMap(x=>x.deal&&x.deal.id===id&&x.deal.title?[x.deal.title]:[])[0]) || ("Deal "+id);
+let filter="review", curId=null;
+const $ = id => document.getElementById(id);
+
+function willFileTags(d){
+  const t=[];
+  if(d.recap) t.push(`<span class="tg note">📝 note</span>`);
+  if(d.interaction) t.push(`<span class="tg call">📞 ${d.interaction.type} logged</span>`);
+  const fk = d.followups.filter(f=>f.keep);
+  if(fk.length) t.push(`<span class="tg task">✅ ${fk.length} follow-up${fk.length>1?'s':''}</span>`);
+  if(d.todos && d.todos.filter(x=>x.keep).length) t.push(`<span class="tg task">✅ ${d.todos.filter(x=>x.keep).length} to-do</span>`);
+  if(d.capital) t.push(`<span class="tg cap">📊 capital update</span>`);
+  return `<div class="chips">${t.join("")}</div>`;
+}
+function dealCell(d){
+  if(!d.deal) return "";
+  if(d.deal.id && d.deal.confident) return `<div class="dealwrap"><span class="badge b-ok">${(d.deal.title||dealTitle(d.deal.id))}</span></div>`;
+  if(d.deal.id) return `<div class="dealwrap"><span class="badge b-ok">${dealTitle(d.deal.id)}</span></div>`;
+  return `<div class="dealwrap"><span class="badge b-unk">pick a deal</span><div class="dsub">heard “${d.heard}”</div></div>`;
+}
+function render(){
+  const rows = drafts.filter(d=> filter==="all" ? true : d.status===filter);
+  $("rows").innerHTML = rows.length ? rows.map(d=>{
+    if(d.status==="skipped") return `
+      <div class="row" style="cursor:default">
+        <div><span class="dot skip"></span></div>
+        <div><div class="nt skiprow">${d.title}</div><div class="nsub">${d.transcript}</div></div>
+        <div class="skiprow" style="grid-column:span 2">— ${d.skipReason}</div>
+        <div class="act"><a class="restore" onclick="restore('${d.id}')">Review anyway</a></div>
+      </div>`;
+    const posted = d.status==="posted";
+    return `
+      <div class="row" onclick="openDrawer('${d.id}')">
+        <div><span class="dot ${posted?'done':'rev'}"></span></div>
+        <div><div class="nt">${d.title}</div><div class="nsub">${d.transcript}</div></div>
+        <div>${dealCell(d)}</div>
+        <div>${willFileTags(d)}</div>
+        <div class="act">${posted?'<span style="color:var(--green);font-weight:600;font-size:12.5px">✓ Posted</span>':'<button class="miniact" onclick="event.stopPropagation();openDrawer(\''+d.id+'\')">Review</button>'}</div>
+      </div>`;
+  }).join("") : `<div style="padding:26px 18px;color:#94a3b8;font-size:13.5px">Nothing here.</div>`;
+  document.querySelectorAll(".filters button").forEach(b=>b.classList.toggle("on",b.dataset.f===filter));
+  $("revN").textContent = drafts.filter(d=>d.status==="review").length;
+  $("f-review").textContent = drafts.filter(d=>d.status==="review").length;
+  $("postN").textContent = drafts.filter(d=>d.status==="posted").length;
+  $("f-posted").textContent = drafts.filter(d=>d.status==="posted").length;
+}
+
+function dealSelect(d){
+  const opts = DEALS.map(o=>`<option value="${o.id}" ${d.deal && d.deal.id===o.id?'selected':''}>${o.title}</option>`).join("");
+  return `<select class="dealsel" onchange="setDeal('${d.id}', this.value)"><option value="">— pick a deal —</option>${opts}</select>`;
+}
+function followItem(d,i){
+  const f=d.followups[i];
+  return `<div class="item ${f.keep?'':'dropped'}">
+    <input class="keep" type="checkbox" title="Include this follow-up" ${f.keep?'checked':''} onchange="toggleFollow('${d.id}',${i})">
+    <div class="body">
+      <div class="t">${f.text}</div>
+      <div class="meta">
+        <select class="kindsel"><option ${f.kind==='call'?'selected':''}>call</option><option ${f.kind==='task'?'selected':''}>task</option><option ${f.kind==='email'?'selected':''}>email</option></select>
+        ${f.due?`<span class="due">due ${f.due}</span>`:`<span class="due">no due date</span>`}
+        <span class="dest open">○ open</span>
+        ${f.pd?`<span class="dest pd">Pipedrive activity</span>`:''}
+        ${f.as?`<span class="dest as">Asana INTAKE</span>`:''}
+      </div>
+    </div></div>`;
+}
+function todoItem(d,i){
+  const t=d.todos[i];
+  return `<div class="item ${t.keep?'':'dropped'}">
+    <input class="keep" type="checkbox" ${t.keep?'checked':''} onchange="toggleTodo('${d.id}',${i})">
+    <div class="body"><div class="t">${t.text}</div>
+      <div class="meta"><span class="dest as">Asana INTAKE (private)</span></div></div></div>`;
+}
+function openDrawer(id){
+  const d=drafts.find(x=>x.id===id); if(!d) return; curId=id;
+  $("d-title").textContent="Review draft";
+  $("d-when").textContent=d.title+" · "+d.when;
+  let html="";
+  html+=`<div class="sect"><h3>You said</h3><div class="transcript">“${d.transcript}”</div></div>`;
+  // deal
+  html+=`<div class="sect"><h3>Deal</h3><div class="dealbox">`;
+  if(d.deal && d.deal.id && d.deal.confident){
+    html+=`<span class="badge b-ok">${d.deal.title||dealTitle(d.deal.id)}</span>`;
+    if(d.heard && (d.deal.title||dealTitle(d.deal.id)).toLowerCase().indexOf(d.heard.toLowerCase().split(' ')[0])<0)
+      html+=`<span class="corr">heard <b>“${d.heard}”</b> → matched this card</span>`;
+    html+=`<span class="corr">· <a class="restore" onclick="changeDeal('${d.id}')">change</a></span>`;
+  } else {
+    html+=`<span class="corr">heard <b>“${d.heard}”</b> — couldn’t match confidently, pick the deal:</span><br>${dealSelect(d)}`;
+  }
+  html+=`</div></div>`;
+  // recap -> note
+  html+=`<div class="sect"><h3>Recap <span class="dest pd">Pipedrive note</span></h3><textarea class="recap">${d.recap||""}</textarea></div>`;
+  // interaction
+  if(d.interaction){
+    const icon = d.interaction.type==='call'?'📞':d.interaction.type==='meeting'?'🤝':'✉️';
+    html+=`<div class="sect"><h3>Log the interaction <span class="dest pd">Pipedrive activity · done</span></h3>
+      <div class="interaction"><div class="ic">${icon}</div><div class="body">
+        <div class="t">${d.interaction.type[0].toUpperCase()+d.interaction.type.slice(1)} logged on the deal (marked done, dated today)</div>
+        <div class="s">Puts it on the timeline / updates “last contacted”.</div></div>
+        <input class="keep" type="checkbox" checked></div></div>`;
+  }
+  // follow-ups
+  if(d.followups.length){
+    html+=`<div class="sect"><h3>Follow-ups <span class="dest pd">Pipedrive</span><span class="dest as">Asana</span></h3>
+      <div class="corr" style="margin:-2px 0 8px">Created <b>open</b> (not complete) — the checkbox just includes it; you tick it off when it's actually done.</div>
+      ${d.followups.map((f,i)=>followItem(d,i)).join("")}</div>`;
+  }
+  // private todos
+  if(d.todos && d.todos.length){
+    html+=`<div class="sect"><h3>Your private to-dos <span class="dest as">Asana INTAKE</span></h3>
+      ${d.todos.map((t,i)=>todoItem(d,i)).join("")}</div>`;
+  }
+  // capital
+  if(d.capital){
+    html+=`<div class="sect"><h3>Capital update <span class="dest sag">SAG Asana status</span></h3>
+      <textarea class="recap">${d.capital}</textarea>
+      <div class="corr" style="margin-top:7px">⏳ Posts once the Builders Capital Asana is connected (pending admin approval).</div></div>`;
+  }
+  // waiting on
+  if(d.waiting && d.waiting.length){
+    html+=`<div class="sect"><h3>You’re waiting on</h3>
+      <div class="waiting"><div>⏳</div><div>${d.waiting.join("<br>")}<div class="corr" style="margin-top:4px">Folded into the note now; tracked as an “owed to me” item later.</div></div></div></div>`;
+  }
+  $("d-body").innerHTML=html;
+  renderFoot(d);
+  $("scrim").classList.add("open"); $("drawer").classList.add("open");
+}
+function renderFoot(d){
+  const parts=[];
+  if(d.recap) parts.push("1 note");
+  if(d.interaction) parts.push("1 "+d.interaction.type+" logged");
+  const fk=d.followups.filter(f=>f.keep).length; if(fk) parts.push(fk+" follow-up"+(fk>1?'s':''));
+  const tk=(d.todos||[]).filter(t=>t.keep).length; if(tk) parts.push(tk+" private to-do"+(tk>1?'s':''));
+  if(d.capital) parts.push("1 capital update (held)");
+  const dealOk = d.deal && d.deal.id;
+  $("d-foot").innerHTML=`
+    <div class="willdo">On approve → <b>${parts.join(" · ")||"nothing"}</b>${dealOk?` on <b>${d.deal.title||dealTitle(d.deal.id)}</b>`:''}.</div>
+    <div class="frow">
+      <button class="btn danger" onclick="discard('${d.id}')">Discard</button>
+      <button class="btn ghost" onclick="closeDrawer()">Later</button>
+      <button class="btn primary" ${dealOk?'':'disabled style="opacity:.45;cursor:not-allowed"'} onclick="approve('${d.id}')">Approve &amp; post →</button>
+    </div>`;
+}
+function setDeal(id,val){const d=drafts.find(x=>x.id===id); d.deal={id:val?+val:null, confident:!!val, title: val?dealTitle(+val):null}; openDrawer(id);}
+function changeDeal(id){const d=drafts.find(x=>x.id===id); d.deal.confident=false; openDrawer(id);}
+function toggleFollow(id,i){const d=drafts.find(x=>x.id===id); d.followups[i].keep=!d.followups[i].keep; openDrawer(id);}
+function toggleTodo(id,i){const d=drafts.find(x=>x.id===id); d.todos[i].keep=!d.todos[i].keep; openDrawer(id);}
+function closeDrawer(){$("scrim").classList.remove("open");$("drawer").classList.remove("open");}
+function restore(id){const d=drafts.find(x=>x.id===id); d.status="review"; filter="review"; render(); openDrawer(id);}
+function discard(id){const d=drafts.find(x=>x.id===id); d.status="skipped"; d.skipReason="Discarded by you"; closeDrawer(); render(); toast("Draft discarded — nothing posted");}
+function approve(id){
+  const d=drafts.find(x=>x.id===id); if(!(d.deal&&d.deal.id)){toast("Pick a deal first");return;}
+  d.status="posted"; closeDrawer(); render();
+  const parts=[]; if(d.recap)parts.push("note"); if(d.interaction)parts.push(d.interaction.type);
+  if(d.followups.filter(f=>f.keep).length)parts.push("follow-up"); if((d.todos||[]).filter(t=>t.keep).length)parts.push("to-do → Asana");
+  toast("✓ Posted to "+(d.deal.title||dealTitle(d.deal.id))+" — "+parts.join(", "));
+}
+let toastT; function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),3600);}
+document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{filter=b.dataset.f;render();});
+render();
+</script>
+</body>
+</html>

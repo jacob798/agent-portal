@@ -19,6 +19,20 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 import { CALENDAR_CAT_ICON, calendarCategory } from "@/lib/data/travelCategories";
 export { CALENDAR_CATEGORIES, calendarCategory } from "@/lib/data/travelCategories";
 
+// QuickBooks deep-link: posted_legs stores [{role, qbo_id, realm, txn_type, attached}] per leg.
+// Build a link to the primary leg's transaction. The txn_type picks the QBO view path.
+const QBO_PATH: Record<string, string> = {
+  Bill: "bill", Purchase: "expense", Check: "check", BillPayment: "billpayment", Deposit: "deposit",
+};
+function qboTxnUrl(legs: { qbo_id?: string; txn_type?: string; role?: string }[] | null): string | null {
+  if (!Array.isArray(legs) || !legs.length) return null;
+  // Prefer the PER/primary leg (not the intercompany duplicate); fall back to the first with an id.
+  const leg = legs.find((l) => l.qbo_id && !/intercompany/i.test(l.role ?? "")) ?? legs.find((l) => l.qbo_id);
+  if (!leg?.qbo_id) return null;
+  const path = QBO_PATH[leg.txn_type ?? ""] ?? "expense";
+  return `https://qbo.intuit.com/app/${path}?txnId=${encodeURIComponent(leg.qbo_id)}`;
+}
+
 /** Map a trip-attributed payables_queue row into a ledger line. The QB vendor is
  *  the trip header, so the ledger shows the REAL payee (extracted.payee). */
 function payableToLedger(r: {
@@ -26,6 +40,8 @@ function payableToLedger(r: {
   reimbursement_amount: number | string | null;
   gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
+  account: string | null; txn_date: string | null; invoice_number: string | null;
+  posted_legs: { qbo_id?: string; txn_type?: string; role?: string }[] | null;
   extracted: { payee?: string; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
 }): TripExpense {
   const calCat = calendarCategory(r.category);
@@ -53,6 +69,13 @@ function payableToLedger(r: {
     reimbursementAmount: r.reimbursement_amount != null ? Number(r.reimbursement_amount) : Number(r.amount),
     creditNumber: r.extracted?.credit_number ?? null,
     creditAmount: r.extracted?.credit_amount != null ? Number(r.extracted.credit_amount) : null,
+    memo: r.memo ?? null,
+    date: r.txn_date ? r.txn_date.slice(0, 10) : null,
+    payFrom: r.account || null,
+    qbUrl: qboTxnUrl(r.posted_legs),
+    qbRef: r.posted_legs?.find((l) => l.txn_type)?.txn_type
+      ? `${r.posted_legs.find((l) => l.txn_type)!.txn_type} ${r.invoice_number ?? r.extracted?.conf ?? ""}`.trim()
+      : null,
   };
 }
 
@@ -93,6 +116,11 @@ export interface TripExpense {
   creditAmount?: number | null; // eCredit AMOUNT applied — shown in-row next to the flight
   category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
   confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
+  memo?: string | null;         // the QB memo (deterministic; includes the traveler for travel rows)
+  date?: string | null;         // expense/service date (txn_date) — the ledger Date column
+  payFrom?: string | null;      // pay-from account display ("AMEX Delta ••5001")
+  qbUrl?: string | null;        // deep link to the posted QuickBooks transaction
+  qbRef?: string | null;        // "Bill JLB4PN" — the QB txn type + ref, for the detail line
 }
 // A confirmation under a review item (one per traveler's ticket on the leg).
 export interface ConfReviewConf {
@@ -244,7 +272,7 @@ export async function getTravel(): Promise<{
       // Real invoices attributed to a trip — the per-trip running ledger.
       supabase
         .from("payables_queue")
-        .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at")
+        .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at,account,txn_date,invoice_number,posted_legs")
         .not("trip_id", "is", null),
     ]);
     // Group attributed invoices by trip → ledger lines.

@@ -891,6 +891,17 @@ function TripDetail({
   const expGroups = CALENDAR_CATEGORIES
     .map((name) => ({ name, rows: trip.exps.filter((e) => (e.category ?? "Other") === name) }))
     .filter((g) => g.rows.length > 0);
+  // "Needs receipt" gaps: an itinerary confirmation with no uploaded receipt yet. The confirmation
+  // builds the schedule, never an expense — so these are computed (one per conf), not stored rows.
+  const expConfs = new Set(trip.exps.map((e) => (e.confirmation ?? "").toUpperCase()).filter(Boolean));
+  const needsReceipt: { conf: string; sub: string }[] = [];
+  const seenConf = new Set<string>();
+  for (const i of trip.itin) {
+    const conf = (i.conf ?? "").toUpperCase();
+    if (!conf || seenConf.has(conf) || expConfs.has(conf)) continue;
+    seenConf.add(conf);
+    needsReceipt.push({ conf: i.conf as string, sub: i.who || i.sub || "" });
+  }
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand">
@@ -931,11 +942,11 @@ function TripDetail({
         </div>
       </div>
 
-      {trip.exps.length > 0 && (
+      {(trip.exps.length > 0 || needsReceipt.length > 0) && (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
           <SummaryStat n={money(trip.total - postedAmt)} l="Awaiting post" warn={trip.total - postedAmt > 0} />
-          <SummaryStat n={`${withDoc} / ${trip.exps.length}`} l="Receipts on file" warn={withDoc < trip.exps.length} />
+          <SummaryStat n={`${withDoc} / ${trip.exps.length + needsReceipt.length}`} l="Receipts on file" warn={withDoc < trip.exps.length + needsReceipt.length} />
           <SummaryStat n={money(reimburseTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
         </div>
       )}
@@ -958,9 +969,9 @@ function TripDetail({
                   <span className="text-lg">{i.ic}</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{i.title || i.what}</div>
-                    {(i.sub || i.who) && (
+                    {(i.sub || i.who || i.conf) && (
                       <div className="truncate text-[12.5px] text-slate-500">
-                        {i.who ? `✈ ${i.who}` : i.sub}
+                        {i.who ? `✈ ${i.who}` : i.sub}{i.conf ? `${i.who || i.sub ? " · " : ""}conf ${i.conf}` : ""}
                       </div>
                     )}
                   </div>
@@ -988,8 +999,8 @@ function TripDetail({
             <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>
           </div>
         </div>
-        {expGroups.length ? (
-          expGroups.map((g) => {
+        {expGroups.length || needsReceipt.length ? (
+          [...expGroups.map((g) => {
             const sub = g.rows.reduce((s, e) => s + e.amount, 0);
             return (
               <Fragment key={g.name}>
@@ -1034,10 +1045,30 @@ function TripDetail({
                 ))}
               </Fragment>
             );
-          })
+          }),
+          needsReceipt.length > 0 ? (
+            <Fragment key="__needs_receipt">
+              <div className="flex items-center justify-between bg-amber-50/70 px-4 py-1.5 text-[12px] text-amber-700">
+                <span>⚠ Needs receipts <span className="text-amber-500">· {needsReceipt.length}</span></span>
+                <span className="text-amber-500">upload to post</span>
+              </div>
+              {needsReceipt.map((g) => (
+                <div key={g.conf} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0">
+                  <span className="text-lg">✈️</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">Flight · conf {g.conf}</div>
+                    {g.sub && <div className="truncate text-[12.5px] text-slate-500">✈ {g.sub}</div>}
+                  </div>
+                  <Badge tone="amber">Needs receipt</Badge>
+                  <span className="w-20 text-right text-slate-300">—</span>
+                </div>
+              ))}
+            </Fragment>
+          ) : null,
+          ]
         ) : (
           <div className="px-4 py-3 text-[12.5px] text-slate-400">
-            No expenses attributed yet — invoices post here as they’re received and matched to this trip.
+            No expenses yet — upload each flight’s receipt and it posts here, matched to this trip by confirmation.
           </div>
         )}
       </div>
@@ -1045,7 +1076,7 @@ function TripDetail({
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-[13px] text-slate-600">
         Posts to QuickBooks under one vendor — <b className="text-brand-navy">{tripVendor(trip)}</b>. Each merchant is a memo line, never its own vendor.
         <span className="mt-1.5 block text-[12.5px] text-slate-500">
-          Two paths to the books: a charge or invoice that <b>arrives later</b> stays open and matches its itinerary item when it lands; an expense with <b>no future invoice</b> (Delta e-ticket, prepaid hotel) posts directly from the confirmation, which serves as the receipt.
+          The confirmation builds the <b>itinerary</b> only. The <b>receipt is the expense</b> — upload each flight’s receipt (matched to this trip by confirmation) and it posts; until then it shows as <b>needs receipt</b>.
         </span>
       </div>
     </div>

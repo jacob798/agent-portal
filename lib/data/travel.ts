@@ -75,6 +75,7 @@ export interface ItinItem {
   title?: string;           // calendar-style title: "Flight: DL2456 · Boise → Minneapolis"
   when: string;             // time + time zone: "7:15a MT – 11:40a CT" / "Check-in 5:30p ET"
   sub: string;              // travelers (flights) / detail (nights, pickup location)
+  conf?: string;            // booking confirmation # — drives the "needs receipt" gap match
   // legacy fields from the prior expense-derived itinerary — tolerated for un-reprocessed trips
   what?: string;
   who?: string;

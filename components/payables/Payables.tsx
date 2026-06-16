@@ -2379,6 +2379,20 @@ function VendorPicker({
     () => names.filter((n) => !needle || n.toLowerCase().includes(needle)).slice(0, 200),
     [names, needle],
   );
+  // Vendors that exist in OTHER entities but NOT this one — pick to COPY here (the vendor is
+  // created in this entity's QBO realm at post via match-before-create). name → source entities.
+  const code = entity === "BC" ? "PER" : entity;
+  const others = useMemo(() => {
+    const have = new Set(names.map((n) => n.toLowerCase()));
+    const m = new Map<string, Set<string>>();
+    for (const v of options) {
+      if (!v.entity || v.entity === code || v.entity === null) continue;
+      if (have.has(v.name.toLowerCase())) continue;
+      if (needle && !v.name.toLowerCase().includes(needle)) continue;
+      (m.get(v.name) ?? m.set(v.name, new Set()).get(v.name)!).add(v.entity);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 50);
+  }, [options, names, code, needle]);
   const exact = names.some((n) => n.toLowerCase() === needle);
   const raw = q.trim();
 
@@ -2398,7 +2412,7 @@ function VendorPicker({
               className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
-            {hits.length === 0 ? (
+            {hits.length === 0 && others.length === 0 ? (
               <div className="px-3 py-2 text-[12px] text-slate-400">No {entLabel} vendor matches.</div>
             ) : hits.map((n) => (
               <button key={n} onClick={() => { onPick(n); setOpen(false); }}
@@ -2407,6 +2421,19 @@ function VendorPicker({
                 {n === value && <span className="text-[11px] text-brand">✓</span>}
               </button>
             ))}
+            {others.length > 0 && (
+              <>
+                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Copy from another entity</div>
+                {others.map(([n, ents]) => (
+                  <button key={`o-${n}`} onClick={() => { onPick(n); setOpen(false); }}
+                    title={`In ${[...ents].map((e) => entName(e)).join(", ")} — copy to ${entLabel}`}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">
+                    <span className="truncate">{n}</span>
+                    <span className="shrink-0 text-[10px] text-slate-400">{[...ents].slice(0, 2).join(", ")}{ents.size > 2 ? ` +${ents.size - 2}` : ""} →</span>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
           {raw && !exact && (
             <button onClick={() => { onPick(raw); setOpen(false); }}

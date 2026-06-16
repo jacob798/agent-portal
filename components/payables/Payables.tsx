@@ -8,6 +8,7 @@ import {
   entName,
   money,
   glsForEntity,
+  payFromForEntity,
   glGroupsForEntity,
   glShort,
   BC_ROUTE,
@@ -245,15 +246,19 @@ export default function Payables({
     return ((await res.json()) as { count?: number }).count ?? ids.length;
   }
 
-  // Pay-from labels (active only — Wells Fargo & other closed accounts excluded
-  // upstream in getCodingConfig). GL options are filtered per line by entity.
+  // Pay-from labels. The pool is all synced entities; the picker for a row is scoped to
+  // THAT entity + personal (PER), entity-first — payFromForEntity. acctLabels (all) is only
+  // for the entity-agnostic surfaces (bulk edit, CSV-import default).
   const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
+  const acctLabelsFor = (entity?: string | null) => payFromForEntity(accounts, entity).map((a) => a.label);
   // Default Pay-from for a row: the account resolved from the invoice card
-  // (paymentMethodId) wins; else a label match; else the first account.
+  // (paymentMethodId) wins; else a label match within this entity's options; else the
+  // first option for this entity (entity account before personal).
   const payDefault = (r: Row) => {
     const byId = accounts.find((a) => a.id === r.paymentMethodId);
     if (byId) return byId.label;
-    return acctLabels.includes(r.account) ? r.account : acctLabels[0];
+    const opts = acctLabelsFor(r.entity);
+    return opts.includes(r.account) ? r.account : opts[0];
   };
   const glLabels = (entity?: string | null) =>
     glsForEntity(gls, entity).map((g) => g.fullName);
@@ -1809,7 +1814,7 @@ export default function Payables({
           <div>
             <div className={DLBL}>Pay from</div>
             <select value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[12.5px] font-semibold text-brand-navy">
-              {acctLabels.map((a) => (
+              {acctLabelsFor(r.entity).map((a) => (
                 <option key={a}>{a}</option>
               ))}
             </select>

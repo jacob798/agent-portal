@@ -76,6 +76,23 @@ export function glsForEntity(gls: GlOption[], entity?: string | null): GlOption[
   return scoped.length ? scoped : gls;
 }
 
+/**
+ * Pay-from options for a row's entity: the SELECTED ENTITY's own payment accounts +
+ * the PERSONAL (PER) accounts — the shared AMEX/Citi cards live only in PER but are
+ * pay-from for any entity (the charge posts on PER, the entity gets the intercompany
+ * Bill). BC posts into PER, so it shows PER only. Sort: entity-own accounts FIRST,
+ * then personal — and dedupe by id so a PER-coded row doesn't list PER twice.
+ * (Jacob, 2026-06-16 — project_payment_methods_payfrom.)
+ */
+export function payFromForEntity(accounts: PayAccount[], entity?: string | null): PayAccount[] {
+  const code = entity === "BC" ? "PER" : entity;
+  if (!code || code === "PER") return accounts.filter((a) => a.entity === "PER");
+  const own = accounts.filter((a) => a.entity === code);
+  const per = accounts.filter((a) => a.entity === "PER");
+  const seen = new Set(own.map((a) => a.id));
+  return [...own, ...per.filter((a) => !seen.has(a.id))];
+}
+
 export interface GlGroup {
   label: string; // parent/header path
   options: { value: string; label: string }[]; // value = full name, label = leaf

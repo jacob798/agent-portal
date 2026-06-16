@@ -39,7 +39,7 @@ function payableToLedger(r: {
   reimbursement_amount: number | string | null;
   gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
-  extracted: { payee?: string; credit_number?: string | null; credit_amount?: number | null; conf?: string | null } | null;
+  extracted: { payee?: string; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
 }): TripExpense {
   const calCat = calendarCategory(r.category);
   const status: ExpenseStatus =
@@ -57,7 +57,9 @@ function payableToLedger(r: {
     gl: r.gl ?? "",
     bcCategory: r.bc_category ?? undefined,
     category: calCat,
-    confirmation: r.extracted?.conf ?? null,
+    // Match an uploaded receipt to its itinerary flight: the deterministic reader emits
+    // `confirmation_number`; older staged rows used `conf`. Accept any so the gap closes.
+    confirmation: r.extracted?.conf ?? r.extracted?.confirmation_number ?? r.extracted?.confirmation ?? null,
     status,
     needsDoc: !r.doc_url && !r.nodoc,
     docUrl: r.doc_url ?? null,

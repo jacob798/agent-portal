@@ -32,8 +32,9 @@ function payableToLedger(r: {
   const status: ExpenseStatus =
     r.status === "error" ? "error"
       : r.status === "posted" ? "posted"
-        : r.status === "approved" ? "staged"
-          : "open";
+        : r.status === "accepted" ? "accepted"
+          : r.status === "staged" || r.status === "approved" ? "staged"
+            : "open";
   return {
     id: r.id,
     ic: CAT_ICON[cat] ?? "🧾",
@@ -61,7 +62,7 @@ export interface ItinItem {
 //   open   = attributed, not yet staged (operator can post it)
 //   staged = approved → queued for the backend post_runner (QBO write pending)
 //   posted = written to QuickBooks
-export type ExpenseStatus = "open" | "staged" | "posted" | "error";
+export type ExpenseStatus = "open" | "staged" | "accepted" | "posted" | "error";
 export interface TripExpense {
   id?: string; // payables_queue row id — present for real (postable) invoices
   ic: string;

@@ -223,10 +223,13 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
     // open/null = active coding queue. 'reclassified' rows (sent to Travel) are ALSO
     // loaded so the operator can recover them (they render resolved, with a "Back to
     // review" action) — a reclassify must never make a row un-findable.
+    // open/null = active coding queue; 'reclassified' = recoverable (sent to Travel);
+    // 'accepted' = travel expenses the operator accepted on the Travel page — they land here to
+    // be coded (pay-from card) + posted. ('staged' travel rows stay on Travel until accepted.)
     const { data, error } = await supabase
       .from("payables_queue")
       .select("*")
-      .or("status.is.null,status.eq.open,status.eq.reclassified")
+      .or("status.is.null,status.eq.open,status.eq.reclassified,status.eq.accepted")
       .order("ord");
     if (error || !data) return MOCK;
     const rows = data.map((r): PayableRow => ({

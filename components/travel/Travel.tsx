@@ -180,24 +180,26 @@ export default function Travel({
 
   // Stage this trip's ready invoices for QuickBooks — reuses the payables batch
   // checkpoint (sets status=approved → backend post_runner posts under the trip vendor).
-  async function postTrip(t: Trip) {
-    const ids = t.exps.filter((e) => e.id && e.status === "open").map((e) => e.id!);
+  // Travel ACCEPTS (review confirmation); Payables POSTS. Accept flips a trip's staged travel
+  // expenses → accepted, which surfaces them in Payables for coding (pay-from card) + posting.
+  async function acceptTrip(t: Trip) {
+    const ids = t.exps.filter((e) => e.id && e.status === "staged").map((e) => e.id!);
     if (!ids.length) {
-      toast("Nothing to post — all caught up");
+      toast("Nothing to accept — all reviewed");
       return;
     }
     try {
-      const res = await fetch("/api/payables/post-batch", {
+      const res = await fetch("/api/travel/accept-expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ tripId: t.id }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "post failed");
-      toast(`✓ Posting ${j.staged} invoice${j.staged === 1 ? "" : "s"} → QuickBooks`);
+      if (!res.ok) throw new Error(j.error || "accept failed");
+      toast(`✓ Accepted ${j.accepted} expense${j.accepted === 1 ? "" : "s"} — code & post in Payables`);
       router.refresh();
     } catch (e) {
-      toast(`Couldn't post: ${(e as Error).message}`);
+      toast(`Couldn't accept: ${(e as Error).message}`);
     }
   }
 
@@ -210,7 +212,7 @@ export default function Travel({
           onReport={() => setReportId(openTrip.id)}
           onZip={() => downloadZip(openTrip)}
           zipping={zipping}
-          onPost={() => postTrip(openTrip)}
+          onAccept={() => acceptTrip(openTrip)}
           onEdit={() => setEditTrip(openTrip)}
         />
       ) : (
@@ -798,8 +800,10 @@ function ExpenseStatusChip({ e }: { e: TripExpense }) {
     return <Badge tone="amber">Needs doc</Badge>;
   if (e.status === "posted")
     return <Badge tone="green" dot>Posted</Badge>;
+  if (e.status === "accepted")
+    return <Badge tone="green">Accepted · in Payables</Badge>;
   if (e.status === "staged")
-    return <Badge tone="indigo" dot>Staged</Badge>;
+    return <Badge tone="indigo" dot>Review</Badge>;
   return <Badge tone="neutral">Ready</Badge>;
 }
 
@@ -810,7 +814,7 @@ function TripDetail({
   onReport,
   onZip,
   zipping,
-  onPost,
+  onAccept,
   onEdit,
 }: {
   trip: Trip;
@@ -818,11 +822,11 @@ function TripDetail({
   onReport: () => void;
   onZip: () => void;
   zipping: boolean;
-  onPost: () => void;
+  onAccept: () => void;
   onEdit: () => void;
 }) {
   const b = brandFor(trip.ent);
-  const postable = trip.exps.filter((e) => e.id && e.status === "open").length;
+  const acceptable = trip.exps.filter((e) => e.id && e.status === "staged").length;
   const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   return (
@@ -901,9 +905,9 @@ function TripDetail({
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-[13.5px] font-semibold">Trip expenses ({trip.exps.length})</div>
           <div className="flex items-center gap-3">
-            {postable > 0 && (
-              <Button variant="success" size="sm" onClick={onPost}>
-                ✓ Post {postable} → QuickBooks
+            {acceptable > 0 && (
+              <Button variant="success" size="sm" onClick={onAccept}>
+                ✓ Accept {acceptable} → Payables
               </Button>
             )}
             <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>

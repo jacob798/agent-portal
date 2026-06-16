@@ -1212,6 +1212,11 @@ export default function Payables({
                     <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
                   )}
                   <span className="truncate" title={r.vendorDisplay && r.vendorDisplay !== r.vendor ? `QuickBooks: ${r.vendor}` : undefined}>{r.vendorDisplay ?? r.vendor}</span>
+                  {r.tripId ? (
+                    <span title="Travel expense accepted on a trip — code the pay-from card and post">
+                      <Badge tone="indigo">✈ Travel</Badge>
+                    </span>
+                  ) : null}
                   {r.doc_waived ? (
                     <Badge tone="neutral">no receipt</Badge>
                   ) : r.nodoc ? (

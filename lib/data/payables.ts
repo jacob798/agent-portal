@@ -9,6 +9,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import type { VendorOption } from "@/lib/data/entities";
 
 export type Posting = "bill" | "charge";
 export type ExceptionType = "entity" | "vendor" | "split" | "dup";
@@ -160,23 +161,39 @@ const MOCK: PayableRow[] = [
 ];
 
 /**
- * The known vendor universe for the drawer's "change vendor" typeahead: our canonical
- * `vendors` master + every entity's live QuickBooks vendor list (`vendor_qbo_refs`),
- * deduped + sorted. Lets the operator re-point a charge to an EXISTING vendor instead of
- * only free-text Learn/Add. Defensive: returns [] (typeahead just shows nothing) on any error.
+ * The known vendor universe for the "change vendor" picker, ENTITY-TAGGED: every entity's live
+ * QuickBooks vendor list (`vendor_qbo_refs`, one row per entity it exists in) + our canonical
+ * `vendors` master (entity=null, addable anywhere). The picker scopes to the row's entity via
+ * vendorsForEntity(). Defensive: returns [] (picker shows nothing/lets you add) on any error.
  */
-export async function getVendors(): Promise<string[]> {
+export async function getVendors(): Promise<VendorOption[]> {
   if (!isSupabaseConfigured()) return [];
   try {
     const supabase = await createClient();
     const [{ data: master }, { data: qb }] = await Promise.all([
       supabase.from("vendors").select("canonical_name"),
-      supabase.from("vendor_qbo_refs").select("display_name").eq("active", true),
+      supabase.from("vendor_qbo_refs").select("display_name, entity_code").eq("active", true),
     ]);
-    const names = new Set<string>();
-    for (const v of master ?? []) if (v.canonical_name) names.add(String(v.canonical_name).trim());
-    for (const v of qb ?? []) if (v.display_name) names.add(String(v.display_name).trim());
-    return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const out: VendorOption[] = [];
+    const seen = new Set<string>(); // entity|name — keep one row per (entity, name)
+    for (const v of qb ?? []) {
+      const name = String(v.display_name ?? "").trim();
+      const ent = v.entity_code ?? null;
+      if (!name) continue;
+      const k = `${ent}|${name.toLowerCase()}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ name, entity: ent });
+    }
+    for (const v of master ?? []) {
+      const name = String(v.canonical_name ?? "").trim();
+      if (!name) continue;
+      const k = `null|${name.toLowerCase()}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ name, entity: null });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return [];
   }

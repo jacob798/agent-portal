@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Zap, Upload, FileText, Plane } from "lucide-react";
+import { Zap, Upload, FileText, Plane, Plus } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
@@ -9,6 +9,8 @@ import {
   money,
   glsForEntity,
   payFromForEntity,
+  vendorsForEntity,
+  type VendorOption,
   glGroupsForEntity,
   glShort,
   BC_ROUTE,
@@ -50,7 +52,7 @@ export default function Payables({
   gls: GlOption[];
   bcCategories: string[];
   ingestion: IngestionJob[];
-  vendors: string[];
+  vendors: VendorOption[];
   trips: TripOption[];
   docTypes?: DocTypeOption[];
 }) {
@@ -251,6 +253,9 @@ export default function Payables({
   // for the entity-agnostic surfaces (bulk edit, CSV-import default).
   const acctLabels = useMemo(() => accounts.map((a) => a.label), [accounts]);
   const acctLabelsFor = (entity?: string | null) => payFromForEntity(accounts, entity).map((a) => a.label);
+  // Deduped vendor names across all entities — only for the entity-agnostic bulk-edit datalist.
+  // The per-row drawer uses VendorPicker scoped to the row's entity (vendorsForEntity).
+  const vendorNames = useMemo(() => [...new Set(vendors.map((v) => v.name))].sort((a, b) => a.localeCompare(b)), [vendors]);
   // Default Pay-from for a row: the account resolved from the invoice card
   // (paymentMethodId) wins; else a label match within this entity's options; else the
   // first option for this entity (entity account before personal).
@@ -1545,7 +1550,7 @@ export default function Payables({
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-900 focus:border-brand focus:outline-none"
           />
           <datalist id="fc-vendor-bulk">
-            {vendors.map((v) => (
+            {vendorNames.map((v) => (
               <option key={v} value={v} />
             ))}
           </datalist>
@@ -1752,25 +1757,17 @@ export default function Payables({
           </div>
         )}
 
-        {/* vendor — re-point to an existing vendor from the list (typeahead) */}
+        {/* vendor — searchable picker scoped to THIS entity's QuickBooks vendors (+ master),
+            with add-a-new-vendor. BC borrows PER's list (it posts into PER). */}
         <div>
           <div className={DLBL}>{r.vendorDisplay && r.vendorDisplay !== r.vendor ? "Vendor (QuickBooks name)" : "Vendor"}</div>
-          <input
+          <VendorPicker
             key={r.id}
-            list="fc-vendor-list"
-            defaultValue={r.vendor}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (v && v !== r.vendor) persistVendor(r.id, v);
-            }}
-            placeholder="Search vendors…"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-900 focus:border-brand focus:outline-none"
+            value={r.vendor}
+            options={vendors}
+            entity={r.entity}
+            onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
           />
-          <datalist id="fc-vendor-list">
-            {vendors.map((v) => (
-              <option key={v} value={v} />
-            ))}
-          </datalist>
         </div>
 
         {/* trip — re-attribute to the correct trip, or clear to a normal payable */}
@@ -2352,6 +2349,71 @@ function DocTypeCombobox({
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Searchable, ENTITY-SCOPED vendor picker. Shows only the row entity's QuickBooks vendors
+// (+ canonical master), search by name, and "Add '…' as a new {entity} vendor" when nothing
+// matches. Mirrors DocTypeCombobox's open/outside-click pattern. (vendorsForEntity scopes;
+// BC borrows PER.) match-before-create still runs at post, so a near-dupe reuses the existing.
+function VendorPicker({
+  value, options, entity, onPick,
+}: { value: string; options: VendorOption[]; entity?: string | null; onPick: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const names = useMemo(() => vendorsForEntity(options, entity), [options, entity]);
+  const entLabel = entName(entity);
+  const needle = q.trim().toLowerCase();
+  const hits = useMemo(
+    () => names.filter((n) => !needle || n.toLowerCase().includes(needle)).slice(0, 200),
+    [names, needle],
+  );
+  const exact = names.some((n) => n.toLowerCase() === needle);
+  const raw = q.trim();
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
+        className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left text-[13px] text-slate-900 hover:border-slate-300 focus:border-brand focus:outline-none">
+        <span className={value ? "" : "text-slate-400"}>{value || "Search vendors…"}</span>
+        <span className="text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-1.5">
+            <div className="mb-1 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{entLabel} vendors · {names.length}</div>
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${entLabel} vendors…`}
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {hits.length === 0 ? (
+              <div className="px-3 py-2 text-[12px] text-slate-400">No {entLabel} vendor matches.</div>
+            ) : hits.map((n) => (
+              <button key={n} onClick={() => { onPick(n); setOpen(false); }}
+                className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${n === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+                <span className="truncate">{n}</span>
+                {n === value && <span className="text-[11px] text-brand">✓</span>}
+              </button>
+            ))}
+          </div>
+          {raw && !exact && (
+            <button onClick={() => { onPick(raw); setOpen(false); }}
+              className="flex w-full items-center gap-1.5 border-t border-slate-100 bg-slate-50 px-3 py-2 text-left text-[12.5px] font-medium text-brand hover:bg-brand/5">
+              <Plus className="h-3.5 w-3.5" /> Add “{raw}” as a new {entLabel} vendor
+            </button>
+          )}
         </div>
       )}
     </div>

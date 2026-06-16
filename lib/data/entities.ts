@@ -138,6 +138,31 @@ export function glGroupsForEntity(gls: GlOption[], entity?: string | null): GlGr
   return order.map((label) => ({ label, options: groups.get(label)! }));
 }
 
+/** A known vendor tagged with the entity (QB realm) it belongs to. entity=null = a canonical
+ *  `vendors`-master name not tied to one realm (addable anywhere). vendor_qbo_refs is per-entity,
+ *  so the SAME name can appear under several entities. */
+export interface VendorOption {
+  name: string;
+  entity: string | null;
+}
+
+/** Vendors for a given entity: that entity's own QuickBooks vendors + the canonical master names
+ *  (entity=null, addable anywhere), deduped by name, sorted. BC borrows PER's vendor list (it
+ *  posts into PER). Mirrors glsForEntity / payFromForEntity so the three pickers scope alike. */
+export function vendorsForEntity(vendors: VendorOption[], entity?: string | null): string[] {
+  const code = entity === "BC" ? "PER" : entity;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of vendors) {
+    if (code && v.entity !== code && v.entity !== null) continue;
+    const k = v.name.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v.name);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
 /** Short, de-duplicated label for a stored GL full name (leaf only). */
 export function glShort(fullName?: string | null): string {
   if (!fullName) return "";

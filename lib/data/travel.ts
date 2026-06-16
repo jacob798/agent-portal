@@ -13,12 +13,24 @@ export type TripStatus = "up" | "closed";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Icon by travel category, for the ledger rows.
-const CAT_ICON: Record<string, string> = {
-  airfare: "✈️", hotel: "🏨", lodging: "🏨", meals: "🍽️", dining: "🍽️",
-  "car rental": "🚗", "ground transportation": "🚕", transport: "🚕",
-  fuel: "⛽", parking: "🅿️",
+// The calendar's expense categories (the same buckets the calendar groups by). The worker stores
+// a fine-grained category on each row (Flight / Hotel / Car rental / Ride / Meal …); we roll it up
+// to one of these for the grouped trip-expense display. Order = display order.
+export const CALENDAR_CATEGORIES = ["Flights", "Trains", "Lodging", "Cars", "Rides", "Dining", "Other"] as const;
+const CALENDAR_CAT_ICON: Record<string, string> = {
+  Flights: "✈️", Trains: "🚆", Lodging: "🏨", Cars: "🚗", Rides: "🚕", Dining: "🍽️", Other: "🧾",
 };
+export function calendarCategory(raw: string | null | undefined): string {
+  const c = (raw ?? "").toLowerCase();
+  if (c.includes("flight") || c.includes("airfare") || c.includes("air ")) return "Flights";
+  if (c.includes("train") || c.includes("rail")) return "Trains";
+  if (c.includes("hotel") || c.includes("lodging") || c.includes("airbnb")) return "Lodging";
+  if (c.includes("car")) return "Cars";
+  if (c.includes("ride") || c.includes("ground") || c.includes("transport") ||
+      c.includes("uber") || c.includes("lyft") || c.includes("taxi")) return "Rides";
+  if (c.includes("meal") || c.includes("dining") || c.includes("food")) return "Dining";
+  return "Other";
+}
 
 /** Map a trip-attributed payables_queue row into a ledger line. The QB vendor is
  *  the trip header, so the ledger shows the REAL payee (extracted.payee). */
@@ -27,9 +39,9 @@ function payableToLedger(r: {
   reimbursement_amount: number | string | null;
   gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
-  extracted: { payee?: string; credit_number?: string | null } | null;
+  extracted: { payee?: string; credit_number?: string | null; credit_amount?: number | null; conf?: string | null } | null;
 }): TripExpense {
-  const cat = (r.category ?? "").toLowerCase();
+  const calCat = calendarCategory(r.category);
   const status: ExpenseStatus =
     r.status === "error" ? "error"
       : r.status === "posted" ? "posted"
@@ -38,28 +50,36 @@ function payableToLedger(r: {
             : "open";
   return {
     id: r.id,
-    ic: CAT_ICON[cat] ?? "🧾",
+    ic: CALENDAR_CAT_ICON[calCat] ?? "🧾",
     what: r.extracted?.payee || r.vendor,
     sub: r.memo || r.category || "",
     amount: Number(r.amount),
     gl: r.gl ?? "",
     bcCategory: r.bc_category ?? undefined,
+    category: calCat,
+    confirmation: r.extracted?.conf ?? null,
     status,
     needsDoc: !r.doc_url && !r.nodoc,
     docUrl: r.doc_url ?? null,
     reimbursementAmount: r.reimbursement_amount != null ? Number(r.reimbursement_amount) : Number(r.amount),
     creditNumber: r.extracted?.credit_number ?? null,
+    creditAmount: r.extracted?.credit_amount != null ? Number(r.extracted.credit_amount) : null,
   };
 }
 
+// The itinerary is the trip SCHEDULE (from the confirmations), not the expenses — NO dollars.
+// One row per flight/train segment + lodging check-in/out + car pickup/return, day-grouped.
 export interface ItinItem {
   ic: string;
-  what: string;             // the PAYEE — the merchant (Delta Air Lines), not the QB trip vendor
-  when: string;
-  sub: string;
-  who?: string;             // the traveler/passenger on the ticket
-  amount?: number | null;   // present for prepaid items (the confirmation = the receipt)
-  prepaid?: boolean;        // true → posts to QB from the confirmation; false → awaits its invoice
+  day?: string;             // "Wed Jun 17" — the day-group label
+  title?: string;           // calendar-style title: "Flight: DL2456 · Boise → Minneapolis"
+  when: string;             // time + time zone: "7:15a MT – 11:40a CT" / "Check-in 5:30p ET"
+  sub: string;              // travelers (flights) / detail (nights, pickup location)
+  // legacy fields from the prior expense-derived itinerary — tolerated for un-reprocessed trips
+  what?: string;
+  who?: string;
+  amount?: number | null;
+  prepaid?: boolean;
 }
 // Posting lifecycle of a single attributed invoice in the trip ledger.
 //   open   = attributed, not yet staged (operator can post it)
@@ -77,8 +97,12 @@ export interface TripExpense {
   status?: ExpenseStatus;
   needsDoc?: boolean; // attributed but no receipt on file yet (gap, not a blocker)
   docUrl?: string | null; // Dropbox share link to the receipt, when one is on file
-  reimbursementAmount?: number; // GROSS ticket price (the BC claim) — = amount when no credit
+  reimbursementAmount?: number; // the trip COST = receipt Total Price (the BC claim). On a reissue
+  // chain only the FINAL row carries the claim; earlier same-confirmation rows are 0.
   creditNumber?: string | null; // eCredit/certificate # applied, for visibility
+  creditAmount?: number | null; // eCredit AMOUNT applied — shown in-row next to the flight
+  category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
+  confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
 }
 export interface Trip {
   id: string;
@@ -89,6 +113,7 @@ export interface Trip {
   end: string; // ISO yyyy-mm-dd
   status: TripStatus;
   purpose?: string;
+  travelers?: string[]; // trip travelers — from the flights, or entered at manual trip setup
   total: number; // always the SUM of `exps`; 0 when none attributed
   itin: ItinItem[];
   exps: TripExpense[];
@@ -238,6 +263,7 @@ export async function getTravel(): Promise<{
               // Upcoming when it ends today or later; otherwise past.
               status: (end >= todayISO() ? "up" : "closed") as TripStatus,
               purpose: r.purpose ?? undefined,
+              travelers: Array.isArray(r.travelers) ? r.travelers : undefined,
               // Total always reflects the attributed detail (0 when none).
               total: exps.reduce((s: number, e: TripExpense) => s + e.amount, 0),
               itin: r.itin ?? [],

@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense, NeedsTripItem } from "@/lib/data/travel";
+import type { Trip, TripExpense, ItinItem, NeedsTripItem } from "@/lib/data/travel";
+import { CALENDAR_CATEGORIES } from "@/lib/data/travel";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -156,7 +157,7 @@ export default function Travel({
       const res = await fetch("/api/travel/create-trip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ent: t.ent, dest: t.dest, start: t.start, end: t.end, purpose: t.purpose }),
+        body: JSON.stringify({ ent: t.ent, dest: t.dest, start: t.start, end: t.end, purpose: t.purpose, travelers: t.travelers }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || `failed (${res.status})`);
@@ -301,6 +302,7 @@ function NewTripModal({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [travelers, setTravelers] = useState("");
 
   // Seed from a "needs a trip" ask when opened pre-filled (destination + dates).
   useEffect(() => {
@@ -317,6 +319,7 @@ function NewTripModal({
   function submit() {
     const dates = start || end ? `${fmt(start)}${end ? " – " + fmt(end) : ""}` : "dates TBD";
     const endISO = end || start;
+    const travelerList = travelers.split(",").map((s) => s.trim()).filter(Boolean);
     onCreate({
       id: "new" + Date.now(),
       ent,
@@ -326,11 +329,12 @@ function NewTripModal({
       end: endISO,
       status: endISO && endISO >= new Date().toISOString().slice(0, 10) ? "up" : "closed",
       purpose: purpose || undefined,
+      travelers: travelerList.length ? travelerList : undefined,
       total: 0,
       itin: [],
       exps: [],
     });
-    setEnt("BC"); setDest(""); setStart(""); setEnd(""); setPurpose("");
+    setEnt("BC"); setDest(""); setStart(""); setEnd(""); setPurpose(""); setTravelers("");
   }
 
   return (
@@ -377,6 +381,10 @@ function NewTripModal({
         <Field label="Purpose (optional)">
           <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Site visit — Iota St" className={INPUT} />
         </Field>
+        <Field label="Travelers (optional)">
+          <input value={travelers} onChange={(e) => setTravelers(e.target.value)} placeholder="e.g. Jacob Wolbach, Jessica Davidson" className={INPUT} />
+          <p className="mt-1 text-[11.5px] text-slate-400">Comma-separated. Pulled from the flights automatically — set here when there’s no flight, or to override.</p>
+        </Field>
         <div className="rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-600">
           ↻ On create, recent receipts in this window are re-scanned and queued.
         </div>
@@ -402,15 +410,17 @@ function EditTripModal({
   const [start, setStart] = useState(trip.start);
   const [end, setEnd] = useState(trip.end);
   const [purpose, setPurpose] = useState(trip.purpose ?? "");
+  const [travelers, setTravelers] = useState((trip.travelers ?? []).join(", "));
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
+      const travelerList = travelers.split(",").map((s) => s.trim()).filter(Boolean);
       const res = await fetch("/api/travel/update-trip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: trip.id, ent, dest, start, end, purpose }),
+        body: JSON.stringify({ id: trip.id, ent, dest, start, end, purpose, travelers: travelerList }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "save failed");
@@ -465,6 +475,10 @@ function EditTripModal({
         </div>
         <Field label="Purpose">
           <input value={purpose} onChange={(e) => setPurpose(e.target.value)} className={INPUT} />
+        </Field>
+        <Field label="Travelers">
+          <input value={travelers} onChange={(e) => setTravelers(e.target.value)} placeholder="e.g. Jacob Wolbach, Jessica Davidson" className={INPUT} />
+          <p className="mt-1 text-[11.5px] text-slate-400">Comma-separated. Pulled from the flights automatically — set here to override.</p>
         </Field>
         <div className="rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-600">
           Updates the trip record — the report, the QuickBooks vendor name, and how new invoices attribute to this trip.
@@ -870,6 +884,13 @@ function TripDetail({
   const acceptable = trip.exps.filter((e) => e.id && e.status === "staged").length;
   const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
+  // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
+  // collapsed by the worker (only the final row carries the claim), so this never double-counts.
+  const reimburseTotal = trip.exps.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
+  // Expenses grouped by the calendar's categories, in display order, with a subtotal each.
+  const expGroups = CALENDAR_CATEGORIES
+    .map((name) => ({ name, rows: trip.exps.filter((e) => (e.category ?? "Other") === name) }))
+    .filter((g) => g.rows.length > 0);
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand">
@@ -884,6 +905,9 @@ function TripDetail({
             </button>
           </div>
           <p className="mt-1 text-sm text-slate-500">{ENT[trip.ent] ?? trip.ent} · {tripDates(trip)}</p>
+          {trip.travelers && trip.travelers.length > 0 && (
+            <p className="mt-1 text-[13px] text-slate-500">✈ {trip.travelers.join(", ")}</p>
+          )}
           <p className="mt-2 text-[13.5px]">
             <span className="mr-2 text-[10.5px] font-bold uppercase tracking-wide text-slate-400">Purpose</span>
             {trip.purpose ?? "— (add one)"}
@@ -912,39 +936,49 @@ function TripDetail({
           <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
           <SummaryStat n={money(trip.total - postedAmt)} l="Awaiting post" warn={trip.total - postedAmt > 0} />
           <SummaryStat n={`${withDoc} / ${trip.exps.length}`} l="Receipts on file" warn={withDoc < trip.exps.length} />
-          <SummaryStat n={money(trip.total)} l="Trip total" />
+          <SummaryStat n={money(reimburseTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
         </div>
       )}
 
       <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-[13.5px] font-semibold">Itinerary — what’s scheduled</div>
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <span className="text-[13.5px] font-semibold">Itinerary — what’s scheduled</span>
+          <span className="text-[11px] text-slate-400">✈ from confirmations</span>
+        </div>
         {trip.itin.length ? (
-          trip.itin.map((i, k) => (
-            <div key={k} className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
-              <span className="text-lg">{i.ic}</span>
-              <span className="w-24 shrink-0 text-[12.5px] text-slate-500">{i.when || "—"}</span>
-              <div className="min-w-0 flex-1">
-                <div className="font-medium">{i.what}{i.who ? <span className="ml-2 text-[12px] font-normal text-slate-500">· {i.who}</span> : null}</div>
-                <div className="truncate text-[12.5px] text-slate-500">{i.sub}</div>
-              </div>
-              <div className="shrink-0 text-right">
-                {typeof i.amount === "number" ? (
-                  <div className="text-[13px] font-semibold tabular-nums">${i.amount.toFixed(2)}</div>
-                ) : null}
-                <div className={`text-[11px] font-medium ${i.prepaid ? "text-emerald-600" : "text-slate-400"}`}>
-                  {i.prepaid ? "posts to QB" : "awaits invoice"}
+          trip.itin.map((i: ItinItem, k) => {
+            const prev = trip.itin[k - 1];
+            const showDay = i.day && i.day !== prev?.day;
+            return (
+              <Fragment key={k}>
+                {showDay && (
+                  <div className="bg-white px-4 pt-2.5 pb-1 text-[11px] text-slate-400">{i.day}</div>
+                )}
+                <div className="flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0">
+                  <span className="text-lg">{i.ic}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{i.title || i.what}</div>
+                    {(i.sub || i.who) && (
+                      <div className="truncate text-[12.5px] text-slate-500">
+                        {i.who ? `✈ ${i.who}` : i.sub}
+                      </div>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-right text-[12.5px] text-slate-500">{i.when}</span>
                 </div>
-              </div>
-            </div>
-          ))
+              </Fragment>
+            );
+          })
         ) : (
-          <div className="px-4 py-3 text-[12.5px] text-slate-400">No itinerary items yet.</div>
+          <div className="px-4 py-3 text-[12.5px] text-slate-400">
+            No itinerary yet — flight, hotel and car blocks appear here as confirmations arrive.
+          </div>
         )}
       </div>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-[13.5px] font-semibold">Trip expenses ({trip.exps.length})</div>
+          <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· from Payables</span></div>
           <div className="flex items-center gap-3">
             {acceptable > 0 && (
               <Button variant="success" size="sm" onClick={onAccept}>
@@ -954,39 +988,53 @@ function TripDetail({
             <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>
           </div>
         </div>
-        {trip.exps.length ? (
-          trip.exps.map((e, k) => (
-            <div key={e.id ?? k}
-              onClick={() => { if (e.id) window.location.href = `/payables?open=${e.id}`; }}
-              title={e.id ? "Open in Payables to edit / post" : undefined}
-              className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 last:border-0 ${e.id ? "cursor-pointer hover:bg-slate-50" : ""}`}>
-              <span className="text-lg">{e.ic}</span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{e.what}</div>
-                <div className="truncate text-[12.5px] text-slate-500">
-                  {expenseCode(trip.ent, e)} ·{" "}
-                  {e.needsDoc ? (
-                    <span className="inline-flex items-center gap-0.5 font-semibold text-amber-600">⚠ no receipt</span>
-                  ) : e.docUrl ? (
-                    <a
-                      href={e.docUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(ev) => ev.stopPropagation()}
-                      className="inline-flex items-center gap-0.5 font-semibold text-emerald-600 hover:underline"
-                    >
-                      <FileText className="h-3 w-3" /> ✓ receipt
-                    </a>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">✓ receipt</span>
-                  )}
+        {expGroups.length ? (
+          expGroups.map((g) => {
+            const sub = g.rows.reduce((s, e) => s + e.amount, 0);
+            return (
+              <Fragment key={g.name}>
+                <div className="flex items-center justify-between bg-slate-50/70 px-4 py-1.5 text-[12px] text-slate-500">
+                  <span>{g.name} <span className="text-slate-400">· {g.rows.length}</span></span>
+                  <span className="tabular-nums">{money(sub)}</span>
                 </div>
-                <BcReimburseCell e={e} ent={trip.ent} />
-              </div>
-              <ExpenseStatusChip e={e} />
-              <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>
-            </div>
-          ))
+                {g.rows.map((e, k) => (
+                  <div key={e.id ?? `${g.name}-${k}`}
+                    onClick={() => { if (e.id) window.location.href = `/payables?open=${e.id}`; }}
+                    title={e.id ? "Open in Payables to edit / post" : undefined}
+                    className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0 ${e.id ? "cursor-pointer hover:bg-slate-50" : ""}`}>
+                    <span className="text-lg">{e.ic}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{e.what}</div>
+                      <div className="truncate text-[12.5px] text-slate-500">
+                        {expenseCode(trip.ent, e)} ·{" "}
+                        {e.needsDoc ? (
+                          <span className="inline-flex items-center gap-0.5 font-semibold text-amber-600">⚠ no receipt</span>
+                        ) : e.docUrl ? (
+                          <a
+                            href={e.docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(ev) => ev.stopPropagation()}
+                            className="inline-flex items-center gap-0.5 font-semibold text-emerald-600 hover:underline"
+                          >
+                            <FileText className="h-3 w-3" /> ✓ receipt
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">✓ receipt</span>
+                        )}
+                        {e.creditAmount && e.creditAmount > 0 ? (
+                          <span className="ml-1 text-indigo-600">· eCredit {money(e.creditAmount)} applied{e.creditNumber ? ` · #${e.creditNumber}` : ""}</span>
+                        ) : null}
+                      </div>
+                      <BcReimburseCell e={e} ent={trip.ent} />
+                    </div>
+                    <ExpenseStatusChip e={e} />
+                    <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>
+                  </div>
+                ))}
+              </Fragment>
+            );
+          })
         ) : (
           <div className="px-4 py-3 text-[12.5px] text-slate-400">
             No expenses attributed yet — invoices post here as they’re received and matched to this trip.

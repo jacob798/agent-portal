@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { id?: string; ent?: string; dest?: string; start?: string; end?: string; purpose?: string };
+  let body: { id?: string; ent?: string; dest?: string; start?: string; end?: string; purpose?: string; travelers?: unknown[] };
   try {
     body = await req.json();
   } catch {
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
     dates: fmtDates(start, end),
     status: end && end >= today ? "up" : "closed",
     purpose: (body.purpose ?? "").trim() || null,
+    travelers: Array.isArray(body.travelers)
+      ? body.travelers.map((s: unknown) => String(s).trim()).filter(Boolean)
+      : [],
   };
 
   const admin = createAdminClient();

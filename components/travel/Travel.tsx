@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense, ItinItem, NeedsTripItem } from "@/lib/data/travel";
+import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf } from "@/lib/data/travel";
 import { CALENDAR_CATEGORIES } from "@/lib/data/travelCategories";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
@@ -209,6 +209,7 @@ export default function Travel({
       {openTrip ? (
         <TripDetail
           trip={openTrip}
+          trips={trips}
           onBack={() => setOpenTripId(null)}
           onReport={() => setReportId(openTrip.id)}
           onZip={() => downloadZip(openTrip)}
@@ -862,9 +863,105 @@ function ExpenseStatusChip({ e }: { e: TripExpense }) {
   return <Badge tone="neutral">Ready</Badge>;
 }
 
+// ---------- confirmation review (accept the ITINERARY, not the invoice) ----------
+function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
+  const router = useRouter();
+  const [split, setSplit] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState(false);
+  // Only legs that still need a decision; once every conf is decided the item drops off.
+  const items = (trip.confirmations ?? []).filter((g) =>
+    g.confs.some((c) => (c.status ?? "needs_review") === "needs_review"));
+  if (!items.length) return null;
+  const others = trips.filter((t) => t.id !== trip.id);
+
+  async function act(action: string, targets: ConfReviewConf[], newTripId?: string) {
+    setBusy(true);
+    try {
+      await fetch("/api/travel/review-action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, tripId: trip.id, newTripId,
+          items: targets.map((c) => ({ conf: c.conf, traveler: c.traveler })) }),
+      });
+      router.refresh();
+    } finally { setBusy(false); }
+  }
+
+  const Actions = ({ targets }: { targets: ConfReviewConf[] }) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <button disabled={busy} onClick={() => act("accept_invoice", targets)}
+        className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
+      <button disabled={busy} onClick={() => act("accept_confirmation", targets)}
+        className="rounded-md bg-indigo-50 px-2.5 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Accept confirmation</button>
+      <select disabled={busy} defaultValue="" onChange={(e) => { if (e.target.value) act("reassign", targets, e.target.value); }}
+        className="rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50">
+        <option value="">↪ Move trip…</option>
+        {others.map((t) => <option key={t.id} value={t.id}>{t.dest} · {tripDates(t)}</option>)}
+      </select>
+      <button disabled={busy} onClick={() => { if (confirm("Remove this confirmation from the program?")) act("decline", targets); }}
+        className="rounded-md bg-rose-50 px-2.5 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Decline</button>
+    </div>
+  );
+
+  const Source = ({ c }: { c: ConfReviewConf }) => c.source_url
+    ? <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>
+    : <span className="text-[11.5px] text-slate-400">source pending</span>;
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-[13.5px] font-semibold">Review &amp; approve <span className="font-normal text-slate-400">· from travel@</span></div>
+        <span className="text-[11.5px] text-slate-400">accept the itinerary, not the invoice</span>
+      </div>
+      {items.map((g) => {
+        const isSplit = !!split[g.key];
+        return (
+          <div key={g.key} className="border-b border-slate-100 px-4 py-3 last:border-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-medium">{g.route}{g.flights ? <span className="ml-1 font-normal text-slate-400">· {g.flights}</span> : null}</div>
+                <div className="text-[12px] text-slate-500">{g.day}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  {g.confs.length} confirmation{g.confs.length === 1 ? "" : "s"}{(g.pnr_count ?? 1) > 1 ? ` · ${g.pnr_count} PNRs` : ""}
+                </span>
+                {g.confs.length > 1 && (
+                  <button onClick={() => setSplit((s) => ({ ...s, [g.key]: !s[g.key] }))}
+                    className="text-[11.5px] font-medium text-brand hover:underline">{isSplit ? "Re-group" : "Split"}</button>
+                )}
+              </div>
+            </div>
+            <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px] text-slate-600">
+              {g.confs.map((c, i) => (
+                <span key={i} className="flex items-center gap-2">
+                  <span>✈ {c.traveler} <span className="text-slate-400">· conf {c.conf}</span></span>
+                  <Source c={c} />
+                </span>
+              ))}
+            </div>
+            {isSplit ? (
+              <div className="mt-2 flex flex-col gap-2 border-l-2 border-slate-100 pl-3">
+                {g.confs.map((c, i) => (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[12.5px] font-medium">{c.traveler}</span>
+                    <Actions targets={[c]} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2"><Actions targets={g.confs} /></div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- trip detail ----------
 function TripDetail({
   trip,
+  trips,
   onBack,
   onReport,
   onZip,
@@ -873,6 +970,7 @@ function TripDetail({
   onEdit,
 }: {
   trip: Trip;
+  trips: Trip[];
   onBack: () => void;
   onReport: () => void;
   onZip: () => void;
@@ -881,7 +979,6 @@ function TripDetail({
   onEdit: () => void;
 }) {
   const b = brandFor(trip.ent);
-  const acceptable = trip.exps.filter((e) => e.id && e.status === "staged").length;
   const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
@@ -987,15 +1084,12 @@ function TripDetail({
         )}
       </div>
 
+      <ReviewSection trip={trip} trips={trips} />
+
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· from Payables</span></div>
           <div className="flex items-center gap-3">
-            {acceptable > 0 && (
-              <Button variant="success" size="sm" onClick={onAccept}>
-                ✓ Accept {acceptable} → Payables
-              </Button>
-            )}
             <span className="text-[13.5px] font-semibold tabular-nums">{money(trip.total)}</span>
           </div>
         </div>

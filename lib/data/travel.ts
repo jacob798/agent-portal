@@ -94,6 +94,25 @@ export interface TripExpense {
   category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
   confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
 }
+// A confirmation under a review item (one per traveler's ticket on the leg).
+export interface ConfReviewConf {
+  booking_id?: string;
+  conf: string;
+  traveler: string;
+  source_url?: string;  // Dropbox link to the source confirmation — "" until filed (then "view source")
+  status?: string;      // needs_review | accepted_invoice | accepted_confirmation | declined | posted
+  vendor?: string;
+}
+// One review item per flight LEG — co-travelers grouped; Split exposes the per-traveler confs.
+export interface ConfReviewItem {
+  key: string;
+  day?: string;
+  route: string;
+  flights?: string;
+  depart?: string;
+  pnr_count?: number;   // >1 → same flight, different PNRs (booked separately)
+  confs: ConfReviewConf[];
+}
 export interface Trip {
   id: string;
   ent: string;
@@ -107,6 +126,7 @@ export interface Trip {
   total: number; // always the SUM of `exps`; 0 when none attributed
   itin: ItinItem[];
   exps: TripExpense[];
+  confirmations?: ConfReviewItem[]; // the per-leg review surface (accept the itinerary, not the invoice)
 }
 
 /**
@@ -258,6 +278,7 @@ export async function getTravel(): Promise<{
               total: exps.reduce((s: number, e: TripExpense) => s + e.amount, 0),
               itin: r.itin ?? [],
               exps,
+              confirmations: Array.isArray(r.confirmations) ? r.confirmations : [],
             };
           })
         : TRIPS;

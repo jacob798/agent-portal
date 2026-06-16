@@ -68,12 +68,26 @@ export interface GlOption {
   type: string | null;
 }
 
-/** GL options for a given entity. BC borrows PER's chart (it posts into PER). */
+// An account is CODEABLE (a valid expense-coding target) when it's a P&L type — Expense,
+// Cost of Goods Sold, Other Expense — or a Fixed Asset, or a capitalized-cost account (the
+// "Capitalized … Costs" 130xxx dev series, typed Other Current Asset, where construction
+// costs land instead of P&L). Everything else (pay-from banks/cards, income, A/R, A/P,
+// equity, liabilities, loans-receivable / investment / retirement assets) is NOT something
+// you code a payable to, so it's kept out of the dropdown. New expense accounts synced from
+// QBO appear automatically — this pattern is the only manual gate. (Jacob, 2026-06-16.)
+const CODEABLE_GL_TYPES = new Set(["Expense", "Cost of Goods Sold", "Other Expense", "Fixed Asset"]);
+export function isCodeableGl(g: GlOption): boolean {
+  return CODEABLE_GL_TYPES.has(g.type ?? "") || /capitaliz/i.test(g.fullName);
+}
+
+/** GL coding options for a given entity — codeable accounts only. BC borrows PER's chart
+ *  (it posts into PER; its own coding is fixed to Loan – Builders Capital via BC_ROUTE). */
 export function glsForEntity(gls: GlOption[], entity?: string | null): GlOption[] {
   const code = entity === "BC" ? "PER" : entity;
-  if (!code) return gls;
-  const scoped = gls.filter((g) => g.entity === code);
-  return scoped.length ? scoped : gls;
+  const codeable = gls.filter(isCodeableGl);
+  if (!code) return codeable;
+  const scoped = codeable.filter((g) => g.entity === code);
+  return scoped.length ? scoped : codeable;
 }
 
 /**

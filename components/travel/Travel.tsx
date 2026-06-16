@@ -1008,11 +1008,18 @@ function TripDetail({
                   <span>{g.name} <span className="text-slate-400">· {g.rows.length}</span></span>
                   <span className="tabular-nums">{money(sub)}</span>
                 </div>
-                {g.rows.map((e, k) => (
+                {g.rows.map((e, k) => {
+                  // A 'staged' (Review) row isn't in Payables yet — it gets there via the green
+                  // "Accept → Payables" button. Only rows that are actually in Payables
+                  // (accepted/posted/open) link to the drawer; a staged row would dead-end.
+                  const inPayables = !!e.id && e.status !== "staged";
+                  return (
                   <div key={e.id ?? `${g.name}-${k}`}
-                    onClick={() => { if (e.id) window.location.href = `/payables?open=${e.id}`; }}
-                    title={e.id ? "Open in Payables to edit / post" : undefined}
-                    className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0 ${e.id ? "cursor-pointer hover:bg-slate-50" : ""}`}>
+                    onClick={() => { if (inPayables) window.location.href = `/payables?open=${e.id}`; }}
+                    title={inPayables ? "Open in Payables to edit / post"
+                                      : e.status === "staged" ? "In Review — click “Accept → Payables” above to send it for coding & posting"
+                                      : undefined}
+                    className={`flex items-center gap-3.5 border-b border-slate-100 px-4 py-3 pl-6 last:border-0 ${inPayables ? "cursor-pointer hover:bg-slate-50" : ""}`}>
                     <span className="text-lg">{e.ic}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{e.what}</div>
@@ -1042,7 +1049,8 @@ function TripDetail({
                     <ExpenseStatusChip e={e} />
                     <span className="w-20 text-right font-semibold tabular-nums">{money(e.amount)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </Fragment>
             );
           }),

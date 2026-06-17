@@ -1323,6 +1323,18 @@ export default function Payables({
                       />
                     )}
                   </div>
+                  {/* edit / new vendor record — one click from the row (not just the expand). Hidden
+                      for travel rows (the QB vendor is the trip rollup, not an editable record). */}
+                  {!r.tripId && (
+                    <button
+                      aria-label={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor" : "Edit vendor"}
+                      title={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor — fill from invoice" : "Edit vendor (category, contact, default coding)"}
+                      onClick={(e) => { e.stopPropagation(); setVendorEdit({ name: r.vendor, entity: r.entity }); }}
+                      className="shrink-0 text-slate-300 hover:text-brand"
+                    >
+                      {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? <Plus className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1">
                   {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); const label = tp ? [tp.dest, tp.dates].filter(Boolean).join(" · ") : "Travel"; return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {label || "Travel"}</Badge></span>; })() : null}
@@ -2515,6 +2527,8 @@ function VendorPicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [showCopy, setShowCopy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -2522,6 +2536,7 @@ function VendorPicker({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+  const firstLetter = (n: string) => { const c = (n.trim()[0] ?? "").toUpperCase(); return /[A-Z]/.test(c) ? c : "#"; };
 
   const names = useMemo(() => vendorsForEntity(options, entity), [options, entity]);
   const entLabel = entName(entity);
@@ -2535,13 +2550,21 @@ function VendorPicker({
     return [...set].sort((a, b) => (a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [names, cats]);
+  // The A–Z letters actually present among this entity's vendors (enable only those).
+  const presentLetters = useMemo(() => {
+    const s = new Set<string>();
+    names.forEach((n) => s.add(firstLetter(n)));
+    return s;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [names]);
   const hits = useMemo(
     () => names
       .filter((n) => !needle || n.toLowerCase().includes(needle))
       .filter((n) => !activeCat || catOf(n) === activeCat)
-      .slice(0, 200),
+      .filter((n) => !activeLetter || firstLetter(n) === activeLetter)
+      .slice(0, 300),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [names, needle, activeCat, cats],
+    [names, needle, activeCat, activeLetter, cats],
   );
   // Group hits by category for the grouped (chips) view.
   const hitGroups = useMemo(() => {
@@ -2553,6 +2576,8 @@ function VendorPicker({
   }, [hits, cats]);
   // Vendors that exist in OTHER entities but NOT this one — pick to COPY here (the vendor is
   // created in this entity's QBO realm at post via match-before-create). name → source entities.
+  // Filtered by the SAME search + category + letter controls (there are too many to list raw),
+  // and surfaced behind a toggle so it never floods the main list.
   const code = entity === "BC" ? "PER" : entity;
   const others = useMemo(() => {
     const have = new Set(names.map((n) => n.toLowerCase()));
@@ -2561,10 +2586,13 @@ function VendorPicker({
       if (!v.entity || v.entity === code || v.entity === null) continue;
       if (have.has(v.name.toLowerCase())) continue;
       if (needle && !v.name.toLowerCase().includes(needle)) continue;
+      if (activeCat && catOf(v.name) !== activeCat) continue;
+      if (activeLetter && firstLetter(v.name) !== activeLetter) continue;
       (m.get(v.name) ?? m.set(v.name, new Set()).get(v.name)!).add(v.entity);
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 50);
-  }, [options, names, code, needle]);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options, names, code, needle, activeCat, activeLetter, cats]);
   const exact = names.some((n) => n.toLowerCase() === needle);
   const raw = q.trim();
 
@@ -2592,6 +2620,19 @@ function VendorPicker({
                 ))}
               </div>
             )}
+            {/* A–Z index — combine with the category chips + search. Letters with no vendor are disabled. */}
+            <div className="mt-1.5 flex flex-wrap gap-x-1 gap-y-0.5">
+              <button onClick={() => setActiveLetter(null)}
+                className={`rounded px-1.5 text-[11px] font-semibold ${!activeLetter ? "bg-brand text-white" : "text-slate-500 hover:bg-slate-100"}`}>All</button>
+              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("").map((L) => {
+                const has = presentLetters.has(L);
+                return (
+                  <button key={L} disabled={!has} onClick={() => setActiveLetter(L === activeLetter ? null : L)}
+                    className={`w-[18px] rounded text-center text-[11px] font-semibold ${
+                      activeLetter === L ? "bg-brand text-white" : has ? "text-slate-600 hover:bg-slate-100" : "cursor-default text-slate-300"}`}>{L}</button>
+                );
+              })}
+            </div>
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
             {hits.length === 0 && others.length === 0 ? (
@@ -2617,17 +2658,29 @@ function VendorPicker({
               </button>
             ))}
             {others.length > 0 && (
-              <>
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Copy from another entity</div>
-                {others.map(([n, ents]) => (
-                  <button key={`o-${n}`} onClick={() => { onPick(n); setOpen(false); }}
-                    title={`In ${[...ents].map((e) => entName(e)).join(", ")} — copy to ${entLabel}`}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">
-                    <span className="whitespace-normal break-words">{n}</span>
-                    <span className="shrink-0 text-[10px] text-slate-400">{[...ents].slice(0, 2).join(", ")}{ents.size > 2 ? ` +${ents.size - 2}` : ""} →</span>
-                  </button>
-                ))}
-              </>
+              <div className="mt-1 border-t border-slate-100">
+                {/* Collapsed by default — there are too many across entities to list raw. The
+                    search + category + A–Z controls above filter THIS list too. */}
+                <button onClick={() => setShowCopy((v) => !v)}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50">
+                  <span>Copy from another entity · {others.length}{others.length === 200 ? "+" : ""}</span>
+                  <span className="text-[11px] text-slate-300">{showCopy ? "▾ hide" : "▸ show"}</span>
+                </button>
+                {showCopy && (
+                  (needle || activeCat || activeLetter) ? (
+                    others.map(([n, ents]) => (
+                      <button key={`o-${n}`} onClick={() => { onPick(n); setOpen(false); }}
+                        title={`In ${[...ents].map((e) => entName(e)).join(", ")} — copy to ${entLabel}`}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">
+                        <span className="whitespace-normal break-words">{n}</span>
+                        <span className="shrink-0 text-[10px] text-slate-400">{[...ents].slice(0, 2).join(", ")}{ents.size > 2 ? ` +${ents.size - 2}` : ""} →</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-[11.5px] text-slate-400">Search or pick a category / letter to narrow these {others.length}{others.length === 200 ? "+" : ""} vendors.</div>
+                  )
+                )}
+              </div>
             )}
           </div>
           {raw && !exact && (

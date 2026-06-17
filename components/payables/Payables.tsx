@@ -1251,13 +1251,15 @@ export default function Payables({
               {/* expand detail */}
               <button
                 onClick={(e) => { e.stopPropagation(); toggleExpand(r.id); }}
-                title="Memo · invoice # · doc-type · posting"
-                className="mt-0.5 text-[11px] text-slate-400 hover:text-slate-600"
+                title="Expand: memo · invoice # · doc-type · posting · split · actions"
+                className="mt-px text-[14px] leading-none text-slate-400 hover:text-brand"
               >
                 {expandedRow === r.id ? "▾" : "▸"}
               </button>
-              {/* Date */}
-              <div className="mt-0.5 text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
+              {/* Date — compact M/D (single line) like the mockup */}
+              <div className="mt-0.5 whitespace-nowrap text-[11.5px] tabular-nums text-slate-500">
+                {(() => { const d = rowDate(r); const m = d && /(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${+m[2]}/${+m[3]}` : (d || "—"); })()}
+              </div>
               {/* Vendor */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">
@@ -1338,9 +1340,9 @@ export default function Payables({
                 {r.docUrl ? (
                   <a href={r.docUrl} target="_blank" rel="noopener noreferrer" title={r.tripId ? "Open the confirmation (the invoice)" : "Open the filed invoice"} className="text-brand hover:text-brand-navy"><FileText className="h-4 w-4" /></a>
                 ) : r.tripId ? (
-                  // Travel: the confirmation IS the invoice (accepted on the Travel app) — documented,
-                  // even before the PDF is filed. Never an amber "gap".
-                  <span title="Confirmation is the invoice (from the Travel app)" className="text-slate-400"><FileText className="h-4 w-4" /></span>
+                  // Travel: the confirmation IS the invoice, but the PDF isn't filed yet — show a
+                  // distinct "pending" outline (a dashed/faint doc), NOT a solid present icon.
+                  <span title="Confirmation is the invoice — not yet filed (the worker files it)" className="text-slate-300"><FileText className="h-4 w-4" strokeDasharray="2 2" /></span>
                 ) : r.doc_waived ? (
                   <span title="No receipt needed" className="text-slate-300"><FileText className="h-4 w-4" /></span>
                 ) : (
@@ -1373,6 +1375,12 @@ export default function Payables({
                     <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</div>
                     <div className="mt-0.5"><Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge></div>
                   </div>
+                  {r.entity === "BC" && (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paylocity category <span className="font-medium normal-case tracking-normal text-slate-400">· for the BC reimbursement</span></div>
+                      <div className="mt-0.5"><SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" /></div>
+                    </div>
+                  )}
                 </div>
                 {/* Split across entities / GLs — inline (replaces the old drawer's coding editor).
                     Travel rows are locked (entity/account come from the trip), so no split UI. */}

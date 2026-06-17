@@ -1810,11 +1810,7 @@ export default function Payables({
           </div>
           <div>
             <div className={DLBL}>Pay from</div>
-            <select value={payFrom} onChange={(e) => setPayFrom(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[12.5px] font-semibold text-brand-navy">
-              {acctLabelsFor(r.entity).map((a) => (
-                <option key={a}>{a}</option>
-              ))}
-            </select>
+            <SearchSelect value={payFrom} options={acctLabelsFor(r.entity)} onPick={setPayFrom} placeholder="Search cards / accounts…" />
           </div>
         </div>
 
@@ -1873,38 +1869,21 @@ export default function Payables({
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[12px] font-semibold text-amber-700">
                         → PER QB · {BC_ROUTE.gl}
                       </span>
-                      <select
+                      <SearchSelect
                         value={l.bcCategory ?? matchBcCategory(r.category ?? r.gl)}
-                        onChange={(e) => setLineBcCategory(i, e.target.value)}
-                        title="Paylocity expense category (for the BC reimbursement report)"
-                        className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-amber-800"
-                      >
-                        {bcCategories.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
+                        options={bcCategories}
+                        onPick={(c) => setLineBcCategory(i, c)}
+                        placeholder="Search Paylocity categories…"
+                        tone="amber"
+                      />
                     </>
                   ) : (
-                    <select
+                    <AccountPicker
                       value={glLabels(l.entity).includes(l.gl) ? l.gl : ""}
-                      onChange={(e) => setLineGl(i, e.target.value)}
-                      className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[12px] font-semibold text-brand"
-                    >
-                      {!glLabels(l.entity).includes(l.gl) && (
-                        <option value="">Select GL account…</option>
-                      )}
-                      {glGroups(l.entity).map((grp) => (
-                        <optgroup key={grp.label} label={grp.label}>
-                          {grp.options.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                      gls={gls}
+                      entity={l.entity}
+                      onPick={(gl) => setLineGl(i, gl)}
+                    />
                   )}
                 </div>
               </div>
@@ -2441,6 +2420,143 @@ function VendorPicker({
               <Plus className="h-3.5 w-3.5" /> Add “{raw}” as a new {entLabel} vendor
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Flat searchable picker (pay-from cards, BC Paylocity categories). Type to filter, click to pick.
+function SearchSelect({
+  value, options, onPick, placeholder = "Search…", tone = "navy",
+}: { value: string; options: string[]; onPick: (v: string) => void; placeholder?: string; tone?: "navy" | "amber" }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const needle = q.trim().toLowerCase();
+  const hits = useMemo(() => options.filter((o) => !needle || o.toLowerCase().includes(needle)).slice(0, 300), [options, needle]);
+  const t = tone === "amber"
+    ? { border: "border-amber-200", text: "text-amber-800", hl: "bg-amber-50 text-amber-800" }
+    : { border: "border-slate-200", text: "text-brand-navy", hl: "bg-brand/5 text-brand-navy" };
+  return (
+    <div ref={ref} className="relative min-w-0 flex-1">
+      <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
+        className={`flex w-full items-center justify-between rounded-lg border bg-white px-2.5 py-1.5 text-left text-[12px] font-semibold ${t.border} ${t.text}`}>
+        <span className={`truncate ${value ? "" : "font-normal text-slate-400"}`}>{value || placeholder}</span>
+        <span className="text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-1.5">
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder}
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {hits.length === 0 ? (
+              <div className="px-3 py-2 text-[12px] text-slate-400">No match.</div>
+            ) : hits.map((o) => (
+              <button key={o} onClick={() => { onPick(o); setOpen(false); }}
+                className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${o === value ? `font-medium ${t.hl}` : "text-slate-700"}`}>
+                <span className="truncate">{o}</span>
+                {o === value && <span className="text-[11px] text-brand">✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// P&L class of a GL type → [rank, section label]. Order: Expenses → Income → Assets → Liabilities
+// → Equity → Bank. Drives the section ordering in the GL account picker.
+function glClass(type?: string | null): [number, string] {
+  switch (type) {
+    case "Cost of Goods Sold": return [11, "Cost of sales"];
+    case "Expense": return [12, "Operating expenses"];
+    case "Other Expense": return [13, "Other expenses"];
+    case "Income": return [20, "Income"];
+    case "Other Income": return [21, "Other income"];
+    case "Other Current Liability":
+    case "Long Term Liability":
+    case "Accounts Payable": return [40, "Liabilities"];
+    case "Equity": return [50, "Equity"];
+    case "Bank":
+    case "Credit Card":
+    case "Cash": return [60, "Bank & cash"];
+    default: return [30, "Assets"]; // Other Current Asset, Fixed Asset, Other Asset, A/R
+  }
+}
+
+// Searchable GL account picker — codeable accounts (P&L-ordered) by default; an exception toggle
+// reveals the entity's full chart. Leaf names + account number, search on either.
+function AccountPicker({
+  value, gls, entity, onPick,
+}: { value: string; gls: GlOption[]; entity?: string | null; onPick: (gl: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [all, setAll] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const code = entity === "BC" ? "PER" : entity;
+  const codeable = useMemo(() => glsForEntity(gls, entity), [gls, entity]);
+  const fullChart = useMemo(() => (code ? gls.filter((g) => g.entity === code) : gls), [gls, code]);
+  const pool = all ? fullChart : codeable;
+  const needle = q.trim().toLowerCase();
+  const items = useMemo(() => pool
+    .filter((g) => !needle || glShort(g.fullName).toLowerCase().includes(needle) || (g.number ?? "").includes(needle))
+    .map((g) => ({ g, leaf: glShort(g.fullName), cls: glClass(g.type) }))
+    .sort((a, b) => a.cls[0] - b.cls[0] || (a.g.number ?? "").localeCompare(b.g.number ?? "") || a.leaf.localeCompare(b.leaf))
+    .slice(0, 400), [pool, needle]);
+  return (
+    <div ref={ref} className="relative min-w-0 flex-1">
+      <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
+        className={`flex w-full items-center justify-between rounded-lg border bg-white px-2.5 py-1.5 text-left text-[12px] font-semibold text-brand ${value ? "border-slate-200" : "border-amber-300"}`}>
+        <span className={`truncate ${value ? "" : "font-normal text-amber-600"}`}>{glShort(value) || "Select GL account…"}</span>
+        <span className="text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full min-w-[240px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-1.5">
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or number…"
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
+          </div>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {items.length === 0 ? (
+              <div className="px-3 py-2 text-[12px] text-slate-400">No match{all ? "" : " — try the exception toggle"}.</div>
+            ) : items.map(({ g, leaf, cls }, idx) => {
+              const prev = items[idx - 1];
+              const head = !prev || prev.cls[1] !== cls[1];
+              return (
+                <div key={g.id}>
+                  {head && <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{cls[1]}</div>}
+                  <button onClick={() => { onPick(g.fullName); setOpen(false); }}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${g.fullName === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+                    {g.number && <span className="w-12 shrink-0 text-[11px] tabular-nums text-slate-400">{g.number}</span>}
+                    <span className="flex-1 truncate">{leaf}</span>
+                    {g.fullName === value && <span className="text-[11px] text-brand">✓</span>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
+            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} className="h-3.5 w-3.5" />
+            Include non-coding accounts <span className="text-slate-400">· exception</span>
+          </label>
         </div>
       )}
     </div>

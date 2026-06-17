@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Zap, Upload, FileText, Plane, Plus } from "lucide-react";
+import { Zap, Upload, FileText, Plane, Plus, Pencil } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
@@ -11,6 +11,7 @@ import {
   payFromForEntity,
   vendorsForEntity,
   type VendorOption,
+  ACTIVE_ENTITIES,
   glGroupsForEntity,
   glShort,
   BC_ROUTE,
@@ -291,6 +292,8 @@ export default function Payables({
   };
   const [filter, setFilter] = useState("need");
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  // New/edit vendor modal — opens on a vendor name (+ the row's entity for new-vendor defaults).
+  const [vendorEdit, setVendorEdit] = useState<{ name: string; entity: string | null } | null>(null);
   const [travelRow, setTravelRow] = useState<string | null>(null);
   const [learnId, setLearnId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -518,13 +521,15 @@ export default function Payables({
   const counts = useMemo(() => {
     const need = rows.filter((r) => !r.auto && !r.resolved).length;
     const docs = rows.filter(missingDoc).length;
+    const newv = rows.filter((r) => r.vendorStatus === "new" && !r.resolved).length;
+    const err = rows.filter((r) => r.status === "error").length;
     const auto = rows.filter((r) => r.auto || r.resolved).length;
     // Ready to post = coded rows queued for QuickBooks (agent auto-coded, or
     // operator-coded & awaiting the Post click). Approved rows have already left
     // the queue to Bookkeeper, so we sum what's coded-and-ready here.
     const ready = rows.filter((r) => !r.resolved && (r.auto || (!r.exception && !!r.entity)));
     const readyAmt = ready.reduce((s, r) => s + r.amount, 0);
-    return { need, docs, auto, ready: ready.length, readyAmt };
+    return { need, docs, newv, err, auto, ready: ready.length, readyAmt };
   }, [rows]);
 
   const rowDate = (r: Row) => r.txnDate || (r.sub?.match(/\d{4}-\d{2}-\d{2}/) || [""])[0];
@@ -558,6 +563,9 @@ export default function Payables({
     if (filter === "all") return true;
     if (filter === "auto") return r.auto || r.resolved;
     if (filter === "docs") return missingDoc(r);
+    if (filter === "newv") return r.vendorStatus === "new" && !r.resolved;
+    if (filter === "err") return r.status === "error";
+    if (filter === "ready") return !r.resolved && (r.auto || (!r.exception && !!r.entity));
     return !r.auto && !r.resolved; // need
   });
   const visible = [...filtered].sort((a, b) => {
@@ -1049,8 +1057,12 @@ export default function Payables({
           active={filter}
           onChange={setFilter}
           tabs={[
-            { key: "need", label: "Need you", count: counts.need },
-            { key: "docs", label: "Missing docs", count: counts.docs },
+            // Exception bar — most urgent first; post errors only appear when there are any.
+            ...(counts.err ? [{ key: "err", label: "Post errors", count: counts.err }] : []),
+            { key: "need", label: "Needs coding", count: counts.need },
+            { key: "newv", label: "New vendors", count: counts.newv },
+            { key: "docs", label: "Missing receipts", count: counts.docs },
+            { key: "ready", label: "Ready to post", count: counts.ready },
             { key: "all", label: "All", count: rows.length },
             { key: "auto", label: "Auto-coded", count: counts.auto },
             { key: "log", label: "Ingestion log", count: ingestErrors || jobs.length },
@@ -1615,6 +1627,16 @@ export default function Payables({
         </Field>
       </Modal>
 
+      {vendorEdit && (
+        <VendorModal
+          name={vendorEdit.name}
+          entity={vendorEdit.entity}
+          gls={gls}
+          onClose={() => setVendorEdit(null)}
+          onSaved={(nm) => { setVendorEdit(null); toast(`✓ Saved vendor ${nm}`); }}
+        />
+      )}
+
       <Toast message={message} />
     </div>
   );
@@ -1768,6 +1790,12 @@ export default function Payables({
             entity={r.entity}
             onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
           />
+          {r.vendor && (
+            <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+              className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
+              <Pencil className="h-3 w-3" /> Edit vendor details
+            </button>
+          )}
         </div>
 
         {/* trip — re-attribute to the correct trip, or clear to a normal payable */}
@@ -2560,5 +2588,129 @@ function AccountPicker({
         </div>
       )}
     </div>
+  );
+}
+
+// New / edit vendor modal — writes the `vendors` master (name, aliases, default entity/GL
+// coding, auto-approve, contact). Loads the existing record on open so a save never wipes
+// aliases/defaults it didn't surface. Opened from "Edit vendor details" in the drawer.
+type VContact = { email?: string; phone?: string; website?: string; account_number?: string; street?: string };
+function VendorModal({
+  name, entity, gls, onClose, onSaved,
+}: { name: string; entity: string | null; gls: GlOption[]; onClose: () => void; onSaved: (name: string) => void }) {
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [cname, setCname] = useState(name);
+  const [aliases, setAliases] = useState<string[]>([]);
+  const [aliasInput, setAliasInput] = useState("");
+  const [ent, setEnt] = useState(entity && entity !== "BC" ? entity : "");
+  const [gl, setGl] = useState("");
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [contact, setContact] = useState<VContact>({});
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/payables/vendor?name=${encodeURIComponent(name)}`)
+      .then((r) => r.json())
+      .then(({ vendor }) => {
+        if (!live) return;
+        if (vendor) {
+          setCname(vendor.canonical_name ?? name);
+          setAliases(Array.isArray(vendor.aliases) ? vendor.aliases : []);
+          setEnt(vendor.entity_code ?? (entity && entity !== "BC" ? entity : ""));
+          setGl(vendor.gl_full_name ?? "");
+          setAutoApprove(!!vendor.auto_approve);
+          setContact((vendor.contact ?? {}) as VContact);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+    return () => { live = false; };
+  }, [name, entity]);
+
+  const addAlias = () => {
+    const a = aliasInput.trim();
+    if (a && !aliases.some((x) => x.toLowerCase() === a.toLowerCase())) setAliases((xs) => [...xs, a]);
+    setAliasInput("");
+  };
+  const c = (k: keyof VContact) => contact[k] ?? "";
+  const setC = (k: keyof VContact, v: string) => setContact((x) => ({ ...x, [k]: v }));
+
+  async function save() {
+    setSaving(true); setErr(null);
+    try {
+      const res = await fetch("/api/payables/vendor", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: cname.trim(), originalName: name, aliases, entity: ent || null, gl: gl || null, autoApprove, contact }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "save failed");
+      onSaved(cname.trim());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "save failed");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Edit vendor" width="max-w-xl"
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={saving || !cname.trim()}>{saving ? "Saving…" : "Save vendor"}</Button>
+      </>}>
+      {!loaded ? (
+        <div className="px-1 py-6 text-[13px] text-slate-400">Loading vendor…</div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <div className={DLBL}>Vendor name</div>
+            <input value={cname} onChange={(e) => setCname(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px]" />
+          </div>
+          <div>
+            <div className={DLBL}>Aliases <span className="font-normal normal-case text-slate-400">· names as they appear on documents (feed vendor ID)</span></div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {aliases.map((a) => (
+                <span key={a} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[12px]">
+                  {a}<button onClick={() => setAliases((xs) => xs.filter((x) => x !== a))} className="text-slate-400">✕</button>
+                </span>
+              ))}
+              <input value={aliasInput} onChange={(e) => setAliasInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAlias(); } }}
+                placeholder="+ add alias" className="h-7 w-28 rounded-md border border-slate-200 px-2 text-[12px]" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className={DLBL}>Default entity</div>
+              <select value={ent} onChange={(e) => { setEnt(e.target.value); setGl(""); }} className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-[12.5px]">
+                <option value="">— none —</option>
+                {ACTIVE_ENTITIES.filter((x) => x.code !== "BC").map((x) => <option key={x.code} value={x.code}>{x.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className={DLBL}>Default account</div>
+              {ent ? <AccountPicker value={gl} gls={gls} entity={ent} onPick={setGl} />
+                   : <div className="rounded-lg border border-slate-200 px-2.5 py-2 text-[12.5px] text-slate-400">pick an entity first</div>}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-[12.5px]">
+            <input type="checkbox" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} className="h-4 w-4" />
+            Auto-approve — post matching invoices without review
+          </label>
+          <div>
+            <div className={DLBL}>Contact</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input value={c("email")} onChange={(e) => setC("email", e.target.value)} placeholder="Email" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px]" />
+              <input value={c("phone")} onChange={(e) => setC("phone", e.target.value)} placeholder="Phone" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px]" />
+              <input value={c("website")} onChange={(e) => setC("website", e.target.value)} placeholder="Website" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px]" />
+              <input value={c("account_number")} onChange={(e) => setC("account_number", e.target.value)} placeholder="Our account #" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px]" />
+            </div>
+            <input value={c("street")} onChange={(e) => setC("street", e.target.value)} placeholder="Address" className="mt-2 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-[12.5px]" />
+          </div>
+          {err && <div className="text-[12px] text-red-600">{err}</div>}
+        </div>
+      )}
+    </Modal>
   );
 }

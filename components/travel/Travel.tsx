@@ -875,14 +875,10 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
     </div>
   );
 
-  // Full email (document of record / accounting) + the clean one-page summary (quick review).
-  const Source = ({ c }: { c: ConfReviewConf }) => (c.source_url || c.summary_url)
-    ? (
-      <span className="inline-flex items-center gap-2">
-        {c.source_url && <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>}
-        {c.summary_url && <a href={c.summary_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-slate-500 hover:underline">summary ↗</a>}
-      </span>
-    )
+  // The summary is now shown INLINE (schedule + fare below), so the only link is the full email
+  // (the document of record for accounting).
+  const Source = ({ c }: { c: ConfReviewConf }) => c.source_url
+    ? <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>
     : <span className="text-[11.5px] text-slate-400">source pending</span>;
 
   return (
@@ -910,10 +906,23 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                 )}
               </div>
             </div>
+            {/* SCHEDULE — the summary, inline: each leg with times, so no link-click to review */}
+            {g.segments && g.segments.length > 0 && (
+              <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-1.5">
+                {g.segments.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-600">
+                    <span className="min-w-[88px] font-medium text-slate-700">{s.flight}</span>
+                    <span className="min-w-0 truncate">{s.route}</span>
+                    <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px] text-slate-600">
               {g.confs.map((c, i) => (
                 <span key={i} className="flex items-center gap-2">
                   <span>✈ {c.traveler} <span className="text-slate-400">· conf {c.conf}</span></span>
+                  {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">{money(c.fare)}</span>}
                   <Source c={c} />
                 </span>
               ))}
@@ -1015,8 +1024,6 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   const display = trip.exps;
   const [sortK, setSortK] = useState<LedgerSort>("date");
   const [dir, setDir] = useState<1 | -1>(1);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const allOpen = display.length > 0 && display.every((e) => open[e.id ?? ""]);
 
   const val = (e: TripExpense): string | number => {
     switch (sortK) {
@@ -1046,10 +1053,6 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· the QuickBooks tie-out</span></div>
         <div className="flex items-center gap-3">
-          {display.length > 0 && (
-            <button onClick={() => setOpen(allOpen ? {} : Object.fromEntries(display.map((e) => [e.id ?? "", true])))}
-              className="text-[11.5px] font-medium text-brand hover:underline">{allOpen ? "Collapse all" : "Expand all"}</button>
-          )}
           <span className="text-[12px] text-slate-500">
             {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(total)}`}
           </span>
@@ -1079,20 +1082,17 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
           <tbody>
             {rows.map((e) => {
               const id = e.id ?? "";
-              const det = !!open[id];
               const acct = acctLeaf(expenseCode(trip.ent, e));
+              const trav = e.traveler ? e.traveler.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase()) : "";
               return (
                 <Fragment key={id}>
                   <tr className="border-t border-slate-100 align-top">
                     <td className="whitespace-nowrap px-3 pt-2.5 text-[12.5px] text-slate-500">{fmtMD(e.date)}</td>
                     <td className="px-2 pt-2.5">
-                      <button onClick={() => setOpen((s) => ({ ...s, [id]: !s[id] }))} className="inline-flex items-start gap-1 text-left">
-                        {det ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                        <span className="font-medium">{e.what}</span>
-                        {e.status === "posted" ? <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">posted</span>
-                          : e.status === "error" ? <span className="ml-1.5 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">error</span>
-                          : <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">awaiting post</span>}
-                      </button>
+                      <span className="font-medium">{e.what}{trav ? <span className="font-normal text-slate-400"> · {trav}</span> : null}</span>
+                      {e.status === "posted" ? <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">posted</span>
+                        : e.status === "error" ? <span className="ml-1.5 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">error</span>
+                        : <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">awaiting post</span>}
                     </td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}
                       style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acct}</td>
@@ -1109,18 +1109,16 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                       )}
                     </td>
                   </tr>
-                  {det && (
-                    <tr>
-                      <td />
-                      <td colSpan={cols - 1} className="px-2 pb-2.5 text-[11.5px] leading-relaxed text-slate-500" style={{ wordBreak: "break-word" }}>
-                        <span className="text-slate-400">QB vendor</span> {tripVendor(trip)}
-                        {e.creditAmount && e.creditAmount > 0 ? <> · <span className="text-slate-400">eCredit</span> {money(e.creditAmount)} applied{e.creditNumber ? ` · #${e.creditNumber}` : ""}</> : null}
-                        <br />
-                        {e.memo ? <><span className="text-slate-400">Memo</span> {e.memo}</> : null}
-                        {e.qbRef ? <> {e.memo ? "· " : ""}<span className="text-slate-400">QB txn</span> {e.qbRef}</> : null}
-                      </td>
-                    </tr>
-                  )}
+                  <tr>
+                    <td />
+                    <td colSpan={cols - 1} className="px-2 pb-2.5 text-[11.5px] leading-relaxed text-slate-500" style={{ wordBreak: "break-word" }}>
+                      <span className="text-slate-400">QB vendor</span> {tripVendor(trip)}
+                      {e.creditAmount && e.creditAmount > 0 ? <> · <span className="text-slate-400">eCredit</span> {money(e.creditAmount)} applied{e.creditNumber ? ` · #${e.creditNumber}` : ""}</> : null}
+                      <br />
+                      {e.memo ? <><span className="text-slate-400">Memo</span> {e.memo}</> : null}
+                      {e.qbRef ? <> {e.memo ? "· " : ""}<span className="text-slate-400">QB txn</span> {e.qbRef}</> : null}
+                    </td>
+                  </tr>
                 </Fragment>
               );
             })}

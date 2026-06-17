@@ -42,7 +42,7 @@ function payableToLedger(r: {
   doc_url: string | null; nodoc: boolean | null;
   account: string | null; txn_date: string | null; invoice_number: string | null;
   posted_legs: { qbo_id?: string; txn_type?: string; role?: string }[] | null;
-  extracted: { payee?: string; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
+  extracted: { payee?: string; traveler?: string | null; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
 }): TripExpense {
   const calCat = calendarCategory(r.category);
   const status: ExpenseStatus =
@@ -55,6 +55,7 @@ function payableToLedger(r: {
     id: r.id,
     ic: CALENDAR_CAT_ICON[calCat] ?? "🧾",
     what: r.extracted?.payee || r.vendor,
+    traveler: r.extracted?.traveler ?? null,
     sub: r.memo || r.category || "",
     amount: Number(r.amount),
     gl: r.gl ?? "",
@@ -103,6 +104,7 @@ export interface TripExpense {
   id?: string; // payables_queue row id — present for real (postable) invoices
   ic: string;
   what: string; // the real payee (Delta, Westin…), not the trip-header vendor
+  traveler?: string | null; // the traveler on this expense (shown on the payee line)
   sub: string; // memo / date
   amount: number;
   gl: string;
@@ -127,10 +129,17 @@ export interface ConfReviewConf {
   booking_id?: string;
   conf: string;
   traveler: string;
+  fare?: number | null;  // reimbursable Total Price — shown inline so the summary lives in the row
   source_url?: string;   // FULL email PDF (document of record / accounting) — "" until filed
   summary_url?: string;  // clean one-page receipt — quick-review glance
   status?: string;      // needs_review | accepted_invoice | accepted_confirmation | declined | posted
   vendor?: string;
+}
+export interface ConfReviewSeg {
+  flight: string;
+  route: string;
+  depart: string; // "5:30a MT"
+  arrive: string; // "9:15a CT"
 }
 // One review item per flight LEG — co-travelers grouped; Split exposes the per-traveler confs.
 export interface ConfReviewItem {
@@ -139,6 +148,7 @@ export interface ConfReviewItem {
   route: string;
   flights?: string;
   depart?: string;
+  segments?: ConfReviewSeg[]; // the schedule (flight · route · times) — summary shown inline
   pnr_count?: number;   // >1 → same flight, different PNRs (booked separately)
   confs: ConfReviewConf[];
 }

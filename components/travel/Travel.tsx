@@ -922,7 +922,8 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
               {g.confs.map((c, i) => (
                 <span key={i} className="flex items-center gap-2">
                   <span>✈ {c.traveler} <span className="text-slate-400">· conf {c.conf}</span></span>
-                  {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">{money(c.fare)}</span>}
+                  {c.net != null && <span className="tabular-nums text-slate-400">net {money(c.net)}</span>}
+                  {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">reimburse {money(c.fare)}</span>}
                   <Source c={c} />
                 </span>
               ))}
@@ -1071,7 +1072,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                 <span className="inline-flex cursor-pointer items-center gap-0.5">Date {sortK === "date" ? (dir > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ChevronsUpDown className="h-3 w-3 opacity-30" />}</span>
               </th>
               <Th k="payee" label="Payee" />
-              <Th k="account" label="Account" />
+              <Th k="account" label="Cat" />
               <th className="w-px px-2 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Entity</th>
               <Th k="payFrom" label="Pay-from" />
               <Th k="net" label={showReimburse ? "Net" : "Amount"} right />
@@ -1082,21 +1083,25 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
           <tbody>
             {rows.map((e) => {
               const id = e.id ?? "";
-              const acct = acctLeaf(expenseCode(trip.ent, e));
-              const trav = e.traveler ? e.traveler.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase()) : "";
+              const acct = acctLeaf(expenseCode(trip.ent, e)) || e.category || "—";
+              const trav = (() => {
+                const p = (e.traveler || "").trim().split(/\s+/).filter(Boolean);
+                if (p.length < 2) return e.traveler || "";
+                const last = p[p.length - 1];
+                return `${p[0][0].toUpperCase()}. ${last[0].toUpperCase()}${last.slice(1).toLowerCase()}`;
+              })();
               return (
                 <Fragment key={id}>
                   <tr className="border-t border-slate-100 align-top">
                     <td className="whitespace-nowrap px-3 pt-2.5 text-[12.5px] text-slate-500">{fmtMD(e.date)}</td>
-                    <td className="px-2 pt-2.5">
+                    <td className="whitespace-nowrap px-2 pt-2.5">
                       <span className="font-medium">{e.what}{trav ? <span className="font-normal text-slate-400"> · {trav}</span> : null}</span>
                       {e.status === "posted" ? <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">posted</span>
                         : e.status === "error" ? <span className="ml-1.5 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">error</span>
                         : <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">awaiting post</span>}
                     </td>
-                    <td className="px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}
-                      style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acct}</td>
-                    <td className="px-2 pt-2.5"><Badge tone="indigo">{ENT[trip.ent] ?? trip.ent}</Badge></td>
+                    <td className="whitespace-nowrap px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}>{acct}</td>
+                    <td className="px-2 pt-2.5"><Badge tone="indigo">{trip.ent}</Badge></td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600">{e.payFrom ?? "—"}</td>
                     <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(e.amount)}</td>
                     {showReimburse && <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] font-semibold tabular-nums">{money(e.reimbursementAmount ?? e.amount)}</td>}

@@ -1212,7 +1212,7 @@ export default function Payables({
       {/* Queue */}
       {filter !== "log" && (
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[20px_16px_84px_minmax(0,1.5fr)_minmax(0,0.72fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_96px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">
           <div />
           <div />
           <SortHead label="Date" col="date" sort={sort} onClick={toggleSort} />
@@ -1221,7 +1221,7 @@ export default function Payables({
           <SortHead label="Account" col="category" sort={sort} onClick={toggleSort} />
           <div>Pay-from</div>
           <SortHead label="Amount" col="amount" sort={sort} onClick={toggleSort} align="right" />
-          <div className="text-right">Action</div>
+          <div className="text-right">Doc</div>
         </div>
         {visible.length === 0 ? (
           <div className="px-5 py-8 text-sm text-slate-400">
@@ -1233,7 +1233,7 @@ export default function Payables({
             <div
               onClick={() => setDrawerId(r.id)}
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : (r.auto || r.resolved) ? "transparent" : "#f59e0b"}` }}
-              className="grid cursor-pointer grid-cols-[20px_16px_84px_minmax(0,1.5fr)_minmax(0,0.72fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_96px_minmax(0,1fr)] items-start gap-3 border-b border-slate-100 px-5 py-3 last:border-0 hover:bg-brand/[0.03]"
+              className="grid cursor-pointer grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.03]"
             >
               {/* select */}
               <input
@@ -1320,18 +1320,21 @@ export default function Payables({
                 <SearchSelect value={r.account ?? ""} options={acctLabelsFor(r.entity)} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
               </div>
               {/* Amount */}
-              <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
-              {/* Action */}
-              <div
-                className="flex flex-wrap items-start justify-end gap-1.5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {actionCell(r)}
+              <div className="text-right text-[13px] font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
+              {/* Doc — receipt on file (link) or amber gap */}
+              <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                {r.docUrl ? (
+                  <a href={r.docUrl} target="_blank" rel="noopener noreferrer" title="Open the filed invoice" className="text-brand hover:text-brand-navy"><FileText className="h-4 w-4" /></a>
+                ) : r.doc_waived ? (
+                  <span title="No receipt needed" className="text-slate-300"><FileText className="h-4 w-4" /></span>
+                ) : (
+                  <span title="No receipt on file" className="text-amber-500"><FileText className="h-4 w-4" /></span>
+                )}
               </div>
             </div>
             {expandedRows.has(r.id) && (
-              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
+              <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</div>
                     <input
@@ -1355,6 +1358,14 @@ export default function Payables({
                     <div className="mt-0.5"><Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge></div>
                   </div>
                 </div>
+                {/* row actions live here now (not cluttering the row): post / attach / reclassify / edit vendor */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
+                  {actionCell(r)}
+                  <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
+                    <Pencil className="h-3 w-3" /> Edit vendor details
+                  </button>
+                </div>
               </div>
             )}
             </Fragment>
@@ -1364,7 +1375,7 @@ export default function Payables({
       )}
       {filter !== "log" && (
       <p className="mt-3 text-right text-[11px] text-slate-400">
-        Resolve simple exceptions inline. Click a row for the full coding view.
+        Code each field inline. Click ▸ to expand memo · invoice # · doc-type · posting · actions; click a row for the full drawer.
       </p>
       )}
 

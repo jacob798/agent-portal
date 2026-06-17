@@ -1283,8 +1283,8 @@ export default function Payables({
               {/* Entity — LOCKED for travel rows (set by the trip; change it on the Travel page) */}
               <div onClick={(e) => e.stopPropagation()}>
                 {r.tripId ? (
-                  <span title="Set by the trip — change it on the Travel page" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-[12px] font-semibold text-slate-500">
-                    <Lock className="h-3 w-3 opacity-60" /> {r.entity ?? "—"}
+                  <span title="Set by the trip — change it on the Travel page" className="inline-flex items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
+                    <Lock className="h-3 w-3 opacity-50" /> {r.entity ?? "—"}
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => setDrawerId(r.id)} title="Multiple line items — open to split by entity/GL">
@@ -1294,7 +1294,7 @@ export default function Payables({
                   <select
                     value={r.entity ?? ""}
                     onChange={(e) => { if (e.target.value) codeRowInline(r, e.target.value); }}
-                    className={`w-full rounded-lg border bg-white px-1.5 py-1.5 text-[12px] font-semibold ${r.entity ? "border-slate-200 text-slate-700" : "border-amber-300 text-amber-600"}`}
+                    className={`w-full rounded bg-transparent px-1 py-0.5 text-[12px] font-medium hover:bg-slate-100 focus:outline-none ${r.entity ? "text-slate-700" : "text-amber-600"}`}
                   >
                     <option value="">set…</option>
                     {entityCodes.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1304,8 +1304,8 @@ export default function Payables({
               {/* Account — LOCKED for travel (the trip's category/GL); editable otherwise */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
                 {r.tripId ? (
-                  <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-[12px] font-semibold text-slate-500">
-                    <Lock className="h-3 w-3 shrink-0 opacity-60" /> <span className="truncate">{glShort(r.gl) || (r.entity === "BC" ? "BC reimbursable" : "travel")}</span>
+                  <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
+                    <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{glShort(r.gl) || (r.entity === "BC" ? "BC reimbursable" : "travel")}</span>
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => setDrawerId(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
@@ -2426,9 +2426,9 @@ function VendorPicker({
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
-        className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left text-[13px] text-slate-900 hover:border-slate-300 focus:border-brand focus:outline-none">
-        <span className={value ? "" : "text-slate-400"}>{value || "Search vendors…"}</span>
-        <span className="text-slate-300">▾</span>
+        className="flex w-full items-center justify-between gap-1 rounded px-1.5 py-1 text-left text-[12.5px] text-slate-800 hover:bg-slate-100 focus:outline-none">
+        <span className={`truncate ${value ? "" : "text-slate-400"}`}>{value || "Search vendors…"}</span>
+        <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -2495,9 +2495,9 @@ function SearchSelect({
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
       <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
-        className={`flex w-full items-center justify-between rounded-lg border bg-white px-2.5 py-1.5 text-left text-[12px] font-semibold ${t.border} ${t.text}`}>
-        <span className={`truncate ${value ? "" : "font-normal text-slate-400"}`}>{value || placeholder}</span>
-        <span className="text-slate-300">▾</span>
+        className={`flex w-full items-center justify-between gap-1 rounded px-1.5 py-1 text-left text-[12px] hover:bg-slate-100 ${value ? t.text : ""}`}>
+        <span className={`truncate ${value ? "font-medium" : "font-normal text-amber-600"}`}>{value || placeholder}</span>
+        <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -2571,9 +2571,9 @@ function AccountPicker({
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
       <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
-        className={`flex w-full items-center justify-between rounded-lg border bg-white px-2.5 py-1.5 text-left text-[12px] font-semibold text-brand ${value ? "border-slate-200" : "border-amber-300"}`}>
-        <span className={`truncate ${value ? "" : "font-normal text-amber-600"}`}>{glShort(value) || "Select GL account…"}</span>
-        <span className="text-slate-300">▾</span>
+        className={`flex w-full items-center justify-between gap-1 rounded px-1.5 py-1 text-left text-[12px] hover:bg-slate-100 ${value ? "font-medium text-slate-700" : ""}`}>
+        <span className={`truncate ${value ? "" : "font-normal text-amber-600"}`}>{glShort(value) || "Set account"}</span>
+        <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-full min-w-[240px] rounded-lg border border-slate-200 bg-white shadow-lg">

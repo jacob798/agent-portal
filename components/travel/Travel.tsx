@@ -922,8 +922,12 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
               {g.confs.map((c, i) => (
                 <span key={i} className="flex items-center gap-2">
                   <span>✈ {c.traveler} <span className="text-slate-400">· conf {c.conf}</span></span>
-                  {c.net != null && <span className="tabular-nums text-slate-400">net {money(c.net)}</span>}
-                  {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">reimburse {money(c.fare)}</span>}
+                  {c.awaiting_invoice
+                    ? <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">invoice after trip</span>
+                    : <>
+                        {c.net != null && <span className="tabular-nums text-slate-400">net {money(c.net)}</span>}
+                        {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">reimburse {money(c.fare)}</span>}
+                      </>}
                   <Source c={c} />
                 </span>
               ))}

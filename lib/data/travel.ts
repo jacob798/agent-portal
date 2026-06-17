@@ -131,6 +131,7 @@ export interface ConfReviewConf {
   traveler: string;
   net?: number | null;   // net that actually hit the card (0 when an eCredit covered it)
   fare?: number | null;  // reimbursable Total Price — shown inline so the summary lives in the row
+  awaiting_invoice?: boolean; // car/hotel — confirmation only; the folio/charge lands after the trip
   source_url?: string;   // FULL email PDF (document of record / accounting) — "" until filed
   summary_url?: string;  // clean one-page receipt — quick-review glance
   status?: string;      // needs_review | accepted_invoice | accepted_confirmation | declined | posted

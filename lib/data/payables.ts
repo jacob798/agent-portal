@@ -224,6 +224,7 @@ export interface TripOption {
   entity: string | null;
   dates: string;
   dest: string | null;
+  start: string | null; // start_date (YYYY-MM-DD) — drives the trip picker's year/month chips
 }
 
 /**
@@ -237,7 +238,7 @@ export async function getTrips(): Promise<TripOption[]> {
     const supabase = await createClient();
     const { data } = await supabase
       .from("payables_trips")
-      .select("trip_id, header, entity, dates, destination")
+      .select("trip_id, header, entity, dates, destination, start_date")
       .order("start_date", { ascending: false });
     return (data ?? []).map((t) => ({
       tripId: t.trip_id,
@@ -245,6 +246,7 @@ export async function getTrips(): Promise<TripOption[]> {
       entity: t.entity ?? null,
       dates: t.dates ?? "",
       dest: t.destination ?? null,
+      start: t.start_date ?? null,
     }));
   } catch {
     return [];

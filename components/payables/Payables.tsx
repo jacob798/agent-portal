@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Zap, Upload, FileText, Plane, Plus, Pencil, Lock } from "lucide-react";
+import { Zap, Upload, FileText, Plane, Plus, Pencil, Lock, UploadCloud } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
@@ -330,10 +330,6 @@ export default function Payables({
   // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
   // from the mandatory-category gate. Everything else must carry a category before it can post.
   const needsCategory = (r: Row) => !r.tripId && !rowCat(r);
-  // A row is "travel-coded" when it's already on a trip OR its account/category reads as travel —
-  // the only case the compact trip picker is offered (Point 4). Keyword match on the GL + category.
-  const isTravelCoded = (r: Row) =>
-    !!r.tripId || /travel|airfare|lodging|airline|flight|hotel|car rental|rental car|rideshare|mileage/i.test(`${r.gl ?? ""} ${r.category ?? ""}`);
   // Default Pay-from for a row: the account resolved from the invoice card
   // (paymentMethodId) wins; else a label match within this entity's options; else the
   // first option for this entity (entity account before personal).
@@ -1255,7 +1251,7 @@ export default function Payables({
       // detail near the bottom (the "BC dropdown not populating" symptom). Rounded header/last-row
       // keep the corners clean without clipping.
       <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
           <div />
           <div />
           <SortHead label="Date" col="date" sort={sort} onClick={toggleSort} />
@@ -1264,7 +1260,7 @@ export default function Payables({
           <SortHead label="Account" col="category" sort={sort} onClick={toggleSort} />
           <div>Pay-from</div>
           <SortHead label="Amount" col="amount" sort={sort} onClick={toggleSort} align="right" />
-          <div className="text-right">Doc</div>
+          <div className="text-right">Trip·doc·post</div>
         </div>
         {visible.length === 0 ? (
           <div className="px-5 py-8 text-sm text-slate-400">
@@ -1275,7 +1271,7 @@ export default function Payables({
             <Fragment key={r.id}>
             <div
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : "transparent"}` }}
-              className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.02]"
+              className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.02]"
             >
               {/* select */}
               <input
@@ -1294,7 +1290,7 @@ export default function Payables({
                 {expandedRow === r.id ? "▾" : "▸"}
               </button>
               {/* Date — compact M/D (single line) like the mockup */}
-              <div className="mt-0.5 whitespace-nowrap text-[11.5px] tabular-nums text-slate-500">
+              <div className="mt-0.5 whitespace-nowrap text-[13px] tabular-nums text-slate-500">
                 {(() => { const d = rowDate(r); const m = d && /(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${+m[2]}/${+m[3]}` : (d || "—"); })()}
               </div>
               {/* Vendor */}
@@ -1309,7 +1305,7 @@ export default function Payables({
                     {r.tripId ? (
                       // Travel: the QB vendor is the trip rollup, so show the PAYEE (merchant). Read-only
                       // here — change the merchant on the source confirmation, not the payables row.
-                      <span className="block truncate text-[12.5px] font-medium text-slate-800" title={`Payee · QB vendor: ${r.vendor}`}>
+                      <span className="block truncate text-[13px] font-medium text-slate-800" title={`Payee · QB vendor: ${r.vendor}`}>
                         {r.payee || r.vendor}
                       </span>
                     ) : (
@@ -1354,14 +1350,13 @@ export default function Payables({
                     <Badge tone="indigo">Split ⋯</Badge>
                   </button>
                 ) : (
-                  <select
+                  <MiniPicker
                     value={r.entity ?? ""}
-                    onChange={(e) => { if (e.target.value) codeRowInline(r, e.target.value); }}
-                    className={`w-full rounded bg-transparent px-1 py-0.5 text-[12px] font-medium hover:bg-slate-100 focus:outline-none ${r.entity ? "text-slate-700" : "text-amber-600"}`}
-                  >
-                    <option value="">set…</option>
-                    {entityCodes.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    options={entityCodes.map((c) => ({ value: c, label: c }))}
+                    onPick={(v) => { if (v) codeRowInline(r, v); }}
+                    placeholder="set…"
+                    title="Entity (which QuickBooks file)"
+                  />
                 )}
               </div>
               {/* Account. BC = the operator-coded Paylocity CATEGORY (editable; the GL is auto
@@ -1387,21 +1382,37 @@ export default function Payables({
               </div>
               {/* Amount */}
               <div className="text-right text-[13px] font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
-              {/* Doc — receipt on file (link) or amber gap */}
-              <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+              {/* Trip · doc · post — the trip picker (plane), the source doc, and a per-row post icon */}
+              <div className="flex items-center justify-end gap-2.5" onClick={(e) => e.stopPropagation()}>
+                <TripPickerButton tripId={r.tripId ?? null} trips={trips} onPick={(id) => setTrip(r.id, id)} />
                 {r.docUrl ? (
                   <a href={r.docUrl} target="_blank" rel="noopener noreferrer" title={r.tripId ? "Open the confirmation (the invoice)" : "Open the filed invoice"} className="text-brand hover:text-brand-navy"><FileText className="h-4 w-4" /></a>
                 ) : r.tripId ? (
-                  // Travel: the confirmation IS the invoice, but the PDF isn't filed yet — show a
-                  // distinct "pending" outline (a dashed/faint doc), NOT a solid present icon.
                   <span title="Confirmation is the invoice — not yet filed (the worker files it)" className="text-slate-300"><FileText className="h-4 w-4" strokeDasharray="2 2" /></span>
                 ) : r.doc_waived ? (
                   <span title="No receipt needed" className="text-slate-300"><FileText className="h-4 w-4" /></span>
                 ) : (
                   <span title="No receipt on file" className="text-amber-500"><FileText className="h-4 w-4" /></span>
                 )}
+                {!r.resolved && (
+                  <button title="Post to QuickBooks" onClick={() => postBatch([r.id])} disabled={posting}
+                    className="text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
+                    <UploadCloud className="h-[18px] w-[18px]" />
+                  </button>
+                )}
               </div>
             </div>
+            {/* Travel: the QB vendor is the trip rollup — too long for the column, so it spans
+                full-width beneath the line (the payee stays in the Vendor column above). */}
+            {r.tripId && (
+              <div className="-mt-1 border-b border-slate-100 px-4 pb-2 pl-[116px]">
+                <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
+                  <Plane className="h-3 w-3 shrink-0" />
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
+                  <span className="truncate">{r.vendor}</span>
+                </span>
+              </div>
+            )}
             {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
                 {/* LINE 1 — vendor (+ category) · trip (icon+picker, travel only) · actions */}
@@ -1440,17 +1451,6 @@ export default function Payables({
                       </>
                     )}
                   </span>
-                  {/* trip — compact plane icon + picker, only for travel-coded rows (Points 3 & 4) */}
-                  {isTravelCoded(r) && (
-                    <span className="inline-flex items-center gap-1.5" title="Attach to a trip">
-                      <Plane className="h-3.5 w-3.5 text-brand" />
-                      <select value={r.tripId ?? ""} onChange={(e) => setTrip(r.id, e.target.value)}
-                        className="max-w-[210px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
-                        <option value="">— pick a trip —</option>
-                        {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest ? `${t.dest} · ${t.dates}` : t.header}</option>)}
-                      </select>
-                    </span>
-                  )}
                   <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
                 </div>
                 {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
@@ -1459,13 +1459,13 @@ export default function Payables({
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
                     <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
-                      className="h-7 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[12px]" />
+                      className="h-8 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[13px]" />
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
                     <input key={`inv-${r.id}-${r.invoiceNumber ?? ""}`} defaultValue={r.invoiceNumber ?? ""} placeholder="—"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.invoiceNumber ?? "")) persistInvoice(r.id, v); }}
-                      className="h-7 w-32 rounded border border-slate-200 px-2 text-[12px]" />
+                      className="h-8 w-32 rounded border border-slate-200 px-2 text-[13px]" />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</span>
@@ -1475,13 +1475,10 @@ export default function Payables({
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</span>
                     {(() => {
                       const opts = postingOptionsForEntity(r.entity);
-                      const cur = opts.some((o) => o.value === r.posting) ? r.posting : "charge";
+                      const cur = opts.some((o) => o.value === r.posting) ? (r.posting as string) : "charge";
                       return (
-                        <select value={cur}
-                          onChange={(e) => saveRowFields(r, { posting: e.target.value as PayableRow["posting"] })}
-                          className="rounded border border-slate-200 bg-white py-1 pl-2 pr-6 text-[12px] leading-tight text-slate-700">
-                          {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
+                        <MiniPicker value={cur} options={opts}
+                          onPick={(v) => saveRowFields(r, { posting: v as PayableRow["posting"] })} />
                       );
                     })()}
                   </span>
@@ -2474,10 +2471,10 @@ function DocTypeCombobox({
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
         title="Identified document type — correct it to re-run extraction with the right spec"
-        className={`flex max-w-[180px] items-center gap-1 truncate rounded border px-1.5 py-0.5 text-[11px] ${
-          value ? "border-slate-200 text-slate-600" : "border-amber-300 text-amber-600"}`}>
+        className={`flex max-w-[200px] items-center gap-1 truncate rounded px-1 py-0.5 text-[13px] hover:bg-slate-100 ${
+          value ? "text-slate-700" : "text-amber-600"}`}>
         <span className="truncate">{currentLabel || "— identify type —"}</span>
-        <span className="text-slate-300">▾</span>
+        <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-max min-w-[288px] max-w-[420px] rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -2689,6 +2686,122 @@ function VendorPicker({
               <Plus className="h-3.5 w-3.5" /> Add “{raw}” as a new {entLabel} vendor…
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Borderless mini dropdown (value ▾ → popover list, no search) for small fixed lists — Entity,
+// Posting. Same borderless trigger as pay-from so every dropdown reads identically.
+function MiniPicker({
+  value, options, onPick, placeholder = "set…", title,
+}: { value: string; options: { value: string; label: string }[]; onPick: (v: string) => void; placeholder?: string; title?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const cur = options.find((o) => o.value === value);
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button type="button" title={title} onClick={() => setOpen((v) => !v)}
+        className={`flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[13px] hover:bg-slate-100 focus:outline-none ${cur ? "text-slate-800" : "font-normal text-amber-600"}`}>
+        <span className="truncate">{cur?.label ?? placeholder}</span>
+        <span className="shrink-0 text-[10px] text-slate-300">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 min-w-[170px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {options.map((o) => (
+            <button key={o.value} onClick={() => { onPick(o.value); setOpen(false); }}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-slate-50 ${o.value === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+              <span className="truncate">{o.label}</span>{o.value === value && <span className="text-[11px] text-brand">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Trip picker — a plane icon that opens a search + chip-filtered (entity · year · month) trip list.
+const _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function TripPickerButton({ tripId, trips, onPick }: { tripId: string | null; trips: TripOption[]; onPick: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [ent, setEnt] = useState<string | null>(null);
+  const [yr, setYr] = useState<string | null>(null);
+  const [mo, setMo] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const moOf = (t: TripOption) => { const m = (t.start || "").slice(5, 7); return m ? _MONTHS[(+m) - 1] : ""; };
+  const yrOf = (t: TripOption) => (t.start || "").slice(0, 4);
+  const ents = useMemo(() => [...new Set(trips.map((t) => t.entity).filter(Boolean) as string[])].sort(), [trips]);
+  const years = useMemo(() => [...new Set(trips.map(yrOf).filter(Boolean))].sort().reverse(), [trips]);
+  const months = useMemo(() => { const p = new Set(trips.map(moOf).filter(Boolean)); return _MONTHS.filter((m) => p.has(m)); }, [trips]);
+  const needle = q.trim().toLowerCase();
+  const hits = useMemo(() => trips.filter((t) =>
+    (!needle || (t.dest || t.header || "").toLowerCase().includes(needle))
+    && (!ent || t.entity === ent) && (!yr || yrOf(t) === yr) && (!mo || moOf(t) === mo)
+  ).slice(0, 200), [trips, needle, ent, yr, mo]);
+  const chip = (active: boolean) => `rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`;
+  const lbl = "mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400";
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button type="button" title="Attach / change trip" onClick={() => setOpen((v) => !v)}
+        className={`inline-flex ${tripId ? "text-brand" : "text-slate-300"} hover:text-brand-navy`}>
+        <Plane className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-5 w-[330px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-2">
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search trips by destination…"
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[13px] outline-none focus:border-brand" />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div>
+                <div className={lbl}>Entity</div>
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setEnt(null)} className={chip(!ent)}>All</button>
+                  {ents.map((e) => <button key={e} onClick={() => setEnt(e === ent ? null : e)} className={chip(ent === e)}>{e}</button>)}
+                </div>
+              </div>
+              <div>
+                <div className={lbl}>Year</div>
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => setYr(null)} className={chip(!yr)}>All</button>
+                  {years.map((y) => <button key={y} onClick={() => setYr(y === yr ? null : y)} className={chip(yr === y)}>{y}</button>)}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className={lbl}>Month</div>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setMo(null)} className={chip(!mo)}>All</button>
+                {months.map((m) => <button key={m} onClick={() => setMo(m === mo ? null : m)} className={chip(mo === m)}>{m}</button>)}
+              </div>
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {hits.length === 0 ? <div className="px-3 py-2 text-[12px] text-slate-400">No trips match.</div> :
+              hits.map((t) => (
+                <button key={t.tripId} onClick={() => { onPick(t.tripId); setOpen(false); }}
+                  className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-slate-50 ${t.tripId === tripId ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+                  <span className="truncate">{t.dest ? `${t.dest} · ${t.dates}` : t.header}</span>
+                  <span className="shrink-0 text-[11px] text-slate-400">{t.entity}</span>
+                </button>
+              ))}
+          </div>
+          <button onClick={() => { onPick(""); setOpen(false); }}
+            className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] text-slate-500 hover:bg-slate-50">— Not a trip —</button>
         </div>
       )}
     </div>

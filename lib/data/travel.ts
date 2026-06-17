@@ -182,6 +182,7 @@ export interface NeedsTripItem {
   startDate: string | null;
   endDate: string | null;
   summary: string;
+  sourceUrl?: string | null; // filed confirmation — "view source" before assigning a trip
 }
 
 export async function getNeedsTrip(): Promise<NeedsTripItem[]> {
@@ -190,7 +191,7 @@ export async function getNeedsTrip(): Promise<NeedsTripItem[]> {
     const supabase = await createClient();
     const { data } = await supabase
       .from("travel_needs_trip")
-      .select("id, destination, dates, start_date, end_date, summary, status")
+      .select("id, destination, dates, start_date, end_date, summary, status, source_url")
       .eq("status", "open")
       .order("start_date", { ascending: true });
     return (data ?? []).map((r) => ({
@@ -200,6 +201,7 @@ export async function getNeedsTrip(): Promise<NeedsTripItem[]> {
       startDate: r.start_date ?? null,
       endDate: r.end_date ?? null,
       summary: r.summary ?? r.destination ?? "",
+      sourceUrl: r.source_url ?? null,
     }));
   } catch {
     return []; // table may not exist yet — no ask items

@@ -718,6 +718,9 @@ function NeedsTripInbox({
               {it.dates
                 || (it.startDate ? `${it.startDate}${it.endDate && it.endDate !== it.startDate ? " – " + it.endDate : ""}` : "dates TBD")}
               {it.summary && it.destination && it.destination !== "—" ? ` · ${it.summary}` : ""}
+              {it.sourceUrl
+                ? <> · <a href={it.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-brand hover:underline">view source ↗</a></>
+                : null}
             </div>
           </div>
           {/* assign to an EXISTING trip (the common case — trips are created manually) */}

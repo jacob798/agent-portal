@@ -1236,9 +1236,8 @@ export default function Payables({
           visible.map((r) => (
             <Fragment key={r.id}>
             <div
-              onClick={() => toggleExpand(r.id)}
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : "transparent"}` }}
-              className="grid cursor-pointer grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.03]"
+              className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.02]"
             >
               {/* select */}
               <input
@@ -1351,8 +1350,29 @@ export default function Payables({
               </div>
             </div>
             {expandedRow === r.id && (
-              <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
+              <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
+                {/* Vendor — change (re-point) + edit the master record. Discoverable here, not just the row cell. */}
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
+                  {r.tripId ? (
+                    <span className="text-[12px] text-slate-600">{r.payee || r.vendor} <span className="text-slate-400">· merchant from the trip — change it on the Travel page</span></span>
+                  ) : (
+                    <div className="min-w-[180px] max-w-[260px]">
+                      <VendorPicker
+                        value={r.vendorDisplay ?? r.vendor}
+                        options={vendors}
+                        entity={r.entity}
+                        onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+                        onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
+                      />
+                    </div>
+                  )}
+                  <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
+                    <Pencil className="h-3 w-3" /> Edit vendor details
+                  </button>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-4 gap-y-2">
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</div>
                     <input
@@ -1427,13 +1447,9 @@ export default function Payables({
                     )}
                   </div>
                 )}
-                {/* row actions: post / attach / reclassify / edit vendor */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
+                {/* row actions: post / attach / reclassify */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
                   {actionCell(r)}
-                  <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
-                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
-                    <Pencil className="h-3 w-3" /> Edit vendor details
-                  </button>
                 </div>
               </div>
             )}

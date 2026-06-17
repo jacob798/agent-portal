@@ -1317,16 +1317,18 @@ export default function Payables({
                   </select>
                 )}
               </div>
-              {/* Account — LOCKED for travel (the trip's category/GL); editable otherwise */}
+              {/* Account. BC = the operator-coded Paylocity CATEGORY (editable; the GL is auto
+                  Loan–Builders Capital). Non-BC travel = the trip's GL, locked. Non-travel = GL picker. */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
-                {r.tripId ? (
-                  <span title={r.entity === "BC" ? "BC reimbursable — posts to the Loan – Builders Capital balance-sheet account" : "Set by the trip — change it on the Travel page"} className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
-                    <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{r.entity === "BC" ? glShort(BC_ROUTE.gl) : (glShort(r.gl) || "travel")}</span>
+                {r.entity === "BC" ? (
+                  // BC, travel or not: pick the Paylocity category — posts to Loan – Builders Capital.
+                  <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
+                ) : r.tripId ? (
+                  <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
+                    <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{glShort(r.gl) || "travel"}</span>
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => toggleExpand(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
-                ) : r.entity === "BC" ? (
-                  <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
                 ) : (
                   <AccountPicker value={glLabels(r.entity).includes(r.gl ?? "") ? (r.gl ?? "") : ""} gls={gls} entity={r.entity} onPick={(gl) => saveRowGl(r, gl)} />
                 )}
@@ -1401,8 +1403,8 @@ export default function Payables({
                   </div>
                   {r.entity === "BC" && (
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Paylocity category <span className="font-medium normal-case tracking-normal text-slate-400">· for the BC reimbursement</span></div>
-                      <div className="mt-0.5"><SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" /></div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posts to</div>
+                      <div className="mt-0.5 px-1 py-1 text-[12px] text-slate-600">{glShort(BC_ROUTE.gl)} <span className="text-slate-400">· BC reimbursable</span></div>
                     </div>
                   )}
                 </div>

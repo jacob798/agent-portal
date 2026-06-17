@@ -875,8 +875,14 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
     </div>
   );
 
-  const Source = ({ c }: { c: ConfReviewConf }) => c.source_url
-    ? <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>
+  // Full email (document of record / accounting) + the clean one-page summary (quick review).
+  const Source = ({ c }: { c: ConfReviewConf }) => (c.source_url || c.summary_url)
+    ? (
+      <span className="inline-flex items-center gap-2">
+        {c.source_url && <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>}
+        {c.summary_url && <a href={c.summary_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] text-slate-500 hover:underline">summary ↗</a>}
+      </span>
+    )
     : <span className="text-[11.5px] text-slate-400">source pending</span>;
 
   return (

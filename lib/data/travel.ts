@@ -127,7 +127,8 @@ export interface ConfReviewConf {
   booking_id?: string;
   conf: string;
   traveler: string;
-  source_url?: string;  // Dropbox link to the source confirmation — "" until filed (then "view source")
+  source_url?: string;   // FULL email PDF (document of record / accounting) — "" until filed
+  summary_url?: string;  // clean one-page receipt — quick-review glance
   status?: string;      // needs_review | accepted_invoice | accepted_confirmation | declined | posted
   vendor?: string;
 }

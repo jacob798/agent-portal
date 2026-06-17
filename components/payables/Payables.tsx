@@ -1377,6 +1377,16 @@ export default function Payables({
                     className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
                     <Pencil className="h-3 w-3" /> Edit vendor details
                   </button>
+                  {/* Trip — assign ANY invoice to a trip (this is how a non-travel charge gets the ✈
+                      flag + trip rollup); pick "Not a trip" to detach. */}
+                  <span className="ml-auto inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trip</span>
+                    <select value={r.tripId ?? ""} onChange={(e) => setTrip(r.id, e.target.value)}
+                      className="max-w-[220px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
+                      <option value="">— Not a trip —</option>
+                      {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest ? `${t.dest} · ${t.dates}` : t.header}</option>)}
+                    </select>
+                  </span>
                 </div>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-4 gap-y-2">
                   <div>

@@ -1789,6 +1789,7 @@ export default function Payables({
             options={vendors}
             entity={r.entity}
             onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+            onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
           />
           {r.vendor && (
             <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
@@ -2367,8 +2368,8 @@ function DocTypeCombobox({
 // matches. Mirrors DocTypeCombobox's open/outside-click pattern. (vendorsForEntity scopes;
 // BC borrows PER.) match-before-create still runs at post, so a near-dupe reuses the existing.
 function VendorPicker({
-  value, options, entity, onPick,
-}: { value: string; options: VendorOption[]; entity?: string | null; onPick: (v: string) => void }) {
+  value, options, entity, onPick, onAddNew,
+}: { value: string; options: VendorOption[]; entity?: string | null; onPick: (v: string) => void; onAddNew?: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -2443,9 +2444,9 @@ function VendorPicker({
             )}
           </div>
           {raw && !exact && (
-            <button onClick={() => { onPick(raw); setOpen(false); }}
+            <button onClick={() => { (onAddNew ?? onPick)(raw); setOpen(false); }}
               className="flex w-full items-center gap-1.5 border-t border-slate-100 bg-slate-50 px-3 py-2 text-left text-[12.5px] font-medium text-brand hover:bg-brand/5">
-              <Plus className="h-3.5 w-3.5" /> Add “{raw}” as a new {entLabel} vendor
+              <Plus className="h-3.5 w-3.5" /> Add “{raw}” as a new {entLabel} vendor…
             </button>
           )}
         </div>

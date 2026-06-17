@@ -816,34 +816,53 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
 // ---------- confirmation review (accept the ITINERARY, not the invoice) ----------
 function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
   const router = useRouter();
+  const { message, toast } = useToast();
   const [split, setSplit] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  // Decisions applied this session — hide those legs immediately (optimistic) so the operator
+  // sees the click land even before the server refresh re-reads trips.confirmations.
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const legKey = (g: ConfReviewItem) => g.confs.map((c) => `${c.conf}|${c.traveler}`).sort().join("·");
   // Only legs that still need a decision; once every conf is decided the item drops off.
   const items = (trip.confirmations ?? []).filter((g) =>
-    g.confs.some((c) => (c.status ?? "needs_review") === "needs_review"));
-  if (!items.length) return null;
+    !done.has(legKey(g)) && g.confs.some((c) => (c.status ?? "needs_review") === "needs_review"));
   const others = trips.filter((t) => t.id !== trip.id);
 
-  async function act(action: string, targets: ConfReviewConf[], newTripId?: string) {
+  async function act(action: string, targets: ConfReviewConf[], newTripId?: string, legKeyHide?: string) {
     setBusy(true);
+    const LABEL: Record<string, string> = {
+      accept_invoice: "Accepted → routed to Payables",
+      accept_confirmation: "Accepted — holding for the invoice",
+      reassign: "Moved to the selected trip",
+      decline: "Declined",
+    };
     try {
-      await fetch("/api/travel/review-action", {
+      const res = await fetch("/api/travel/review-action", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, tripId: trip.id, newTripId,
           items: targets.map((c) => ({ conf: c.conf, traveler: c.traveler })) }),
       });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(`Couldn't apply — ${j.error || res.status}`); return; }
+      if (legKeyHide) setDone((d) => new Set(d).add(legKeyHide)); // optimistic hide
+      const linked = (j.changed ?? 0) > 0;
+      toast(linked ? `✓ ${LABEL[action]}` : `✓ ${LABEL[action]} · no expense linked yet (will match when it arrives)`);
       router.refresh();
+    } catch {
+      toast("Action failed — try again");
     } finally { setBusy(false); }
   }
 
-  const Actions = ({ targets }: { targets: ConfReviewConf[] }) => (
+  if (!items.length) return null;
+
+  const Actions = ({ targets, legKeyHide }: { targets: ConfReviewConf[]; legKeyHide?: string }) => (
     <div className="flex flex-wrap items-center gap-2">
-      <button disabled={busy} onClick={() => act("accept_invoice", targets)}
+      <button disabled={busy} onClick={() => act("accept_invoice", targets, undefined, legKeyHide)}
         className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
-      <button disabled={busy} onClick={() => act("accept_confirmation", targets)}
+      <button disabled={busy} onClick={() => act("accept_confirmation", targets, undefined, legKeyHide)}
         className="rounded-md bg-indigo-50 px-2.5 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Accept confirmation</button>
-      <MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", targets, id)} />
-      <button disabled={busy} onClick={() => { if (confirm("Remove this confirmation from the program?")) act("decline", targets); }}
+      <MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", targets, id, legKeyHide)} />
+      <button disabled={busy} onClick={() => { if (confirm("Remove this confirmation from the program?")) act("decline", targets, undefined, legKeyHide); }}
         className="rounded-md bg-rose-50 px-2.5 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Decline</button>
     </div>
   );
@@ -895,11 +914,12 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                 ))}
               </div>
             ) : (
-              <div className="mt-2"><Actions targets={g.confs} /></div>
+              <div className="mt-2"><Actions targets={g.confs} legKeyHide={legKey(g)} /></div>
             )}
           </div>
         );
       })}
+      <Toast message={message} />
     </div>
   );
 }

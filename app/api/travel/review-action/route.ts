@@ -45,21 +45,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "reassign needs newTripId" }, { status: 400 });
   }
 
+  // The displayed status on trips.confirmations (worker-derived) → set it here too so the
+  // decision shows IMMEDIATELY on refresh and survives, instead of waiting for a worker rebuild.
+  const CONF_STATUS: Record<string, string> = {
+    accept_invoice: "accepted_invoice", accept_confirmation: "accepted_confirmation", decline: "declined",
+  };
   const admin = createAdminClient();
+  const newTripId = (body.newTripId ?? "").trim();
+  const wanted = new Set(items.map((it) => `${(it.conf ?? "").trim().toUpperCase()}|${(it.traveler ?? "").trim().toUpperCase()}`));
+  const matchItem = (conf: string, traveler: string) => {
+    const cu = (conf ?? "").toUpperCase(); const tu = (traveler ?? "").toUpperCase();
+    // an item with no traveler matches the whole leg (any traveler); with traveler, exact
+    return wanted.has(`${cu}|${tu}`) || wanted.has(`${cu}|`);
+  };
+
+  // 1) Update the durable expense rows (payables_queue), when one exists for the conf.
   let changed = 0;
   for (const it of items) {
     const conf = (it.conf ?? "").trim();
     if (!conf) continue;
-    // match this confirmation's travel row(s) on the trip; traveler narrows it when split
     let q = admin.from("payables_queue").update(
-      action === "reassign"
-        ? { trip_id: (body.newTripId ?? "").trim() }
-        : { status: STATUS[action] },
+      action === "reassign" ? { trip_id: newTripId } : { status: STATUS[action] },
     ).eq("trip_id", tripId).eq("extracted->>conf", conf);
     if ((it.traveler ?? "").trim()) q = q.eq("extracted->>traveler", (it.traveler ?? "").trim());
     const { data, error } = await q.select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     changed += (data ?? []).length;
   }
-  return NextResponse.json({ ok: true, action, changed });
+
+  // 2) Update trips.confirmations jsonb so the review list reflects the decision now (the
+  //    confirmation may have NO expense yet — this is the only place the decision is recorded then).
+  let confsUpdated = 0;
+  try {
+    const { data: trip } = await admin.from("trips").select("confirmations").eq("id", tripId).maybeSingle();
+    const groups = Array.isArray(trip?.confirmations) ? (trip!.confirmations as Array<{ confs?: Array<{ conf?: string; traveler?: string; status?: string }> }>) : [];
+    if (groups.length) {
+      for (const g of groups) {
+        const confs = Array.isArray(g.confs) ? g.confs : [];
+        if (action === "reassign") {
+          // drop the matched confs from this trip's review list (they moved)
+          g.confs = confs.filter((c) => { const hit = matchItem(c.conf ?? "", c.traveler ?? ""); if (hit) confsUpdated++; return !hit; });
+        } else {
+          for (const c of confs) {
+            if (matchItem(c.conf ?? "", c.traveler ?? "")) { c.status = CONF_STATUS[action]; confsUpdated++; }
+          }
+        }
+      }
+      // prune any groups left with no confs after a reassign
+      const pruned = groups.filter((g) => (g.confs?.length ?? 0) > 0);
+      await admin.from("trips").update({ confirmations: pruned }).eq("id", tripId);
+    }
+  } catch {
+    /* jsonb update is best-effort — the payables update above is the source of truth */
+  }
+
+  return NextResponse.json({ ok: true, action, changed, confsUpdated });
 }

@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { VendorOption } from "@/lib/data/entities";
 
-export type Posting = "bill" | "charge";
+export type Posting = "bill" | "charge" | "check";
 export type ExceptionType = "entity" | "vendor" | "split" | "dup";
 
 export interface PayableLine {

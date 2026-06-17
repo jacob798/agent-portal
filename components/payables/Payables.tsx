@@ -172,6 +172,7 @@ export default function Payables({
           account: fields.account ?? r.account,
           paymentMethodId: (fields.paymentMethodId ?? r.paymentMethodId) ?? null,
           bcCategory: fields.bcCategory ?? null,
+          posting: (fields.posting ?? r.posting) ?? undefined,
           lines: fields.lines ?? r.lines,
         }),
       });
@@ -1392,12 +1393,12 @@ export default function Payables({
                   <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
                 </div>
                 {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2">
-                  <span className="flex min-w-[200px] flex-1 items-center gap-1.5">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-2">
+                  <span className="inline-flex items-center gap-1.5">
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
                     <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
-                      className="h-7 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[12px]" />
+                      className="h-7 w-[260px] rounded border border-slate-200 px-2 text-[12px]" />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
@@ -1409,10 +1410,16 @@ export default function Payables({
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</span>
-                    <Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge>
+                    <select value={r.posting === "bill" ? "bill" : r.posting === "check" ? "check" : "charge"}
+                      onChange={(e) => saveRowFields(r, { posting: e.target.value as PayableRow["posting"] })}
+                      className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] font-medium text-brand-navy">
+                      <option value="charge">Purchase (charge)</option>
+                      <option value="bill">Bill → BillPayment</option>
+                      <option value="check">Check</option>
+                    </select>
                   </span>
                   {!r.tripId && drawerId === r.id && lines.length <= 1 && (
-                    <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split across entities / GLs</button>
+                    <button onClick={addLine} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split across entities / GLs</button>
                   )}
                 </div>
                 {/* Split editor — only when actually split (non-travel). */}
@@ -1764,11 +1771,8 @@ export default function Payables({
       );
     }
 
-    const travelBtn = (
-      <Chip onClick={() => setTravelRow(r.id)} title="Reclassify to Travel" className="border-brand/30 text-brand">
-        <Plane className="h-3.5 w-3.5" />
-      </Chip>
-    );
+    // Reclassify-to-Travel removed — the detail's Trip picker does this directly.
+    const travelBtn = null;
 
     // Coded (entity + GL set) but not yet an auto-coded exception and not posted
     // — e.g. coded from a learned vendor. Review the charge, then post.

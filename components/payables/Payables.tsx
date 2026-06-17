@@ -2772,6 +2772,7 @@ function AccountPicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [all, setAll] = useState(false);
+  const [activeClass, setActiveClass] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -2784,11 +2785,18 @@ function AccountPicker({
   const fullChart = useMemo(() => (code ? gls.filter((g) => g.entity === code) : gls), [gls, code]);
   const pool = all ? fullChart : codeable;
   const needle = q.trim().toLowerCase();
+  // P&L-class jump-chips (Cost of sales · Operating expenses · …) — present classes, in rank order.
+  const classChips = useMemo(() => {
+    const seen = new Map<string, number>();
+    pool.forEach((g) => { const [rank, label] = glClass(g.type); if (!seen.has(label)) seen.set(label, rank); });
+    return [...seen.entries()].sort((a, b) => a[1] - b[1]).map(([label]) => label);
+  }, [pool]);
   const items = useMemo(() => pool
     .filter((g) => !needle || glShort(g.fullName).toLowerCase().includes(needle) || (g.number ?? "").includes(needle))
     .map((g) => ({ g, leaf: glShort(g.fullName), cls: glClass(g.type) }))
+    .filter(({ cls }) => !activeClass || cls[1] === activeClass)
     .sort((a, b) => a.cls[0] - b.cls[0] || (a.g.number ?? "").localeCompare(b.g.number ?? "") || a.leaf.localeCompare(b.leaf))
-    .slice(0, 400), [pool, needle]);
+    .slice(0, 400), [pool, needle, activeClass]);
   return (
     <div ref={ref} className="relative min-w-0 flex-1">
       <button type="button" onClick={() => { setOpen((v) => !v); setQ(""); }}
@@ -2802,6 +2810,16 @@ function AccountPicker({
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or number…"
               className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
+            {classChips.length > 1 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <button onClick={() => setActiveClass(null)}
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${!activeClass ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>All</button>
+                {classChips.map((c) => (
+                  <button key={c} onClick={() => setActiveClass(c === activeClass ? null : c)}
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${activeClass === c ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{c}</button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
             {items.length === 0 ? (

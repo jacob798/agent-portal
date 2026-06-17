@@ -2417,7 +2417,7 @@ function DocTypeCombobox({
         <span className="text-slate-300">▾</span>
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-72 rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-30 mt-1 w-max min-w-[288px] max-w-[420px] rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-1.5">
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search types…"
@@ -2439,9 +2439,9 @@ function DocTypeCombobox({
                 <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{cat}</div>
                 {opts.map((o) => (
                   <button key={o.docType} onClick={() => { onChange(o.docType); setOpen(false); }}
-                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] hover:bg-slate-50 ${
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-slate-50 ${
                       o.docType === value ? "bg-blue-50 font-medium text-blue-700" : "text-slate-700"}`}>
-                    <span className="truncate">{o.label}</span>
+                    <span className="whitespace-normal break-words">{o.label}</span>
                     {o.docType === value && <span className="text-[11px] text-blue-500">✓</span>}
                   </button>
                 ))}
@@ -2503,7 +2503,7 @@ function VendorPicker({
         <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-30 mt-1 w-max min-w-[320px] max-w-[440px] rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-1.5">
             <div className="mb-1 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{entLabel} vendors · {names.length}</div>
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
@@ -2515,9 +2515,9 @@ function VendorPicker({
               <div className="px-3 py-2 text-[12px] text-slate-400">No {entLabel} vendor matches.</div>
             ) : hits.map((n) => (
               <button key={n} onClick={() => { onPick(n); setOpen(false); }}
-                className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${n === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
-                <span className="truncate">{n}</span>
-                {n === value && <span className="text-[11px] text-brand">✓</span>}
+                className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${n === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+                <span className="whitespace-normal break-words">{n}</span>
+                {n === value && <span className="shrink-0 text-[11px] text-brand">✓</span>}
               </button>
             ))}
             {others.length > 0 && (
@@ -2527,7 +2527,7 @@ function VendorPicker({
                   <button key={`o-${n}`} onClick={() => { onPick(n); setOpen(false); }}
                     title={`In ${[...ents].map((e) => entName(e)).join(", ")} — copy to ${entLabel}`}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-50">
-                    <span className="truncate">{n}</span>
+                    <span className="whitespace-normal break-words">{n}</span>
                     <span className="shrink-0 text-[10px] text-slate-400">{[...ents].slice(0, 2).join(", ")}{ents.size > 2 ? ` +${ents.size - 2}` : ""} →</span>
                   </button>
                 ))}
@@ -2572,7 +2572,7 @@ function SearchSelect({
         <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-full min-w-[220px] rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-30 mt-1 w-max min-w-[300px] max-w-[420px] rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-1.5">
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder}
@@ -2583,8 +2583,8 @@ function SearchSelect({
               <div className="px-3 py-2 text-[12px] text-slate-400">No match.</div>
             ) : hits.map((o) => (
               <button key={o} onClick={() => { onPick(o); setOpen(false); }}
-                className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${o === value ? `font-medium ${t.hl}` : "text-slate-700"}`}>
-                <span className="truncate">{o}</span>
+                className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${o === value ? `font-medium ${t.hl}` : "text-slate-700"}`}>
+                <span className="whitespace-normal break-words">{o}</span>
                 {o === value && <span className="text-[11px] text-brand">✓</span>}
               </button>
             ))}
@@ -2648,7 +2648,7 @@ function AccountPicker({
         <span className="shrink-0 text-[10px] text-slate-300">▾</span>
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-full min-w-[240px] rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute z-30 mt-1 w-max min-w-[340px] max-w-[440px] rounded-lg border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-1.5">
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or number…"
@@ -2666,7 +2666,7 @@ function AccountPicker({
                   <button onClick={() => { onPick(g.fullName); setOpen(false); }}
                     className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${g.fullName === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
                     {g.number && <span className="w-12 shrink-0 text-[11px] tabular-nums text-slate-400">{g.number}</span>}
-                    <span className="flex-1 truncate">{leaf}</span>
+                    <span className="flex-1 whitespace-normal break-words">{leaf}</span>
                     {g.fullName === value && <span className="text-[11px] text-brand">✓</span>}
                   </button>
                 </div>

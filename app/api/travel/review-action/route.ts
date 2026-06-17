@@ -64,10 +64,13 @@ export async function POST(req: NextRequest) {
   for (const it of items) {
     const conf = (it.conf ?? "").trim();
     if (!conf) continue;
+    // Case-insensitive match: the staged travel rows store traveler UPPERCASE ("JESSICA DAVIDSON")
+    // while the review surface sends title-case ("Jessica Davidson") — a case-sensitive eq matched
+    // nothing, so accepted rows never left 'staged' and never appeared in the Payables queue.
     let q = admin.from("payables_queue").update(
       action === "reassign" ? { trip_id: newTripId } : { status: STATUS[action] },
-    ).eq("trip_id", tripId).eq("extracted->>conf", conf);
-    if ((it.traveler ?? "").trim()) q = q.eq("extracted->>traveler", (it.traveler ?? "").trim());
+    ).eq("trip_id", tripId).ilike("extracted->>conf", conf);
+    if ((it.traveler ?? "").trim()) q = q.ilike("extracted->>traveler", (it.traveler ?? "").trim());
     const { data, error } = await q.select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     changed += (data ?? []).length;

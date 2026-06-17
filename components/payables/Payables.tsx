@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Zap, Upload, FileText, Plane, Plus, Pencil } from "lucide-react";
+import { Zap, Upload, FileText, Plane, Plus, Pencil, Lock } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
@@ -1272,7 +1272,7 @@ export default function Payables({
                   </div>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                  {r.tripId ? <Badge tone="indigo">✈ Travel</Badge> : null}
+                  {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {tp?.dates ?? "Travel"}</Badge></span>; })() : null}
                   {r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null}
                   {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}
                   {r.vendorDisplay && r.vendor && r.vendorDisplay !== r.vendor ? (
@@ -1280,9 +1280,13 @@ export default function Payables({
                   ) : null}
                 </div>
               </div>
-              {/* Entity */}
+              {/* Entity — LOCKED for travel rows (set by the trip; change it on the Travel page) */}
               <div onClick={(e) => e.stopPropagation()}>
-                {(r.lines?.length ?? 0) > 1 ? (
+                {r.tripId ? (
+                  <span title="Set by the trip — change it on the Travel page" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-[12px] font-semibold text-slate-500">
+                    <Lock className="h-3 w-3 opacity-60" /> {r.entity ?? "—"}
+                  </span>
+                ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => setDrawerId(r.id)} title="Multiple line items — open to split by entity/GL">
                     <Badge tone="indigo">Split ⋯</Badge>
                   </button>
@@ -1297,9 +1301,13 @@ export default function Payables({
                   </select>
                 )}
               </div>
-              {/* Account */}
+              {/* Account — LOCKED for travel (the trip's category/GL); editable otherwise */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
-                {(r.lines?.length ?? 0) > 1 ? (
+                {r.tripId ? (
+                  <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-[12px] font-semibold text-slate-500">
+                    <Lock className="h-3 w-3 shrink-0 opacity-60" /> <span className="truncate">{glShort(r.gl) || (r.entity === "BC" ? "BC reimbursable" : "travel")}</span>
+                  </span>
+                ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => setDrawerId(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
                 ) : r.entity === "BC" ? (
                   <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />

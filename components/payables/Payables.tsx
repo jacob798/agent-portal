@@ -1237,7 +1237,7 @@ export default function Payables({
             <Fragment key={r.id}>
             <div
               onClick={() => toggleExpand(r.id)}
-              style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : (r.auto || r.resolved) ? "transparent" : "#f59e0b"}` }}
+              style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : "transparent"}` }}
               className="grid cursor-pointer grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.03]"
             >
               {/* select */}
@@ -1285,7 +1285,7 @@ export default function Payables({
                   </div>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                  {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {tp?.dates ?? "Travel"}</Badge></span>; })() : null}
+                  {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); const label = tp ? [tp.dest, tp.dates].filter(Boolean).join(" · ") : "Travel"; return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {label || "Travel"}</Badge></span>; })() : null}
                   {/* Travel rows: the confirmation IS the invoice (accepted on the Travel app) — never "no receipt". */}
                   {!r.tripId && (r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null)}
                   {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}

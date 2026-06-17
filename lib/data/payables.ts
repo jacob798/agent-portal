@@ -207,6 +207,7 @@ export interface TripOption {
   header: string;
   entity: string | null;
   dates: string;
+  dest: string | null;
 }
 
 /**
@@ -220,13 +221,14 @@ export async function getTrips(): Promise<TripOption[]> {
     const supabase = await createClient();
     const { data } = await supabase
       .from("payables_trips")
-      .select("trip_id, header, entity, dates")
+      .select("trip_id, header, entity, dates, destination")
       .order("start_date", { ascending: false });
     return (data ?? []).map((t) => ({
       tripId: t.trip_id,
       header: t.header,
       entity: t.entity ?? null,
       dates: t.dates ?? "",
+      dest: t.destination ?? null,
     }));
   } catch {
     return [];

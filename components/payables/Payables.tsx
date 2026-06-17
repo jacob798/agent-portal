@@ -191,8 +191,13 @@ export default function Payables({
   };
   const saveRowBcCategory = (r: Row, cat: string) => saveRowFields(r, { gl: BC_ROUTE.gl, category: cat, bcCategory: cat });
   // Which ledger rows have their detail line expanded.
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const toggleExpand = (id: string) => setExpandedRows((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // One coding panel open at a time (the inline replacement for the old side drawer). Expanding a
+  // row also points the coding-line editor (`lines`) at it via setDrawerId so the inline panel seeds.
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const toggleExpand = (id: string) => {
+    setExpandedRow((cur) => (cur === id ? null : id));
+    setDrawerId(id);
+  };
 
   const toggleSel = (id: string) =>
     setSelected((s) => {
@@ -1231,7 +1236,7 @@ export default function Payables({
           visible.map((r) => (
             <Fragment key={r.id}>
             <div
-              onClick={() => setDrawerId(r.id)}
+              onClick={() => toggleExpand(r.id)}
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : (r.auto || r.resolved) ? "transparent" : "#f59e0b"}` }}
               className="grid cursor-pointer grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_36px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.03]"
             >
@@ -1249,7 +1254,7 @@ export default function Payables({
                 title="Memo · invoice # · doc-type · posting"
                 className="mt-0.5 text-[11px] text-slate-400 hover:text-slate-600"
               >
-                {expandedRows.has(r.id) ? "▾" : "▸"}
+                {expandedRow === r.id ? "▾" : "▸"}
               </button>
               {/* Date */}
               <div className="mt-0.5 text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
@@ -1293,7 +1298,7 @@ export default function Payables({
                     <Lock className="h-3 w-3 opacity-50" /> {r.entity ?? "—"}
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
-                  <button onClick={() => setDrawerId(r.id)} title="Multiple line items — open to split by entity/GL">
+                  <button onClick={() => toggleExpand(r.id)} title="Multiple line items — expand to allocate by entity/GL">
                     <Badge tone="indigo">Split ⋯</Badge>
                   </button>
                 ) : (
@@ -1314,16 +1319,17 @@ export default function Payables({
                     <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{r.entity === "BC" ? glShort(BC_ROUTE.gl) : (glShort(r.gl) || "travel")}</span>
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
-                  <button onClick={() => setDrawerId(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
+                  <button onClick={() => toggleExpand(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
                 ) : r.entity === "BC" ? (
                   <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
                 ) : (
                   <AccountPicker value={glLabels(r.entity).includes(r.gl ?? "") ? (r.gl ?? "") : ""} gls={gls} entity={r.entity} onPick={(gl) => saveRowGl(r, gl)} />
                 )}
               </div>
-              {/* Pay-from */}
+              {/* Pay-from — a backend placeholder like "Card ••5001 (pick account)" means UNSET;
+                  show the empty "Pay-from…" prompt, not the placeholder string. */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
-                <SearchSelect value={r.account ?? ""} options={acctLabelsFor(r.entity)} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
+                <SearchSelect value={/pick account|pick a card/i.test(r.account ?? "") ? "" : (r.account ?? "")} options={acctLabelsFor(r.entity)} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
               </div>
               {/* Amount */}
               <div className="text-right text-[13px] font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
@@ -1342,7 +1348,7 @@ export default function Payables({
                 )}
               </div>
             </div>
-            {expandedRows.has(r.id) && (
+            {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
                   <div>
@@ -1368,7 +1374,52 @@ export default function Payables({
                     <div className="mt-0.5"><Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge></div>
                   </div>
                 </div>
-                {/* row actions live here now (not cluttering the row): post / attach / reclassify / edit vendor */}
+                {/* Split across entities / GLs — inline (replaces the old drawer's coding editor).
+                    Travel rows are locked (entity/account come from the trip), so no split UI. */}
+                {!r.tripId && drawerId === r.id && (
+                  <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                    <div className="mb-1 flex items-center justify-between">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coding{lines.length > 1 ? ` · ${lines.length} lines` : " · split across entities/GLs"}</div>
+                      {lines.length > 1 && <button onClick={combineLines} className="text-[11px] font-semibold text-slate-500 hover:text-brand">⤺ Combine to one</button>}
+                    </div>
+                    {lines.length > 1 ? (
+                      <div className="space-y-2">
+                        {lines.map((l, i) => (
+                          <div key={i} className="rounded-lg border border-slate-200 bg-white p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[12px] text-slate-600">{l.desc}</span>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <span className="text-[11px] text-slate-400">$</span>
+                                <input type="number" step="0.01" value={l.amount} onChange={(e) => setLineAmount(i, parseFloat(e.target.value) || 0)} className="w-20 rounded border border-slate-200 px-1.5 py-0.5 text-right text-[12px] tabular-nums focus:border-brand focus:outline-none" />
+                                <button onClick={() => removeLine(i)} title="Remove line" className="px-1 text-slate-300 hover:text-red-500">×</button>
+                              </div>
+                            </div>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                              {entityCodes.map((c) => (
+                                <button key={c} onClick={() => setLineEntity(i, c)} title={entName(c)} className={`inline-flex h-6 min-w-[2.2rem] items-center justify-center rounded px-1.5 text-[11px] font-bold transition ${l.entity === c ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"}`}>{c}</button>
+                              ))}
+                            </div>
+                            <div className="mt-1.5">
+                              {l.entity === "BC" ? (
+                                <SearchSelect value={l.bcCategory ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => setLineBcCategory(i, c)} placeholder="Paylocity category…" tone="amber" />
+                              ) : (
+                                <AccountPicker value={glLabels(l.entity).includes(l.gl) ? l.gl : ""} gls={gls} entity={l.entity} onPick={(gl) => setLineGl(i, gl)} />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between">
+                          <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">+ Add line</button>
+                          {(() => { const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100; const off = Math.abs(sum - r.amount) > 0.01; return <span className={`text-[11px] ${off ? "font-semibold text-amber-600" : "text-slate-400"}`}>lines {money(sum)} {off ? `≠ ${money(r.amount)}` : "= invoice ✓"}</span>; })()}
+                        </div>
+                        <button onClick={() => saveRowFields(r, { lines: lines as Row["lines"], entity: lines[0]?.entity ?? r.entity, gl: lines[0]?.gl ?? r.gl })} className="mt-1 rounded-md bg-brand-navy px-3 py-1 text-[12px] font-semibold text-white hover:opacity-90">Save split</button>
+                      </div>
+                    ) : (
+                      <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">＋ Split across entities / GLs</button>
+                    )}
+                  </div>
+                )}
+                {/* row actions: post / attach / reclassify / edit vendor */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
                   {actionCell(r)}
                   <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
@@ -1385,37 +1436,9 @@ export default function Payables({
       )}
       {filter !== "log" && (
       <p className="mt-3 text-right text-[11px] text-slate-400">
-        Code each field inline. Click ▸ to expand memo · invoice # · doc-type · posting · actions; click a row for the full drawer.
+        Code each field inline. Click a row (or ▸) to expand: memo · invoice # · doc-type · posting · splits · actions.
       </p>
       )}
-
-      {/* Drawer */}
-      <Drawer
-        open={!!drawerRow}
-        onClose={() => setDrawerId(null)}
-        title={
-          drawerRow ? (
-            <span className="flex items-center gap-2">
-              <span className={drawerRow.vendorStatus === "new" ? "text-red-500" : "text-emerald-600"}>
-                {drawerRow.vendorStatus === "new" ? "✗" : "✓"}
-              </span>
-              {drawerRow.vendor}
-            </span>
-          ) : ""
-        }
-        subtitle={drawerRow?.sub ?? ""}
-        headerRight={
-          drawerRow ? (
-            <>
-              <div className="text-xl font-bold tabular-nums text-slate-900">{money(drawerRow.amount)}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Amount</div>
-            </>
-          ) : null
-        }
-        footer={drawerRow && drawerFooter(drawerRow)}
-      >
-        {drawerRow && drawerBody(drawerRow)}
-      </Drawer>
 
       {/* Learn vendor approval */}
       <Modal

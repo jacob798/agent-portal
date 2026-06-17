@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Zap, Upload, FileText, Plane, Plus, Pencil } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
@@ -156,6 +156,44 @@ export default function Payables({
       toast(`Couldn't save ${r.vendor} — try the drawer`);
     }
   }
+  // Inline coding save from the ledger row (account / pay-from / BC category). Optimistic patch
+  // then persist via the same /api/payables/post (approve:false) the entity chip uses; reverts on
+  // failure. Keeps the row in the queue, coded, for the batch Post.
+  async function saveRowFields(r: Row, fields: Partial<Row> & { bcCategory?: string | null }) {
+    const prev: Partial<Row> = { entity: r.entity, gl: r.gl, account: r.account, paymentMethodId: r.paymentMethodId, lines: r.lines, category: r.category };
+    patch(r.id, { ...fields, auto: false, exception: undefined, reason: "Coded — review & post" });
+    try {
+      const res = await fetch("/api/payables/post", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: r.id, approve: false,
+          entity: fields.entity ?? r.entity,
+          gl: fields.gl ?? r.gl,
+          account: fields.account ?? r.account,
+          paymentMethodId: (fields.paymentMethodId ?? r.paymentMethodId) ?? null,
+          bcCategory: fields.bcCategory ?? null,
+          lines: fields.lines ?? r.lines,
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      patch(r.id, prev);
+      toast(`Couldn't save ${r.vendor} — try the drawer`);
+    }
+  }
+  const saveRowGl = (r: Row, gl: string) => {
+    const lines = (r.lines && r.lines.length ? r.lines : [{ desc: r.sub || r.vendor, amount: r.amount, gl }]).map((l) => ({ ...l, gl }));
+    saveRowFields(r, { gl, lines });
+  };
+  const saveRowPayFrom = (r: Row, label: string) => {
+    const acct = accounts.find((a) => a.label === label);
+    saveRowFields(r, { account: label, paymentMethodId: acct?.id ?? null });
+  };
+  const saveRowBcCategory = (r: Row, cat: string) => saveRowFields(r, { gl: BC_ROUTE.gl, category: cat, bcCategory: cat });
+  // Which ledger rows have their detail line expanded.
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpandedRows((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   const toggleSel = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -1174,14 +1212,14 @@ export default function Payables({
       {/* Queue */}
       {filter !== "log" && (
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[20px_14px_minmax(0,1.7fr)_84px_minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_92px_minmax(0,1.4fr)] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="grid grid-cols-[20px_16px_84px_minmax(0,1.5fr)_minmax(0,0.72fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_96px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           <div />
           <div />
-          <SortHead label="Vendor" col="vendor" sort={sort} onClick={toggleSort} />
           <SortHead label="Date" col="date" sort={sort} onClick={toggleSort} />
-          <SortHead label="Category" col="category" sort={sort} onClick={toggleSort} />
-          <SortHead label="Posting" col="posting" sort={sort} onClick={toggleSort} />
+          <SortHead label="Vendor" col="vendor" sort={sort} onClick={toggleSort} />
           <SortHead label="Entity" col="entity" sort={sort} onClick={toggleSort} />
+          <SortHead label="Account" col="category" sort={sort} onClick={toggleSort} />
+          <div>Pay-from</div>
           <SortHead label="Amount" col="amount" sort={sort} onClick={toggleSort} align="right" />
           <div className="text-right">Action</div>
         </div>
@@ -1191,165 +1229,127 @@ export default function Payables({
           </div>
         ) : (
           visible.map((r) => (
+            <Fragment key={r.id}>
             <div
-              key={r.id}
               onClick={() => setDrawerId(r.id)}
-              className="grid cursor-pointer grid-cols-[20px_14px_minmax(0,1.7fr)_84px_minmax(0,1.15fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_92px_minmax(0,1.4fr)] items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-0 hover:bg-brand/[0.03]"
+              style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : (r.auto || r.resolved) ? "transparent" : "#f59e0b"}` }}
+              className="grid cursor-pointer grid-cols-[20px_16px_84px_minmax(0,1.5fr)_minmax(0,0.72fr)_minmax(0,1.3fr)_minmax(0,1.15fr)_96px_minmax(0,1fr)] items-start gap-3 border-b border-slate-100 px-5 py-3 last:border-0 hover:bg-brand/[0.03]"
             >
+              {/* select */}
               <input
                 type="checkbox"
-                className="h-4 w-4 accent-brand"
+                className="mt-0.5 h-4 w-4 accent-brand"
                 checked={selected.has(r.id)}
                 onClick={(e) => e.stopPropagation()}
                 onChange={() => toggleSel(r.id)}
               />
-              <span
-                title={
-                  r.status === "error"
-                    ? `Post failed${r.reason ? ` — ${r.reason}` : ""}`
-                    : r.auto || r.resolved
-                      ? "Ready / auto-coded"
-                      : r.exception === "dup"
-                        ? "Possible duplicate"
-                        : r.exception === "vendor"
-                          ? "Needs a vendor"
-                          : "Needs you"
-                }
-                className={`h-2.5 w-2.5 rounded-full ${
-                  r.status === "error"
-                    ? "bg-red-500"
-                    : r.auto || r.resolved
-                      ? "bg-emerald-500"
-                      : r.exception === "dup"
-                        ? "bg-red-500"
-                        : "bg-amber-500"
-                }`}
-              />
+              {/* expand detail */}
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleExpand(r.id); }}
+                title="Memo · invoice # · doc-type · posting"
+                className="mt-0.5 text-[11px] text-slate-400 hover:text-slate-600"
+              >
+                {expandedRows.has(r.id) ? "▾" : "▸"}
+              </button>
+              {/* Date */}
+              <div className="mt-0.5 text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
               {/* Vendor */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 truncate font-semibold text-slate-900">
+              <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5">
                   {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? (
                     <span title="New / unverified vendor — confirm before posting" className="shrink-0 font-bold text-amber-600">●</span>
                   ) : (
                     <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
                   )}
-                  <span className="truncate" title={r.vendorDisplay && r.vendorDisplay !== r.vendor ? `QuickBooks: ${r.vendor}` : undefined}>{r.vendorDisplay ?? r.vendor}</span>
-                  {r.tripId ? (
-                    <span title="Travel expense accepted on a trip — code the pay-from card and post">
-                      <Badge tone="indigo">✈ Travel</Badge>
-                    </span>
-                  ) : null}
-                  {r.doc_waived ? (
-                    <Badge tone="neutral">no receipt</Badge>
-                  ) : r.nodoc ? (
-                    <Badge tone="amber">no receipt</Badge>
-                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <VendorPicker
+                      value={r.vendorDisplay ?? r.vendor}
+                      options={vendors}
+                      entity={r.entity}
+                      onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+                      onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
+                    />
+                  </div>
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                  {r.tripId ? <Badge tone="indigo">✈ Travel</Badge> : null}
+                  {r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null}
                   {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}
+                  {r.vendorDisplay && r.vendor && r.vendorDisplay !== r.vendor ? (
+                    <span className="truncate text-[11px] text-slate-400">{r.tripId ? "Trip" : "QB"}: {r.vendor}</span>
+                  ) : null}
                 </div>
-                <div className="mt-0.5 text-[11.5px] text-slate-500">
-                  <span className={r.invoiceNumber ? "" : "text-amber-600"}>
-                    Inv {r.invoiceNumber || "—"}
-                  </span>
-                </div>
-                {/* Identified document type — what the classifier thinks this is. Correct it
-                    here → the worker re-runs extraction with the right type's spec + learns. */}
-                <div className="mt-0.5 flex items-center gap-1 text-[11px]">
-                  <span className="text-slate-400">Type:</span>
-                  <DocTypeCombobox
-                    value={r.docType ?? ""}
-                    options={docTypes}
-                    onChange={(dt) => setDocType(r.id, dt)}
-                  />
-                </div>
-                {/* payee vs posting name made explicit: for a travel charge the QB vendor is
-                    the TRIP, the real merchant rides as the payee — show it, don't bury it on hover */}
-                {r.vendorDisplay && r.vendor && r.vendorDisplay !== r.vendor ? (
-                  <div className="mt-0.5 text-[11px] text-slate-400">
-                    {r.tripId ? "Trip" : "posts to QB as"}: <span className="text-slate-500">{r.vendor}</span>
-                  </div>
-                ) : null}
-                {/* memo — editable inline, per transaction (persists to QB on blur) */}
-                <input
-                  key={`memo-${r.id}-${r.memo ?? ""}`}
-                  defaultValue={r.memo ?? ""}
-                  title={r.memo || "Add a memo for this transaction"}
-                  placeholder="+ memo"
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v !== (r.memo ?? "")) persistMemo(r.id, v);
-                  }}
-                  className="mt-0.5 w-full truncate rounded border border-transparent bg-transparent px-1 text-[11.5px] italic text-slate-400 placeholder:not-italic placeholder:text-slate-300 hover:border-slate-200 focus:border-brand focus:bg-white focus:not-italic focus:text-slate-700 focus:outline-none"
-                />
               </div>
-              {/* Date */}
-              <div className="text-[12.5px] tabular-nums text-slate-600">{rowDate(r) || "—"}</div>
-              {/* Category */}
-              <div className="truncate text-[12.5px] text-slate-700" title={rowCategory(r)}>
-                {rowCategory(r) || "—"}
-              </div>
-              {/* Posting */}
-              <div className="min-w-0 text-[12px]">
-                <Badge tone={r.posting === "bill" ? "indigo" : "slate"}>
-                  {r.posting === "bill" ? "Bill" : "Charge"}
-                </Badge>
-                {(() => {
-                  // a charge with no pay-from account can't post — flag it amber so it's
-                  // clearly a required step, not just grey placeholder text.
-                  const needAcct = !r.account || /pick account/i.test(r.account);
-                  return (
-                    <div
-                      className={`mt-1 truncate text-[11px] ${needAcct ? "font-semibold text-amber-600" : "text-slate-500"}`}
-                      title={needAcct ? "Pick a pay-from account before posting" : r.account}
-                    >
-                      {needAcct ? "⚠ pick pay-from account" : r.account}
-                    </div>
-                  );
-                })()}
-              </div>
-              {/* Entity (inline picker; multi-line opens the drawer) */}
+              {/* Entity */}
               <div onClick={(e) => e.stopPropagation()}>
-                {entityPickRow === r.id ? (
-                  <div className="flex flex-wrap gap-1">
-                    {entityCodes.map((c) => (
-                      <button
-                        key={c}
-                        title={entName(c)}
-                        onClick={() => codeRowInline(r, c)}
-                        className={`inline-flex h-6 min-w-[2.1rem] items-center justify-center rounded px-1.5 text-[11px] font-bold transition ${
-                          c === r.entity ? "bg-brand-navy text-white" : "border border-slate-200 bg-white text-slate-600 hover:border-brand hover:text-brand"
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                    <button className="text-[11px] text-slate-400 hover:text-slate-600" onClick={() => setEntityPickRow(null)}>
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => ((r.lines?.length ?? 0) > 1 ? setDrawerId(r.id) : setEntityPickRow(r.id))}
-                    title={(r.lines?.length ?? 0) > 1 ? "Multiple line items — open to split by entity/GL" : "Click to set entity"}
-                    className="rounded-md transition hover:ring-2 hover:ring-brand/30"
-                  >
-                    <Badge tone={r.entity ? "green" : "amber"}>
-                      {r.entity ?? "UNK"} {(r.lines?.length ?? 0) > 1 ? "⋯" : "⌄"}
-                    </Badge>
+                {(r.lines?.length ?? 0) > 1 ? (
+                  <button onClick={() => setDrawerId(r.id)} title="Multiple line items — open to split by entity/GL">
+                    <Badge tone="indigo">Split ⋯</Badge>
                   </button>
+                ) : (
+                  <select
+                    value={r.entity ?? ""}
+                    onChange={(e) => { if (e.target.value) codeRowInline(r, e.target.value); }}
+                    className={`w-full rounded-lg border bg-white px-1.5 py-1.5 text-[12px] font-semibold ${r.entity ? "border-slate-200 text-slate-700" : "border-amber-300 text-amber-600"}`}
+                  >
+                    <option value="">set…</option>
+                    {entityCodes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 )}
               </div>
+              {/* Account */}
+              <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+                {(r.lines?.length ?? 0) > 1 ? (
+                  <button onClick={() => setDrawerId(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
+                ) : r.entity === "BC" ? (
+                  <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
+                ) : (
+                  <AccountPicker value={glLabels(r.entity).includes(r.gl ?? "") ? (r.gl ?? "") : ""} gls={gls} entity={r.entity} onPick={(gl) => saveRowGl(r, gl)} />
+                )}
+              </div>
+              {/* Pay-from */}
+              <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
+                <SearchSelect value={r.account ?? ""} options={acctLabelsFor(r.entity)} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
+              </div>
               {/* Amount */}
-              <div className="text-right font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
+              <div className="mt-0.5 text-right font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
               {/* Action */}
               <div
-                className="flex flex-wrap items-center justify-end gap-1.5"
+                className="flex flex-wrap items-start justify-end gap-1.5"
                 onClick={(e) => e.stopPropagation()}
               >
                 {actionCell(r)}
               </div>
             </div>
+            {expandedRows.has(r.id) && (
+              <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</div>
+                    <input
+                      key={`memo-${r.id}-${r.memo ?? ""}`}
+                      defaultValue={r.memo ?? ""}
+                      placeholder="+ memo"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
+                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-[12px]"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Invoice #</div>
+                    <div className={`mt-0.5 px-1 py-1 text-[12px] ${r.invoiceNumber ? "text-slate-700" : "text-amber-600"}`}>Inv {r.invoiceNumber || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</div>
+                    <div className="mt-0.5"><DocTypeCombobox value={r.docType ?? ""} options={docTypes} onChange={(dt) => setDocType(r.id, dt)} /></div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</div>
+                    <div className="mt-0.5"><Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            </Fragment>
           ))
         )}
       </div>

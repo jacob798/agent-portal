@@ -63,6 +63,9 @@ export interface PayableRow {
   docType?: string | null;
   /** Attributed trip id (when this is a trip expense) — drives the drawer trip picker. */
   tripId?: string | null;
+  /** The real merchant/payee (extracted.payee). For travel the QB vendor is the trip rollup, so
+   *  the queue shows THIS as the Vendor/Payee. */
+  payee?: string | null;
   /** This vendor's saved multi-line split layout (entity+account+amount per line), if any.
    *  The drawer offers a one-click "Apply saved split"; NOT auto-applied (split = exception). */
   lineTemplate?: { entity: string | null; gl: string | null; amount?: number; bcCategory?: string }[] | null;
@@ -276,6 +279,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       txnDate: r.txn_date ?? null,
       docType: r.doc_type ?? null,
       tripId: r.trip_id ?? null,
+      payee: (r.extracted as { payee?: string } | null)?.payee ?? null,
     }));
     // Attach each vendor's saved multi-line split layout (if any), so the drawer can offer
     // a one-click "Apply saved split". NOT auto-applied — a split is the exception, not the

@@ -99,11 +99,17 @@ export function glsForEntity(gls: GlOption[], entity?: string | null): GlOption[
  * (Jacob, 2026-06-16 — project_payment_methods_payfrom.)
  */
 export function payFromForEntity(accounts: PayAccount[], entity?: string | null): PayAccount[] {
+  // Within a group, lead with credit cards (the common pay method), then bank/checking, then cash.
+  const typeRank = (t: string | null) =>
+    /credit/i.test(t ?? "") ? 0 : /cash/i.test(t ?? "") ? 2 : 1;
+  const sortGroup = (xs: PayAccount[]) =>
+    [...xs].sort((a, b) => typeRank(a.type) - typeRank(b.type) || a.label.localeCompare(b.label));
   const code = entity === "BC" ? "PER" : entity;
-  if (!code || code === "PER") return accounts.filter((a) => a.entity === "PER");
-  const own = accounts.filter((a) => a.entity === code);
-  const per = accounts.filter((a) => a.entity === "PER");
+  if (!code || code === "PER") return sortGroup(accounts.filter((a) => a.entity === "PER"));
+  const own = sortGroup(accounts.filter((a) => a.entity === code));
+  const per = sortGroup(accounts.filter((a) => a.entity === "PER"));
   const seen = new Set(own.map((a) => a.id));
+  // entity-own first, then personal — cards-first within each.
   return [...own, ...per.filter((a) => !seen.has(a.id))];
 }
 

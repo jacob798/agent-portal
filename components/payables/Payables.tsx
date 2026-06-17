@@ -1262,22 +1262,28 @@ export default function Payables({
                     <span title="On file in your vendor master" className="shrink-0 font-bold text-emerald-600">✓</span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <VendorPicker
-                      value={r.vendorDisplay ?? r.vendor}
-                      options={vendors}
-                      entity={r.entity}
-                      onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
-                      onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
-                    />
+                    {r.tripId ? (
+                      // Travel: the QB vendor is the trip rollup, so show the PAYEE (merchant). Read-only
+                      // here — change the merchant on the source confirmation, not the payables row.
+                      <span className="block truncate text-[12.5px] font-medium text-slate-800" title={`Payee · QB vendor: ${r.vendor}`}>
+                        {r.payee || r.vendor}
+                      </span>
+                    ) : (
+                      <VendorPicker
+                        value={r.vendorDisplay ?? r.vendor}
+                        options={vendors}
+                        entity={r.entity}
+                        onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+                        onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1">
                   {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {tp?.dates ?? "Travel"}</Badge></span>; })() : null}
-                  {r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null}
+                  {/* Travel rows: the confirmation IS the invoice (accepted on the Travel app) — never "no receipt". */}
+                  {!r.tripId && (r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null)}
                   {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}
-                  {r.vendorDisplay && r.vendor && r.vendorDisplay !== r.vendor ? (
-                    <span className="truncate text-[11px] text-slate-400">{r.tripId ? "Trip" : "QB"}: {r.vendor}</span>
-                  ) : null}
                 </div>
               </div>
               {/* Entity — LOCKED for travel rows (set by the trip; change it on the Travel page) */}
@@ -1304,8 +1310,8 @@ export default function Payables({
               {/* Account — LOCKED for travel (the trip's category/GL); editable otherwise */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
                 {r.tripId ? (
-                  <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
-                    <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{glShort(r.gl) || (r.entity === "BC" ? "BC reimbursable" : "travel")}</span>
+                  <span title={r.entity === "BC" ? "BC reimbursable — posts to the Loan – Builders Capital balance-sheet account" : "Set by the trip — change it on the Travel page"} className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
+                    <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{r.entity === "BC" ? glShort(BC_ROUTE.gl) : (glShort(r.gl) || "travel")}</span>
                   </span>
                 ) : (r.lines?.length ?? 0) > 1 ? (
                   <button onClick={() => setDrawerId(r.id)} className="text-[12px] text-slate-500">Multiple ⋯</button>
@@ -1324,7 +1330,11 @@ export default function Payables({
               {/* Doc — receipt on file (link) or amber gap */}
               <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                 {r.docUrl ? (
-                  <a href={r.docUrl} target="_blank" rel="noopener noreferrer" title="Open the filed invoice" className="text-brand hover:text-brand-navy"><FileText className="h-4 w-4" /></a>
+                  <a href={r.docUrl} target="_blank" rel="noopener noreferrer" title={r.tripId ? "Open the confirmation (the invoice)" : "Open the filed invoice"} className="text-brand hover:text-brand-navy"><FileText className="h-4 w-4" /></a>
+                ) : r.tripId ? (
+                  // Travel: the confirmation IS the invoice (accepted on the Travel app) — documented,
+                  // even before the PDF is filed. Never an amber "gap".
+                  <span title="Confirmation is the invoice (from the Travel app)" className="text-slate-400"><FileText className="h-4 w-4" /></span>
                 ) : r.doc_waived ? (
                   <span title="No receipt needed" className="text-slate-300"><FileText className="h-4 w-4" /></span>
                 ) : (

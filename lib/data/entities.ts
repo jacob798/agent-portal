@@ -146,10 +146,63 @@ export function glGroupsForEntity(gls: GlOption[], entity?: string | null): GlGr
 
 /** A known vendor tagged with the entity (QB realm) it belongs to. entity=null = a canonical
  *  `vendors`-master name not tied to one realm (addable anywhere). vendor_qbo_refs is per-entity,
- *  so the SAME name can appear under several entities. */
+ *  so the SAME name can appear under several entities. `category` is the operator-set vendor
+ *  category (mandatory before posting), stored on the master record (`record.identity.primary_category`).
+ *  `gl` is the master default GL (legacy signal). */
 export interface VendorOption {
   name: string;
   entity: string | null;
+  gl?: string | null;
+  category?: string | null;
+}
+
+/**
+ * The vendor-category vocabulary. Stored on the vendor record and REQUIRED before a vendor's
+ * invoice can post. Used by the vendor edit modal (the picker) and to group the vendor picker.
+ * Existing vendors are backfilled by an LLM pull; new ones must be set by the operator.
+ */
+export const VENDOR_CATEGORIES: string[] = [
+  "Travel",
+  "Software & subscriptions",
+  "Utilities & telecom",
+  "Insurance",
+  "Meals & entertainment",
+  "Office & supplies",
+  "Professional services",
+  "Construction & materials",
+  "Financial & fees",
+  "Marketing & advertising",
+  "Rent & facilities",
+  "Shipping & postage",
+  "Other",
+];
+
+/** Normalize a stored category slug (e.g. "event_ticketing", "travel") to a display label. */
+export function vendorCatLabel(raw?: string | null): string {
+  if (!raw) return "";
+  const t = raw.trim();
+  if (!t) return "";
+  const exact = VENDOR_CATEGORIES.find((c) => c.toLowerCase() === t.toLowerCase());
+  if (exact) return exact;
+  return t.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+/** Whether each ENTITY supports A/P Bills (drives the Posting options: Expense / Bill / Check).
+ *  BC posts as a Purchase into PER and PER itself has no A/P here, so neither offers "Bill".
+ *  Sourced from entity_master.accounting.supports_bills. */
+export const ENTITY_SUPPORTS_BILLS: Record<string, boolean> = {
+  FC: true, WJW: true, WB12: true, IOTA: true, PC: true, PFB: true, SEL: true, FI: true, PIL: true,
+  BC: false, PER: false, POC: false, UNK: false,
+};
+
+/** Posting options valid for an entity: Expense (Purchase) and Check are always available;
+ *  Bill only where A/P is supported. (Point 6 — validated per entity.) */
+export function postingOptionsForEntity(entity?: string | null): { value: "charge" | "bill" | "check"; label: string }[] {
+  const bills = entity ? ENTITY_SUPPORTS_BILLS[entity] !== false : true;
+  const opts: { value: "charge" | "bill" | "check"; label: string }[] = [{ value: "charge", label: "Expense" }];
+  if (bills) opts.push({ value: "bill", label: "Bill" });
+  opts.push({ value: "check", label: "Check" });
+  return opts;
 }
 
 /** Vendors for a given entity: that entity's own QuickBooks vendors + the canonical master names

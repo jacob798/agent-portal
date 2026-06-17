@@ -174,7 +174,8 @@ export async function getVendors(): Promise<VendorOption[]> {
   try {
     const supabase = await createClient();
     const [{ data: master }, { data: qb }] = await Promise.all([
-      supabase.from("vendors").select("canonical_name"),
+      // gl_full_name + record.identity.primary_category drive the learned vendor category.
+      supabase.from("vendors").select("canonical_name, gl_full_name, record"),
       supabase.from("vendor_qbo_refs").select("display_name, entity_code").eq("active", true),
     ]);
     const out: VendorOption[] = [];
@@ -194,7 +195,8 @@ export async function getVendors(): Promise<VendorOption[]> {
       const k = `null|${name.toLowerCase()}`;
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push({ name, entity: null });
+      const rec = (v.record ?? {}) as { identity?: { primary_category?: string | null } };
+      out.push({ name, entity: null, gl: v.gl_full_name ?? null, category: rec.identity?.primary_category ?? null });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
   } catch {

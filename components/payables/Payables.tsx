@@ -17,6 +17,9 @@ import {
   BC_ROUTE,
   type PayAccount,
   type GlOption,
+  VENDOR_CATEGORIES,
+  vendorCatLabel,
+  postingOptionsForEntity,
 } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -209,6 +212,16 @@ export default function Payables({
   const clearSel = () => setSelected(new Set());
   async function postBatch(ids: string[]) {
     if (!ids.length) return;
+    // Mandatory vendor category before posting (operator must categorize each vendor).
+    const uncategorized = ids
+      .map((id) => rows.find((r) => r.id === id))
+      .filter((r): r is Row => !!r && needsCategory(r));
+    if (uncategorized.length) {
+      const names = [...new Set(uncategorized.map((r) => r.vendor))];
+      toast(`Set a vendor category first — open ✎ on: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` +${names.length - 3}` : ""}`);
+      if (uncategorized.length === 1) setVendorEdit({ name: uncategorized[0].vendor, entity: uncategorized[0].entity });
+      return;
+    }
     setPosting(true);
     try {
       const res = await fetch("/api/payables/post-batch", {
@@ -301,6 +314,26 @@ export default function Payables({
   // Deduped vendor names across all entities — only for the entity-agnostic bulk-edit datalist.
   // The per-row drawer uses VendorPicker scoped to the row's entity (vendorsForEntity).
   const vendorNames = useMemo(() => [...new Set(vendors.map((v) => v.name))].sort((a, b) => a.localeCompare(b)), [vendors]);
+  // Vendor category by lowercased name (the operator-set value on the vendor record). Drives the
+  // picker's category groups AND the mandatory-before-post gate. "" = uncategorized (must be set).
+  const vendorCatByName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const v of vendors) {
+      const k = v.name.toLowerCase();
+      if (m.get(k)) continue;
+      const c = vendorCatLabel(v.category);
+      if (c) m.set(k, c);
+    }
+    return m;
+  }, [vendors]);
+  const rowCat = (r: Row) => vendorCatByName.get((r.vendor ?? "").toLowerCase()) ?? "";
+  // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
+  // from the mandatory-category gate. Everything else must carry a category before it can post.
+  const needsCategory = (r: Row) => !r.tripId && !rowCat(r);
+  // A row is "travel-coded" when it's already on a trip OR its account/category reads as travel —
+  // the only case the compact trip picker is offered (Point 4). Keyword match on the GL + category.
+  const isTravelCoded = (r: Row) =>
+    !!r.tripId || /travel|airfare|lodging|airline|flight|hotel|car rental|rental car|rideshare|mileage/i.test(`${r.gl ?? ""} ${r.category ?? ""}`);
   // Default Pay-from for a row: the account resolved from the invoice card
   // (paymentMethodId) wins; else a label match within this entity's options; else the
   // first option for this entity (entity account before personal).
@@ -1284,6 +1317,7 @@ export default function Payables({
                         value={r.vendorDisplay ?? r.vendor}
                         options={vendors}
                         entity={r.entity}
+                        cats={vendorCatByName}
                         onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
                         onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
                       />
@@ -1358,39 +1392,51 @@ export default function Payables({
             </div>
             {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
-                {/* LINE 1 — attribution (vendor · trip · posts-to) + actions pinned right */}
+                {/* LINE 1 — vendor (+ category) · trip (icon+picker, travel only) · actions */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
                     {r.tripId ? (
+                      // Travel: vendor (payee) comes from Travel — read-only, no edit (Point 5).
                       <span className="inline-block max-w-[420px] truncate text-[12px]" title={`Payee ${r.payee || r.vendor} · QB vendor ${r.vendor}`}>
                         <span className="font-medium text-slate-800">{r.payee || r.vendor}</span>
                         {r.vendor && r.payee && r.vendor !== r.payee ? <span className="text-slate-400"> · QB: {r.vendor}</span> : null}
                       </span>
                     ) : (
-                      <span className="inline-block min-w-[150px] max-w-[220px]">
-                        <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity}
-                          onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
-                          onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }} />
-                      </span>
+                      <>
+                        <span className="inline-block min-w-[150px] max-w-[220px]">
+                          <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity} cats={vendorCatByName}
+                            onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+                            onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }} />
+                        </span>
+                        {/* new vs edit icon (Point 3); opens the vendor record where category is set */}
+                        <button aria-label={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor" : "Edit vendor"}
+                          title={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor — fill from invoice" : "Edit vendor"}
+                          onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                          className="inline-flex items-center text-brand hover:text-brand-navy">
+                          {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? <Plus className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </button>
+                        {/* mandatory category: show the set value, or an amber prompt that must be resolved before posting */}
+                        {rowCat(r) ? (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">{rowCat(r)}</span>
+                        ) : (
+                          <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                            className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">
+                            Set category
+                          </button>
+                        )}
+                      </>
                     )}
-                    <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
-                      className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline">
-                      <Pencil className="h-3 w-3" /> edit
-                    </button>
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trip</span>
-                    <select value={r.tripId ?? ""} onChange={(e) => setTrip(r.id, e.target.value)}
-                      className="max-w-[200px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
-                      <option value="">— Not a trip —</option>
-                      {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest ? `${t.dest} · ${t.dates}` : t.header}</option>)}
-                    </select>
-                  </span>
-                  {r.entity === "BC" && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posts to</span>
-                      <span className="text-[12px] text-slate-600">{glShort(BC_ROUTE.gl)} <span className="text-slate-400">· BC reimbursable</span></span>
+                  {/* trip — compact plane icon + picker, only for travel-coded rows (Points 3 & 4) */}
+                  {isTravelCoded(r) && (
+                    <span className="inline-flex items-center gap-1.5" title="Attach to a trip">
+                      <Plane className="h-3.5 w-3.5 text-brand" />
+                      <select value={r.tripId ?? ""} onChange={(e) => setTrip(r.id, e.target.value)}
+                        className="max-w-[210px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
+                        <option value="">— pick a trip —</option>
+                        {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest ? `${t.dest} · ${t.dates}` : t.header}</option>)}
+                      </select>
                     </span>
                   )}
                   <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
@@ -1415,13 +1461,17 @@ export default function Payables({
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</span>
-                    <select value={r.posting === "bill" ? "bill" : r.posting === "check" ? "check" : "charge"}
-                      onChange={(e) => saveRowFields(r, { posting: e.target.value as PayableRow["posting"] })}
-                      className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
-                      <option value="charge">Purchase (charge)</option>
-                      <option value="bill">Bill → BillPayment</option>
-                      <option value="check">Check</option>
-                    </select>
+                    {(() => {
+                      const opts = postingOptionsForEntity(r.entity);
+                      const cur = opts.some((o) => o.value === r.posting) ? r.posting : "charge";
+                      return (
+                        <select value={cur}
+                          onChange={(e) => saveRowFields(r, { posting: e.target.value as PayableRow["posting"] })}
+                          className="rounded border border-slate-200 bg-white py-1 pl-2 pr-6 text-[12px] leading-tight text-slate-700">
+                          {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      );
+                    })()}
                   </span>
                   {!r.tripId && drawerId === r.id && lines.length <= 1 && (
                     <button onClick={addLine} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split across entities / GLs</button>
@@ -1879,6 +1929,7 @@ export default function Payables({
             value={r.vendor}
             options={vendors}
             entity={r.entity}
+            cats={vendorCatByName}
             onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
             onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
           />
@@ -2459,10 +2510,11 @@ function DocTypeCombobox({
 // matches. Mirrors DocTypeCombobox's open/outside-click pattern. (vendorsForEntity scopes;
 // BC borrows PER.) match-before-create still runs at post, so a near-dupe reuses the existing.
 function VendorPicker({
-  value, options, entity, onPick, onAddNew,
-}: { value: string; options: VendorOption[]; entity?: string | null; onPick: (v: string) => void; onAddNew?: (v: string) => void }) {
+  value, options, entity, onPick, onAddNew, cats,
+}: { value: string; options: VendorOption[]; entity?: string | null; onPick: (v: string) => void; onAddNew?: (v: string) => void; cats?: Map<string, string> }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [activeCat, setActiveCat] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -2474,10 +2526,31 @@ function VendorPicker({
   const names = useMemo(() => vendorsForEntity(options, entity), [options, entity]);
   const entLabel = entName(entity);
   const needle = q.trim().toLowerCase();
+  // Category of a name ("" → Uncategorized). Jump-chips let you filter to one category.
+  const catOf = (n: string) => cats?.get(n.toLowerCase()) || "Uncategorized";
+  const catChips = useMemo(() => {
+    if (!cats) return [];
+    const set = new Set<string>();
+    names.forEach((n) => set.add(catOf(n)));
+    return [...set].sort((a, b) => (a === "Uncategorized" ? 1 : b === "Uncategorized" ? -1 : a.localeCompare(b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [names, cats]);
   const hits = useMemo(
-    () => names.filter((n) => !needle || n.toLowerCase().includes(needle)).slice(0, 200),
-    [names, needle],
+    () => names
+      .filter((n) => !needle || n.toLowerCase().includes(needle))
+      .filter((n) => !activeCat || catOf(n) === activeCat)
+      .slice(0, 200),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [names, needle, activeCat, cats],
   );
+  // Group hits by category for the grouped (chips) view.
+  const hitGroups = useMemo(() => {
+    if (!cats) return [] as [string, string[]][];
+    const m = new Map<string, string[]>();
+    for (const n of hits) { const c = catOf(n); (m.get(c) ?? m.set(c, []).get(c)!).push(n); }
+    return [...m.entries()].sort((a, b) => (a[0] === "Uncategorized" ? 1 : b[0] === "Uncategorized" ? -1 : a[0].localeCompare(b[0])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, cats]);
   // Vendors that exist in OTHER entities but NOT this one — pick to COPY here (the vendor is
   // created in this entity's QBO realm at post via match-before-create). name → source entities.
   const code = entity === "BC" ? "PER" : entity;
@@ -2509,10 +2582,33 @@ function VendorPicker({
             {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${entLabel} vendors…`}
               className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-[12.5px] outline-none focus:border-brand" />
+            {cats && catChips.length > 1 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <button onClick={() => setActiveCat(null)}
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${!activeCat ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>All</button>
+                {catChips.map((c) => (
+                  <button key={c} onClick={() => setActiveCat(c === activeCat ? null : c)}
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${activeCat === c ? "bg-brand text-white" : c === "Uncategorized" ? "bg-amber-50 text-amber-700 hover:bg-amber-100" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{c}</button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
             {hits.length === 0 && others.length === 0 ? (
               <div className="px-3 py-2 text-[12px] text-slate-400">No {entLabel} vendor matches.</div>
+            ) : cats ? (
+              hitGroups.map(([c, ns]) => (
+                <div key={c}>
+                  <div className={`px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide ${c === "Uncategorized" ? "text-amber-600" : "text-slate-400"}`}>{c}</div>
+                  {ns.map((n) => (
+                    <button key={n} onClick={() => { onPick(n); setOpen(false); }}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${n === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
+                      <span className="whitespace-normal break-words">{n}</span>
+                      {n === value && <span className="shrink-0 text-[11px] text-brand">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              ))
             ) : hits.map((n) => (
               <button key={n} onClick={() => { onPick(n); setOpen(false); }}
                 className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-slate-50 ${n === value ? "bg-brand/5 font-medium text-brand-navy" : "text-slate-700"}`}>
@@ -2698,6 +2794,7 @@ function VendorModal({
   const [aliasInput, setAliasInput] = useState("");
   const [ent, setEnt] = useState(entity && entity !== "BC" ? entity : "");
   const [gl, setGl] = useState("");
+  const [category, setCategory] = useState("");
   const [autoApprove, setAutoApprove] = useState(false);
   const [contact, setContact] = useState<VContact>({});
 
@@ -2712,6 +2809,7 @@ function VendorModal({
           setAliases(Array.isArray(vendor.aliases) ? vendor.aliases : []);
           setEnt(vendor.entity_code ?? (entity && entity !== "BC" ? entity : ""));
           setGl(vendor.gl_full_name ?? "");
+          setCategory(vendorCatLabel(vendor.category));
           setAutoApprove(!!vendor.auto_approve);
           setContact((vendor.contact ?? {}) as VContact);
         }
@@ -2734,7 +2832,7 @@ function VendorModal({
     try {
       const res = await fetch("/api/payables/vendor", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: cname.trim(), originalName: name, aliases, entity: ent || null, gl: gl || null, autoApprove, contact }),
+        body: JSON.stringify({ name: cname.trim(), originalName: name, aliases, entity: ent || null, gl: gl || null, category: category || null, autoApprove, contact }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "save failed");
@@ -2749,7 +2847,7 @@ function VendorModal({
     <Modal open onClose={onClose} title="Edit vendor" width="max-w-xl"
       footer={<>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button onClick={save} disabled={saving || !cname.trim()}>{saving ? "Saving…" : "Save vendor"}</Button>
+        <Button onClick={save} disabled={saving || !cname.trim() || !category}>{saving ? "Saving…" : "Save vendor"}</Button>
       </>}>
       {!loaded ? (
         <div className="px-1 py-6 text-[13px] text-slate-400">Loading vendor…</div>
@@ -2758,6 +2856,17 @@ function VendorModal({
           <div>
             <div className={DLBL}>Vendor name</div>
             <input value={cname} onChange={(e) => setCname(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px]" />
+          </div>
+          <div>
+            <div className={DLBL}>
+              Category <span className="font-bold text-red-500">*</span>
+              <span className="font-normal normal-case text-slate-400"> · required before this vendor can post</span>
+            </div>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}
+              className={`w-full rounded-lg border px-3 py-2 text-[13px] ${category ? "border-slate-200" : "border-amber-300 bg-amber-50/40"}`}>
+              <option value="">— pick a category —</option>
+              {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div>
             <div className={DLBL}>Aliases <span className="font-normal normal-case text-slate-400">· names as they appear on documents (feed vendor ID)</span></div>

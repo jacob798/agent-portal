@@ -23,9 +23,11 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const { data } = await admin
     .from("vendors")
-    .select("canonical_name, aliases, entity_code, gl_full_name, auto_approve, contact, accepted")
+    .select("canonical_name, aliases, entity_code, gl_full_name, auto_approve, contact, accepted, record")
     .eq("canonical_name", name).maybeSingle();
-  return NextResponse.json({ vendor: data ?? null });
+  if (!data) return NextResponse.json({ vendor: null });
+  const rec = (data.record ?? {}) as { identity?: { primary_category?: string | null } };
+  return NextResponse.json({ vendor: { ...data, category: rec.identity?.primary_category ?? null } });
 }
 
 export async function POST(req: NextRequest) {
@@ -39,12 +41,14 @@ export async function POST(req: NextRequest) {
   let body: {
     name?: string; originalName?: string; aliases?: string[];
     entity?: string | null; gl?: string | null; autoApprove?: boolean;
-    contact?: Record<string, unknown> | null;
+    contact?: Record<string, unknown> | null; category?: string | null;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "expected JSON" }, { status: 400 }); }
 
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
+  const category = (body.category ?? "").trim();
+  if (!category) return NextResponse.json({ error: "category required" }, { status: 400 });
   const aliases = Array.isArray(body.aliases) ? body.aliases.map((a) => String(a).trim()).filter(Boolean) : [];
 
   const admin = createAdminClient();
@@ -52,11 +56,16 @@ export async function POST(req: NextRequest) {
   // updates the same row; fall back to the new name.
   const lookup = (body.originalName ?? name).trim();
   const { data: existing, error: findErr } = await admin
-    .from("vendors").select("vendor_id, contact").eq("canonical_name", lookup).maybeSingle();
+    .from("vendors").select("vendor_id, contact, record").eq("canonical_name", lookup).maybeSingle();
   if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
 
   // Merge contact onto any existing contact jsonb so we don't drop fields the modal didn't show.
   const contact = { ...((existing?.contact as Record<string, unknown>) ?? {}), ...(body.contact ?? {}) };
+  // Vendor category lives in record.identity.primary_category (same field the LLM pull writes and
+  // getVendors reads). Merge so we never drop other record sections.
+  const prevRec = (existing?.record ?? {}) as Record<string, unknown>;
+  const prevIdentity = (prevRec.identity ?? {}) as Record<string, unknown>;
+  const record = { ...prevRec, identity: { ...prevIdentity, primary_category: category } };
   const patch = {
     canonical_name: name,
     aliases,
@@ -64,6 +73,7 @@ export async function POST(req: NextRequest) {
     gl_full_name: body.gl || null,
     auto_approve: !!body.autoApprove,
     contact,
+    record,
     accepted: true,
     auto_added: false,
     updated_at: new Date().toISOString(),

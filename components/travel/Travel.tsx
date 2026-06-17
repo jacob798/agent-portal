@@ -1001,13 +1001,16 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   const posted = trip.exps.filter((e) => e.status === "posted");
   const accepted = trip.exps.filter((e) => e.status === "accepted" || e.status === "staged");
   const showReimburse = trip.ent === "BC";
-  const total = posted.reduce((s, e) => s + e.amount, 0);
-  const reimburse = posted.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
+  const total = trip.exps.reduce((s, e) => s + e.amount, 0);
+  const reimburse = trip.exps.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
 
+  // Show the whole tie-out (posted + accepted/awaiting), not just posted — otherwise the ledger is
+  // empty until QuickBooks posting runs. A status tag distinguishes posted vs awaiting.
+  const display = trip.exps;
   const [sortK, setSortK] = useState<LedgerSort>("date");
   const [dir, setDir] = useState<1 | -1>(1);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const allOpen = posted.length > 0 && posted.every((e) => open[e.id ?? ""]);
+  const allOpen = display.length > 0 && display.every((e) => open[e.id ?? ""]);
 
   const val = (e: TripExpense): string | number => {
     switch (sortK) {
@@ -1019,7 +1022,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       default: return e.date ?? "";
     }
   };
-  const rows = [...posted].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+  const rows = [...display].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
   const toggleSort = (k: LedgerSort) => { if (sortK === k) setDir((d) => (d === 1 ? -1 : 1)); else { setSortK(k); setDir(k === "payee" || k === "account" || k === "payFrom" ? 1 : -1); } };
   const cols = 4 + (showReimburse ? 2 : 1) + 1; // date,payee,account,entity + (net[+reimburse]) + links
 
@@ -1035,26 +1038,21 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· posted to QuickBooks</span></div>
+        <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· the QuickBooks tie-out</span></div>
         <div className="flex items-center gap-3">
-          {posted.length > 0 && (
-            <button onClick={() => setOpen(allOpen ? {} : Object.fromEntries(posted.map((e) => [e.id ?? "", true])))}
+          {display.length > 0 && (
+            <button onClick={() => setOpen(allOpen ? {} : Object.fromEntries(display.map((e) => [e.id ?? "", true])))}
               className="text-[11.5px] font-medium text-brand hover:underline">{allOpen ? "Collapse all" : "Expand all"}</button>
           )}
           <span className="text-[12px] text-slate-500">
-            {posted.length} posted{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(total)}`}
+            {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(total)}`}
           </span>
         </div>
       </div>
 
-      {posted.length === 0 ? (
+      {display.length === 0 ? (
         <div className="px-4 py-4 text-[12.5px] text-slate-400">
-          Nothing posted yet — expenses appear here once they’re accepted and posted to QuickBooks in Payables.
-          {accepted.length > 0 && (
-            <span className="mt-1 block text-slate-500">
-              <b className="font-semibold text-amber-600">{accepted.length}</b> accepted · awaiting posting in Payables.
-            </span>
-          )}
+          No expenses yet — accept the confirmations above, then they appear here and post to QuickBooks in Payables.
         </div>
       ) : (
         <table className="w-full" style={{ tableLayout: "auto" }}>
@@ -1085,6 +1083,9 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                       <button onClick={() => setOpen((s) => ({ ...s, [id]: !s[id] }))} className="inline-flex items-start gap-1 text-left">
                         {det ? <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />}
                         <span className="font-medium">{e.what}</span>
+                        {e.status === "posted" ? <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">posted</span>
+                          : e.status === "error" ? <span className="ml-1.5 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">error</span>
+                          : <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">awaiting post</span>}
                       </button>
                     </td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}

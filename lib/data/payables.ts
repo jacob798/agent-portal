@@ -175,9 +175,20 @@ export async function getVendors(): Promise<VendorOption[]> {
     const supabase = await createClient();
     const [{ data: master }, { data: qb }] = await Promise.all([
       // gl_full_name + record.identity.primary_category drive the learned vendor category.
-      supabase.from("vendors").select("canonical_name, gl_full_name, record"),
+      // accepted/auto_added distinguish a REAL canonical vendor from a category-only backfill stub.
+      supabase.from("vendors").select("canonical_name, gl_full_name, record, accepted, auto_added"),
       supabase.from("vendor_qbo_refs").select("display_name, entity_code").eq("active", true),
     ]);
+    // Category lookup by name from ALL master rows (incl. the LLM backfill stubs) — category is a
+    // per-NAME attribute, NOT a list member. This is what keeps the stubs OUT of the picker while
+    // still tagging each vendor's category.
+    const catByName = new Map<string, string>();
+    for (const v of master ?? []) {
+      const nm = String(v.canonical_name ?? "").trim().toLowerCase();
+      const rec = (v.record ?? {}) as { identity?: { primary_category?: string | null } };
+      const cat = rec.identity?.primary_category;
+      if (nm && cat) catByName.set(nm, cat);
+    }
     const out: VendorOption[] = [];
     const seen = new Set<string>(); // entity|name — keep one row per (entity, name)
     for (const v of qb ?? []) {
@@ -187,11 +198,14 @@ export async function getVendors(): Promise<VendorOption[]> {
       const k = `${ent}|${name.toLowerCase()}`;
       if (seen.has(k)) continue;
       seen.add(k);
-      out.push({ name, entity: ent });
+      out.push({ name, entity: ent, category: catByName.get(name.toLowerCase()) ?? null });
     }
     for (const v of master ?? []) {
       const name = String(v.canonical_name ?? "").trim();
       if (!name) continue;
+      // Skip the LLM-backfill category stubs (auto_added && !accepted) — they exist only to carry a
+      // category and must NOT appear as selectable vendors in every entity (the 961-count bug).
+      if (v.auto_added && !v.accepted) continue;
       const k = `null|${name.toLowerCase()}`;
       if (seen.has(k)) continue;
       seen.add(k);

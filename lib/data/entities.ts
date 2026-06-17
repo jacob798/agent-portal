@@ -190,9 +190,11 @@ export function vendorCatLabel(raw?: string | null): string {
 /** Whether each ENTITY supports A/P Bills (drives the Posting options: Expense / Bill / Check).
  *  BC posts as a Purchase into PER and PER itself has no A/P here, so neither offers "Bill".
  *  Sourced from entity_master.accounting.supports_bills. */
+// BC posts into PER and PER pays bills, so both offer Bill (Jacob: "BC is part of PER so bills is
+// an option"). All active entities support Expense / Bill / Check; only archived/unknown don't.
 export const ENTITY_SUPPORTS_BILLS: Record<string, boolean> = {
   FC: true, WJW: true, WB12: true, IOTA: true, PC: true, PFB: true, SEL: true, FI: true, PIL: true,
-  BC: false, PER: false, POC: false, UNK: false,
+  BC: true, PER: true, POC: false, UNK: false,
 };
 
 /** Posting options valid for an entity: Expense (Purchase) and Check are always available;

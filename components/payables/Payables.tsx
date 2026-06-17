@@ -1363,7 +1363,10 @@ export default function Payables({
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
                     {r.tripId ? (
-                      <span className="text-[12px] text-slate-600">{r.payee || r.vendor}</span>
+                      <span className="inline-block max-w-[420px] truncate text-[12px]" title={`Payee ${r.payee || r.vendor} · QB vendor ${r.vendor}`}>
+                        <span className="font-medium text-slate-800">{r.payee || r.vendor}</span>
+                        {r.vendor && r.payee && r.vendor !== r.payee ? <span className="text-slate-400"> · QB: {r.vendor}</span> : null}
+                      </span>
                     ) : (
                       <span className="inline-block min-w-[150px] max-w-[220px]">
                         <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity}
@@ -1394,15 +1397,17 @@ export default function Payables({
                 </div>
                 {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-2">
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="flex min-w-[260px] flex-1 items-center gap-1.5">
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
                     <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
-                      className="h-7 w-[260px] rounded border border-slate-200 px-2 text-[12px]" />
+                      className="h-7 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[12px]" />
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
-                    <span className={`text-[12px] ${r.invoiceNumber ? "text-slate-700" : "text-amber-600"}`}>{r.invoiceNumber || "—"}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
+                    <input key={`inv-${r.id}-${r.invoiceNumber ?? ""}`} defaultValue={r.invoiceNumber ?? ""} placeholder="—"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.invoiceNumber ?? "")) persistInvoice(r.id, v); }}
+                      className="h-7 w-32 rounded border border-slate-200 px-2 text-[12px]" />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</span>
@@ -1412,7 +1417,7 @@ export default function Payables({
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</span>
                     <select value={r.posting === "bill" ? "bill" : r.posting === "check" ? "check" : "charge"}
                       onChange={(e) => saveRowFields(r, { posting: e.target.value as PayableRow["posting"] })}
-                      className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] font-medium text-brand-navy">
+                      className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
                       <option value="charge">Purchase (charge)</option>
                       <option value="bill">Bill → BillPayment</option>
                       <option value="check">Check</option>

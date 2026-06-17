@@ -1357,76 +1357,72 @@ export default function Payables({
             </div>
             {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
-                {/* Vendor — change (re-point) + edit the master record. Discoverable here, not just the row cell. */}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
-                  {r.tripId ? (
-                    <span className="text-[12px] text-slate-600">{r.payee || r.vendor} <span className="text-slate-400">· merchant from the trip — change it on the Travel page</span></span>
-                  ) : (
-                    <div className="min-w-[180px] max-w-[260px]">
-                      <VendorPicker
-                        value={r.vendorDisplay ?? r.vendor}
-                        options={vendors}
-                        entity={r.entity}
-                        onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
-                        onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }}
-                      />
-                    </div>
-                  )}
-                  <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
-                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">
-                    <Pencil className="h-3 w-3" /> Edit vendor details
-                  </button>
-                  {/* Trip — assign ANY invoice to a trip (this is how a non-travel charge gets the ✈
-                      flag + trip rollup); pick "Not a trip" to detach. */}
-                  <span className="ml-auto inline-flex items-center gap-1.5">
+                {/* LINE 1 — attribution (vendor · trip · posts-to) + actions pinned right */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
+                    {r.tripId ? (
+                      <span className="text-[12px] text-slate-600">{r.payee || r.vendor}</span>
+                    ) : (
+                      <span className="inline-block min-w-[150px] max-w-[220px]">
+                        <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity}
+                          onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
+                          onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }} />
+                      </span>
+                    )}
+                    <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline">
+                      <Pencil className="h-3 w-3" /> edit
+                    </button>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trip</span>
                     <select value={r.tripId ?? ""} onChange={(e) => setTrip(r.id, e.target.value)}
-                      className="max-w-[220px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
+                      className="max-w-[200px] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] text-slate-700">
                       <option value="">— Not a trip —</option>
                       {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest ? `${t.dest} · ${t.dates}` : t.header}</option>)}
                     </select>
                   </span>
-                </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-4 gap-y-2">
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</div>
-                    <input
-                      key={`memo-${r.id}-${r.memo ?? ""}`}
-                      defaultValue={r.memo ?? ""}
-                      placeholder="+ memo"
-                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
-                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-[12px]"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Invoice #</div>
-                    <div className={`mt-0.5 px-1 py-1 text-[12px] ${r.invoiceNumber ? "text-slate-700" : "text-amber-600"}`}>Inv {r.invoiceNumber || "—"}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</div>
-                    <div className="mt-0.5"><DocTypeCombobox value={r.docType ?? ""} options={docTypes} onChange={(dt) => setDocType(r.id, dt)} /></div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</div>
-                    <div className="mt-0.5"><Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge></div>
-                  </div>
                   {r.entity === "BC" && (
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posts to</div>
-                      <div className="mt-0.5 px-1 py-1 text-[12px] text-slate-600">{glShort(BC_ROUTE.gl)} <span className="text-slate-400">· BC reimbursable</span></div>
-                    </div>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posts to</span>
+                      <span className="text-[12px] text-slate-600">{glShort(BC_ROUTE.gl)} <span className="text-slate-400">· BC reimbursable</span></span>
+                    </span>
+                  )}
+                  <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
+                </div>
+                {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2">
+                  <span className="flex min-w-[200px] flex-1 items-center gap-1.5">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
+                    <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
+                      className="h-7 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[12px]" />
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
+                    <span className={`text-[12px] ${r.invoiceNumber ? "text-slate-700" : "text-amber-600"}`}>{r.invoiceNumber || "—"}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</span>
+                    <DocTypeCombobox value={r.docType ?? ""} options={docTypes} onChange={(dt) => setDocType(r.id, dt)} />
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Posting</span>
+                    <Badge tone={r.posting === "bill" ? "indigo" : "slate"}>{r.posting === "bill" ? "Bill" : "Charge"}</Badge>
+                  </span>
+                  {!r.tripId && drawerId === r.id && lines.length <= 1 && (
+                    <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split across entities / GLs</button>
                   )}
                 </div>
-                {/* Split across entities / GLs — inline (replaces the old drawer's coding editor).
-                    Travel rows are locked (entity/account come from the trip), so no split UI. */}
-                {!r.tripId && drawerId === r.id && (
-                  <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                {/* Split editor — only when actually split (non-travel). */}
+                {!r.tripId && drawerId === r.id && lines.length > 1 && (
+                  <div className="mt-2 border-t border-slate-100 pt-2">
                     <div className="mb-1 flex items-center justify-between">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coding{lines.length > 1 ? ` · ${lines.length} lines` : " · split across entities/GLs"}</div>
-                      {lines.length > 1 && <button onClick={combineLines} className="text-[11px] font-semibold text-slate-500 hover:text-brand">⤺ Combine to one</button>}
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coding · {lines.length} lines</div>
+                      <button onClick={combineLines} className="text-[11px] font-semibold text-slate-500 hover:text-brand">⤺ Combine to one</button>
                     </div>
-                    {lines.length > 1 ? (
+                    {true && (
                       <div className="space-y-2">
                         {lines.map((l, i) => (
                           <div key={i} className="rounded-lg border border-slate-200 bg-white p-2">
@@ -1458,15 +1454,9 @@ export default function Payables({
                         </div>
                         <button onClick={() => saveRowFields(r, { lines: lines as Row["lines"], entity: lines[0]?.entity ?? r.entity, gl: lines[0]?.gl ?? r.gl })} className="mt-1 rounded-md bg-brand-navy px-3 py-1 text-[12px] font-semibold text-white hover:opacity-90">Save split</button>
                       </div>
-                    ) : (
-                      <button onClick={addLine} className="text-[12px] font-semibold text-brand hover:underline">＋ Split across entities / GLs</button>
                     )}
                   </div>
                 )}
-                {/* row actions: post / attach / reclassify */}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
-                  {actionCell(r)}
-                </div>
               </div>
             )}
             </Fragment>

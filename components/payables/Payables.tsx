@@ -316,6 +316,11 @@ export default function Payables({
   // Deduped vendor names across all entities — only for the entity-agnostic bulk-edit datalist.
   // The per-row drawer uses VendorPicker scoped to the row's entity (vendorsForEntity).
   const vendorNames = useMemo(() => [...new Set(vendors.map((v) => v.name))].sort((a, b) => a.localeCompare(b)), [vendors]);
+  // Optimistic overlay of just-set vendor categories — the `vendors` prop is server-fetched once,
+  // so without this a Save in the vendor modal wouldn't clear "Set category" / the post gate until a
+  // full page reload (the server DID persist it). Keyed by lowercased name (canonical + the name we
+  // opened with) so the row's vendor lookup hits.
+  const [catOverrides, setCatOverrides] = useState<Map<string, string>>(new Map());
   // Vendor category by lowercased name (the operator-set value on the vendor record). Drives the
   // picker's category groups AND the mandatory-before-post gate. "" = uncategorized (must be set).
   const vendorCatByName = useMemo(() => {
@@ -326,8 +331,9 @@ export default function Payables({
       const c = vendorCatLabel(v.category);
       if (c) m.set(k, c);
     }
+    for (const [k, c] of catOverrides) m.set(k, c);  // operator's just-saved category wins
     return m;
-  }, [vendors]);
+  }, [vendors, catOverrides]);
   const rowCat = (r: Row) => vendorCatByName.get((r.vendor ?? "").toLowerCase()) ?? "";
   // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
   // from the mandatory-category gate. Everything else must carry a category before it can post.
@@ -1817,7 +1823,16 @@ export default function Payables({
           entity={vendorEdit.entity}
           gls={gls}
           onClose={() => setVendorEdit(null)}
-          onSaved={(nm) => { setVendorEdit(null); toast(`✓ Saved vendor ${nm}`); }}
+          onSaved={(nm, cat, orig) => {
+            setVendorEdit(null);
+            if (cat) setCatOverrides((m) => {
+              const next = new Map(m);
+              next.set(nm.toLowerCase(), cat);
+              if (orig) next.set(orig.toLowerCase(), cat);  // also the name the row uses
+              return next;
+            });
+            toast(`✓ Saved vendor ${nm}`);
+          }}
         />
       )}
 
@@ -3002,7 +3017,7 @@ function AccountPicker({
 type VContact = { email?: string; phone?: string; website?: string; account_number?: string; street?: string };
 function VendorModal({
   name, entity, gls, onClose, onSaved,
-}: { name: string; entity: string | null; gls: GlOption[]; onClose: () => void; onSaved: (name: string) => void }) {
+}: { name: string; entity: string | null; gls: GlOption[]; onClose: () => void; onSaved: (name: string, category?: string, originalName?: string) => void }) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -3053,7 +3068,7 @@ function VendorModal({
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "save failed");
-      onSaved(cname.trim());
+      onSaved(cname.trim(), category, name);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "save failed");
       setSaving(false);

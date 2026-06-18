@@ -1429,9 +1429,10 @@ export default function Payables({
                 )}
               </div>
             </div>
-            {/* Travel: the QB vendor is the trip rollup — too long for the column, so it spans
-                full-width beneath the line (the payee stays in the Vendor column above). */}
-            {r.tripId && (
+            {/* Travel: the QB vendor (trip rollup) is too long for the column, so it spans full-width
+                beneath the COLLAPSED row. When expanded it moves into the drawer's line 1 (so the
+                drawer stays two lines), so suppress this standalone span while open. */}
+            {r.tripId && expandedRow !== r.id && (
               <div className={`-mt-1 border-b border-slate-200/70 px-4 pb-2 pl-[116px] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}>
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
                   <Plane className="h-3 w-3 shrink-0" />
@@ -1442,10 +1443,17 @@ export default function Payables({
             )}
             {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
-                {/* LINE 1 — vendor (+ category) · trip (icon+picker, travel only) · actions */}
+                {/* LINE 1 — travel flag (QB rollup) OR vendor+category · actions. Two lines total. */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                  {/* Vendor is editable only for non-travel rows. Travel rows show NO vendor line here
-                      — it's redundant (the payee is in the row header, the QB rollup spans below). */}
+                  {/* Travel: the trip flag (QB vendor rollup) lives HERE on line 1 — no separate
+                      span — so the drawer stays two lines. Vendor is editable for non-travel only. */}
+                  {r.tripId && (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
+                      <Plane className="h-3 w-3 shrink-0" />
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
+                      <span className="truncate">{r.vendor}</span>
+                    </span>
+                  )}
                   {!r.tripId && (
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>

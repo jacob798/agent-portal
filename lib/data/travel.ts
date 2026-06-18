@@ -185,6 +185,64 @@ export interface NeedsTripItem {
   sourceUrl?: string | null; // filed confirmation — "view source" before assigning a trip
 }
 
+/** A trip a credit has been applied to (the drawdown record). */
+export interface CreditApplication {
+  usedOnTripId: string;
+  usedOnTripName: string;
+  confirmation: string | null;
+  amount: number;
+  date?: string | null;
+}
+
+/**
+ * An eCredit, owned by the trip that ISSUED it (public.trips.credits jsonb). `reimbursedOrigin`
+ * is the whole distinction: true = "as paid" (already reimbursed at the cancelled trip, so it
+ * draws down on use), false = "as used" (reimbursed each time it pays a trip, no drawdown).
+ */
+export interface Credit {
+  creditNumber: string;
+  vendor: string;
+  passenger: string;
+  reimbursedOrigin: boolean;
+  originalAmount: number | null;
+  balanceRemaining: number | null;
+  expiration?: string | null;
+  status: string; // open | partially_applied | exhausted | expired | pending
+  applications: CreditApplication[];
+  sourceTripId: string;
+  sourceTripName: string;
+}
+
+function creditsFromTripRows(rows: { id: string; dest: string; credits?: unknown }[]): Credit[] {
+  const out: Credit[] = [];
+  for (const r of rows ?? []) {
+    const cs = Array.isArray(r.credits) ? r.credits : [];
+    for (const c of cs as Record<string, unknown>[]) {
+      out.push({
+        creditNumber: String(c.credit_number ?? ""),
+        vendor: String(c.vendor ?? "Delta Air Lines"),
+        passenger: String(c.passenger ?? ""),
+        reimbursedOrigin: !!c.reimbursed_origin,
+        originalAmount: c.original_amount == null ? null : Number(c.original_amount),
+        balanceRemaining: c.balance_remaining == null ? null : Number(c.balance_remaining),
+        expiration: (c.expiration as string) ?? null,
+        status: String(c.status ?? "open"),
+        applications: (Array.isArray(c.applications) ? c.applications : []).map((a: Record<string, unknown>) => ({
+          usedOnTripId: String(a.used_on_trip_id ?? ""),
+          usedOnTripName: String(a.used_on_trip_name ?? ""),
+          confirmation: (a.confirmation as string) ?? null,
+          amount: Number(a.amount ?? 0),
+          date: (a.date as string) ?? null,
+        })),
+        sourceTripId: r.id,
+        sourceTripName: r.dest,
+      });
+    }
+  }
+  out.sort((a, b) => Number(a.status === "exhausted") - Number(b.status === "exhausted") || a.passenger.localeCompare(b.passenger));
+  return out;
+}
+
 export async function getNeedsTrip(): Promise<NeedsTripItem[]> {
   if (!isSupabaseConfigured()) return [];
   try {
@@ -277,8 +335,9 @@ export async function getTravel(): Promise<{
   trips: Trip[];
   queue: QueueExpense[];
   overlaps: OverlapException[];
+  credits: Credit[];
 }> {
-  if (!isSupabaseConfigured()) return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS };
+  if (!isSupabaseConfigured()) return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS, credits: [] };
   try {
     const supabase = await createClient();
     const [{ data: t }, { data: q }, { data: pq }] = await Promise.all([
@@ -344,8 +403,8 @@ export async function getTravel(): Promise<{
         : QUEUE;
     // Overlaps are representative until a real backend source exists; the
     // queue/trips above come from Supabase, the overlap strip from the constant.
-    return { trips, queue, overlaps: OVERLAPS };
+    return { trips, queue, overlaps: OVERLAPS, credits: creditsFromTripRows(t ?? []) };
   } catch {
-    return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS };
+    return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS, credits: [] };
   }
 }

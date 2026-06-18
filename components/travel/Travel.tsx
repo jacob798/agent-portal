@@ -15,10 +15,11 @@ import {
   Search,
   Plus,
   Pencil,
+  CreditCard,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf } from "@/lib/data/travel";
+import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf, Credit } from "@/lib/data/travel";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -74,12 +75,15 @@ function tripRollup(t: Trip) {
 export default function Travel({
   trips: initialTrips,
   needsTrip = [],
+  credits = [],
 }: {
   trips: Trip[];
   needsTrip?: NeedsTripItem[];
+  credits?: Credit[];
 }) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [openTripId, setOpenTripId] = useState<string | null>(null);
+  const [showCredits, setShowCredits] = useState(false);
   const [search, setSearch] = useState("");
   const [reportId, setReportId] = useState<string | null>(null);
   const [newTripOpen, setNewTripOpen] = useState(false);
@@ -214,7 +218,9 @@ export default function Travel({
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      {openTrip ? (
+      {showCredits ? (
+        <CreditsScreen credits={credits} trips={trips} onBack={() => setShowCredits(false)} />
+      ) : openTrip ? (
         <TripDetail
           trip={openTrip}
           trips={trips}
@@ -231,9 +237,19 @@ export default function Travel({
             title="Travel"
             subtitle="Trips and their attributed expenses. Invoices attribute to a trip in Payables; each trip rolls up to one QuickBooks vendor."
             action={
-              <Button onClick={() => setNewTripOpen(true)}>
-                <Plus className="h-4 w-4" /> New trip
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => setShowCredits(true)}>
+                  <CreditCard className="h-4 w-4" /> Credits
+                  {credits.length > 0 && (
+                    <span className="ml-1 rounded-full bg-neutral-100 px-1.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                      {credits.filter((c) => c.status !== "exhausted").length}
+                    </span>
+                  )}
+                </Button>
+                <Button onClick={() => setNewTripOpen(true)}>
+                  <Plus className="h-4 w-4" /> New trip
+                </Button>
+              </div>
             }
           />
           {needs.length > 0 && (
@@ -291,6 +307,93 @@ export default function Travel({
 
       <Toast message={message} />
     </div>
+  );
+}
+
+// ---------- credits screen ----------
+// eCredits, owned by the trip that issued them. `reimbursedOrigin` (As paid / As used) is the
+// per-credit operator decision that drives drawdown-vs-full; here it's surfaced read-only.
+function CreditsScreen({ credits, trips, onBack }: { credits: Credit[]; trips: Trip[]; onBack: () => void }) {
+  const tripName = (id: string) => trips.find((t) => t.id === id)?.dest ?? id;
+  const bal = (c: Credit) => c.balanceRemaining ?? 0;
+  const open = credits.filter((c) => c.status !== "exhausted");
+  const outstanding = open.reduce((s, c) => s + bal(c), 0);
+  const asPaid = open.filter((c) => c.reimbursedOrigin).reduce((s, c) => s + bal(c), 0);
+  const asUsed = open.filter((c) => !c.reimbursedOrigin).reduce((s, c) => s + bal(c), 0);
+  const cards: [string, number][] = [
+    ["Outstanding", outstanding],
+    ["As paid · draws down", asPaid],
+    ["As used · remaining", asUsed],
+  ];
+  return (
+    <>
+      <button onClick={onBack} className="mb-3 flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
+        <ChevronLeft className="h-4 w-4" /> Travel
+      </button>
+      <PageHeader title="Credits" subtitle="eCredits owned by the trip that issued them, drawn down as you use them on new trips." />
+      {credits.length === 0 ? (
+        <p className="text-sm text-neutral-500">No credits yet. They open when a trip is cancelled (the tickets become eCredits) or when a receipt applies one.</p>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            {cards.map(([label, val]) => (
+              <div key={label} className="rounded-lg bg-neutral-50 p-3 dark:bg-neutral-900">
+                <div className="text-xs text-neutral-500">{label}</div>
+                <div className="text-xl font-medium">{money(val)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-700">
+                  <th className="py-2 pr-3 font-normal">Passenger</th>
+                  <th className="px-3 py-2 font-normal">Document #</th>
+                  <th className="px-3 py-2 font-normal">Reimbursed</th>
+                  <th className="px-3 py-2 text-right font-normal">Original</th>
+                  <th className="px-3 py-2 text-right font-normal">Current</th>
+                  <th className="px-3 py-2 font-normal">From</th>
+                  <th className="px-3 py-2 font-normal">Used on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {credits.map((c) => (
+                  <tr key={c.creditNumber} className="border-b border-neutral-100 align-top dark:border-neutral-800">
+                    <td className="py-2.5 pr-3">
+                      {c.passenger}
+                      <div className="text-xs text-neutral-400">{c.vendor}</div>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-neutral-500">{c.creditNumber}</td>
+                    <td className="px-3 py-2.5">
+                      <Badge tone={c.reimbursedOrigin ? "neutral" : "indigo"}>{c.reimbursedOrigin ? "As paid" : "As used"}</Badge>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-neutral-500">{c.originalAmount == null ? "—" : money(c.originalAmount)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium">{c.balanceRemaining == null ? "—" : money(c.balanceRemaining)}</td>
+                    <td className="px-3 py-2.5">
+                      {c.sourceTripName}
+                      {c.status === "pending" && <div className="text-xs text-amber-600">amount pending</div>}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {c.applications.length === 0 ? (
+                        <span className="text-neutral-400">—</span>
+                      ) : (
+                        c.applications.map((a, i) => (
+                          <div key={i}>
+                            {a.usedOnTripName || tripName(a.usedOnTripId)}
+                            {a.confirmation ? ` · ${a.confirmation}` : ""}{" "}
+                            <span className="text-neutral-500">−{money(a.amount)}</span>
+                          </div>
+                        ))
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   Plus,
   Pencil,
   CreditCard,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
@@ -1172,6 +1173,20 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   const display = trip.exps;
   const [sortK, setSortK] = useState<LedgerSort>("date");
   const [dir, setDir] = useState<1 | -1>(1);
+  const router = useRouter();
+  // "Not travel": detach a mis-attributed expense (e.g. a home dinner) → back to Payables. Reversible.
+  async function notTravel(id: string, what: string) {
+    if (!window.confirm(`Remove "${what}" from this trip and send it back to Payables? (Reversible — not deleted.)`)) return;
+    try {
+      const res = await fetch("/api/travel/not-travel", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
+      router.refresh();
+    } catch (e) {
+      window.alert(`Couldn't remove: ${(e as Error).message}`);
+    }
+  }
 
   const val = (e: TripExpense): string | number => {
     switch (sortK) {
@@ -1258,6 +1273,10 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                       )}
                       {e.qbUrl && (
                         <a href={e.qbUrl} target="_blank" rel="noopener noreferrer" title={`Open in QuickBooks${e.qbRef ? ` · ${e.qbRef}` : ""}`} className="ml-2 text-brand hover:text-brand-navy"><ExternalLink className="inline h-4 w-4" /></a>
+                      )}
+                      {id && e.status !== "posted" && e.status !== "accepted" && (
+                        <button onClick={() => notTravel(id, e.what)} title="Not travel — send back to Payables"
+                          className="ml-2 align-middle text-slate-400 hover:text-rose-600"><X className="inline h-4 w-4" /></button>
                       )}
                     </td>
                   </tr>

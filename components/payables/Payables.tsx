@@ -332,12 +332,21 @@ export default function Payables({
   // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
   // from the mandatory-category gate. Everything else must carry a category before it can post.
   const needsCategory = (r: Row) => !r.tripId && !rowCat(r);
-  // What a row is still MISSING before it can post — so an incomplete row is never shown as ready.
+  // What a row is still MISSING before it can post — UNIVERSAL across every entity/category, so an
+  // incomplete row is never shown as ready. A missing DOCUMENT is a tracked gap (doesn't block per
+  // policy); everything here does. Used for the post icon, the batch gate, and the row's "not ready"
+  // reason — one definition, one source of truth.
   const missingBits = (r: Row): string[] => {
     const m: string[] = [];
+    if (!r.entity) m.push("entity");
+    if (r.entity === "BC" ? !r.bcCategory : !(r.gl && r.gl.trim())) m.push("account");
     if (!r.account || /pick account|pick a card|pay-?from/i.test(r.account)) m.push("pay-from");
-    if (r.entity === "BC" ? !r.bcCategory : !r.gl) m.push("account");
-    if (r.tripId && !r.invoiceNumber) m.push("ticket #");
+    if (!r.docType || /identify|unknown/i.test(r.docType)) m.push("doc-type");
+    if (!r.tripId && !rowCat(r)) m.push("vendor category");           // non-travel must be categorized
+    if (r.tripId && !r.invoiceNumber) m.push("ticket #");             // travel flight needs the ticket #
+    // canonical vendor must equal the real merchant (non-travel; travel uses the trip-header by design)
+    if (!r.tripId && r.vendorDisplay && r.vendor &&
+        r.vendor.toLowerCase().trim() !== r.vendorDisplay.toLowerCase().trim()) m.push("vendor mismatch");
     if (r.exception) m.push("review");
     return m;
   };

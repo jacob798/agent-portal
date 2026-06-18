@@ -618,10 +618,10 @@ export default function Payables({
     const newv = rows.filter((r) => r.vendorStatus === "new" && !r.resolved).length;
     const err = rows.filter((r) => r.status === "error").length;
     const auto = rows.filter((r) => r.auto || r.resolved).length;
-    // Ready to post = coded rows queued for QuickBooks (agent auto-coded, or
-    // operator-coded & awaiting the Post click). Approved rows have already left
-    // the queue to Bookkeeper, so we sum what's coded-and-ready here.
-    const ready = rows.filter((r) => !r.resolved && (r.auto || (!r.exception && !!r.entity)));
+    // Ready to post = rows that are FULLY populated and would actually post (the same gate the post
+    // icon + batch enforce — entity, account, pay-from, doc-type, vendor categorized & consistent,
+    // no exception). A row that merely has an entity is NOT ready. One definition everywhere.
+    const ready = rows.filter((r) => !r.resolved && rowReady(r));
     const readyAmt = ready.reduce((s, r) => s + r.amount, 0);
     return { need, docs, newv, err, auto, ready: ready.length, readyAmt };
   }, [rows]);
@@ -659,7 +659,7 @@ export default function Payables({
     if (filter === "docs") return missingDoc(r);
     if (filter === "newv") return r.vendorStatus === "new" && !r.resolved;
     if (filter === "err") return r.status === "error";
-    if (filter === "ready") return !r.resolved && (r.auto || (!r.exception && !!r.entity));
+    if (filter === "ready") return !r.resolved && rowReady(r);
     return !r.auto && !r.resolved; // need
   });
   const visible = [...filtered].sort((a, b) => {

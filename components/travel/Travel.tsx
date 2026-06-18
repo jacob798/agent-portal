@@ -219,7 +219,7 @@ export default function Travel({
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
       {showCredits ? (
-        <CreditsScreen credits={credits} trips={trips} onBack={() => setShowCredits(false)} />
+        <CreditsScreen credits={credits} trips={trips} onBack={() => setShowCredits(false)} toast={toast} />
       ) : openTrip ? (
         <TripDetail
           trip={openTrip}
@@ -313,10 +313,31 @@ export default function Travel({
 // ---------- credits screen ----------
 // eCredits, owned by the trip that issued them. `reimbursedOrigin` (As paid / As used) is the
 // per-credit operator decision that drives drawdown-vs-full; here it's surfaced read-only.
-function CreditsScreen({ credits, trips, onBack }: { credits: Credit[]; trips: Trip[]; onBack: () => void }) {
+function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; trips: Trip[]; onBack: () => void; toast: (m: string) => void }) {
+  const router = useRouter();
+  const [rows, setRows] = useState<Credit[]>(credits);
+  useEffect(() => setRows(credits), [credits]);
   const tripName = (id: string) => trips.find((t) => t.id === id)?.dest ?? id;
   const bal = (c: Credit) => c.balanceRemaining ?? 0;
-  const open = credits.filter((c) => c.status !== "exhausted");
+  // The operator's "as paid vs as used" decision — flips reimbursed_origin (drives drawdown-vs-full).
+  // Optimistic; reverts on failure. Flag is independent of the balance, so amounts never change here.
+  async function setMode(c: Credit, reimbursedOrigin: boolean) {
+    setRows((rs) => rs.map((x) => (x.creditNumber === c.creditNumber ? { ...x, reimbursedOrigin } : x)));
+    try {
+      const res = await fetch("/api/travel/credit-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId: c.sourceTripId, creditNumber: c.creditNumber, reimbursedOrigin }),
+      });
+      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
+      toast(`✓ ${c.passenger} → ${reimbursedOrigin ? "As paid" : "As used"}`);
+      router.refresh();
+    } catch (e) {
+      setRows((rs) => rs.map((x) => (x.creditNumber === c.creditNumber ? { ...x, reimbursedOrigin: !reimbursedOrigin } : x)));
+      toast(`Couldn't update: ${(e as Error).message}`);
+    }
+  }
+  const open = rows.filter((c) => c.status !== "exhausted");
   const outstanding = open.reduce((s, c) => s + bal(c), 0);
   const asPaid = open.filter((c) => c.reimbursedOrigin).reduce((s, c) => s + bal(c), 0);
   const asUsed = open.filter((c) => !c.reimbursedOrigin).reduce((s, c) => s + bal(c), 0);
@@ -331,7 +352,7 @@ function CreditsScreen({ credits, trips, onBack }: { credits: Credit[]; trips: T
         <ChevronLeft className="h-4 w-4" /> Travel
       </button>
       <PageHeader title="Credits" subtitle="eCredits owned by the trip that issued them, drawn down as you use them on new trips." />
-      {credits.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-sm text-neutral-500">No credits yet. They open when a trip is cancelled (the tickets become eCredits) or when a receipt applies one.</p>
       ) : (
         <>
@@ -357,7 +378,7 @@ function CreditsScreen({ credits, trips, onBack }: { credits: Credit[]; trips: T
                 </tr>
               </thead>
               <tbody>
-                {credits.map((c) => (
+                {rows.map((c) => (
                   <tr key={c.creditNumber} className="border-b border-neutral-100 align-top dark:border-neutral-800">
                     <td className="py-2.5 pr-3">
                       {c.passenger}
@@ -365,7 +386,15 @@ function CreditsScreen({ credits, trips, onBack }: { credits: Credit[]; trips: T
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-neutral-500">{c.creditNumber}</td>
                     <td className="px-3 py-2.5">
-                      <Badge tone={c.reimbursedOrigin ? "neutral" : "indigo"}>{c.reimbursedOrigin ? "As paid" : "As used"}</Badge>
+                      <select
+                        value={c.reimbursedOrigin ? "paid" : "used"}
+                        onChange={(e) => setMode(c, e.target.value === "paid")}
+                        aria-label="Reimbursement mode"
+                        className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${c.reimbursedOrigin ? "bg-slate-100 text-slate-600 ring-slate-200" : "bg-brand/10 text-brand-navy ring-brand/25"}`}
+                      >
+                        <option value="paid">As paid</option>
+                        <option value="used">As used</option>
+                      </select>
                     </td>
                     <td className="px-3 py-2.5 text-right text-neutral-500">{c.originalAmount == null ? "—" : money(c.originalAmount)}</td>
                     <td className="px-3 py-2.5 text-right font-medium">{c.balanceRemaining == null ? "—" : money(c.balanceRemaining)}</td>

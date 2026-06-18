@@ -330,33 +330,6 @@ export default function Payables({
   // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
   // from the mandatory-category gate. Everything else must carry a category before it can post.
   const needsCategory = (r: Row) => !r.tripId && !rowCat(r);
-  // Cancellation handling — record the cost treatment of a cancelled travel item. The default is
-  // you can't expense a flight until it's used; "expense" is the optionality to expense early when
-  // the cancellation isn't driven by you (fee / forfeited fare). refund & ecredit aren't expenses now.
-  const [cancelId, setCancelId] = useState<string | null>(null);
-  const [cancelForm, setCancelForm] = useState<{ reason: string; ecreditAmount: string; ecreditNumber: string }>({ reason: "", ecreditAmount: "", ecreditNumber: "" });
-  async function cancelExpense(r: Row, treatment: "refund" | "ecredit" | "expense") {
-    const prev = rows;
-    if (treatment === "expense") {
-      const note = `Cancelled${cancelForm.reason ? ` — ${cancelForm.reason}` : ""}`;
-      patch(r.id, { memo: r.memo ? `${r.memo} · ${note}` : note });
-    } else {
-      setRows((rs) => rs.filter((x) => x.id !== r.id)); // refund/eCredit → not an expense now
-    }
-    setCancelId(null);
-    try {
-      const res = await fetch("/api/payables/cancel", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, treatment, reason: cancelForm.reason || null, ecreditAmount: cancelForm.ecreditAmount || null, ecreditNumber: cancelForm.ecreditNumber || null }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      toast(treatment === "expense" ? `✓ ${r.vendor} expensed (cancellation)` : treatment === "ecredit" ? `Held as eCredit — ${r.vendor}` : `Refund recorded — ${r.vendor}`);
-      setCancelForm({ reason: "", ecreditAmount: "", ecreditNumber: "" });
-    } catch {
-      setRows(prev);
-      toast(`Couldn't record cancellation for ${r.vendor} — try again`);
-    }
-  }
   // Default Pay-from for a row: the account resolved from the invoice card
   // (paymentMethodId) wins; else a label match within this entity's options; else the
   // first option for this entity (entity account before personal).
@@ -1513,38 +1486,10 @@ export default function Payables({
                       );
                     })()}
                   </span>
-                  <button onClick={() => setCancelId(cancelId === r.id ? null : r.id)}
-                    className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-red-600">⊘ Cancel</button>
                   {!r.tripId && drawerId === r.id && lines.length <= 1 && (
-                    <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
+                    <button onClick={addLine} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
                   )}
                 </div>
-                {/* Cancellation — refund (reverse) · hold eCredit (track, don't expense) · expense now
-                    (the optionality to expense early when the cancellation isn't driven by you). */}
-                {cancelId === r.id && (
-                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5">
-                    <div className="mb-2 text-[11px] text-slate-500">How should this cancellation's cost be handled?</div>
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <input value={cancelForm.reason} onChange={(e) => setCancelForm((f) => ({ ...f, reason: e.target.value }))}
-                        placeholder="Reason (e.g. airline cancelled, schedule change)" className="h-8 flex-1 min-w-[180px] rounded border border-slate-200 px-2 text-[13px]" />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => cancelExpense(r, "refund")}
-                        className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-brand hover:text-brand">Refund received — reverse</button>
-                      <span className="inline-flex items-center gap-1">
-                        <input value={cancelForm.ecreditAmount} onChange={(e) => setCancelForm((f) => ({ ...f, ecreditAmount: e.target.value }))}
-                          placeholder="eCredit $" className="h-8 w-20 rounded border border-slate-200 px-2 text-[13px]" />
-                        <input value={cancelForm.ecreditNumber} onChange={(e) => setCancelForm((f) => ({ ...f, ecreditNumber: e.target.value }))}
-                          placeholder="eCredit #" className="h-8 w-28 rounded border border-slate-200 px-2 text-[13px]" />
-                        <button onClick={() => cancelExpense(r, "ecredit")}
-                          className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-medium text-slate-700 hover:border-brand hover:text-brand">Hold eCredit</button>
-                      </span>
-                      <button onClick={() => cancelExpense(r, "expense")}
-                        className="rounded-md bg-brand-navy px-2.5 py-1 text-[12px] font-semibold text-white hover:opacity-90">Expense now (not my cancellation)</button>
-                    </div>
-                    <div className="mt-1.5 text-[10.5px] text-slate-400">Refund &amp; eCredit aren&apos;t expensed now; &quot;Expense now&quot; keeps it as a posted cost with the reason in the memo.</div>
-                  </div>
-                )}
                 {/* Split editor — only when actually split (non-travel). */}
                 {!r.tripId && drawerId === r.id && lines.length > 1 && (
                   <div className="mt-2 border-t border-slate-100 pt-2">
@@ -1900,14 +1845,8 @@ export default function Payables({
     // Coded (entity + GL set) but not yet an auto-coded exception and not posted
     // — e.g. coded from a learned vendor. Review the charge, then post.
     if (!r.exception && r.entity)
-      return (
-        <>
-          {/* No big per-row Post button — posting is the batch checkpoint (the row's cloud icon +
-              the "Post N to QuickBooks" button). Just show it's coded & ready. */}
-          <span className="text-[12.5px] font-medium text-emerald-600">✓ Ready</span>
-          {travelBtn}
-        </>
-      );
+      // Coded & ready — no label/button here; posting is the row's cloud icon + the batch button.
+      return travelBtn;
 
     if (r.exception === "entity")
       return (

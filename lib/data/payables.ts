@@ -34,7 +34,8 @@ export interface PayableRow {
   recommended?: string | null;
   exception?: ExceptionType;
   reason?: string;
-  category?: string;
+  category?: string;       // parser/calendar category ("Flight") — grouping only, NOT the account
+  bcCategory?: string;     // BC Paylocity category ("Travel : General") — the account BC reports show
   lines?: PayableLine[];
   gl?: string;
   auto?: boolean;
@@ -285,6 +286,7 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       exception: r.exception ?? undefined,
       reason: r.reason ?? undefined,
       category: r.category ?? undefined,
+      bcCategory: r.bc_category ?? undefined,
       lines: r.lines ?? undefined,
       gl: r.gl ?? undefined,
       auto: r.auto ?? false,

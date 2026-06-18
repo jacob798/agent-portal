@@ -212,14 +212,16 @@ export default function Payables({
   const clearSel = () => setSelected(new Set());
   async function postBatch(ids: string[]) {
     if (!ids.length) return;
-    // Mandatory vendor category before posting (operator must categorize each vendor).
-    const uncategorized = ids
+    // A row must be COMPLETE before it can post — pay-from, the coded account, and (travel) the
+    // ticket # / no open exception. Never post an incomplete row.
+    const notReady = ids
       .map((id) => rows.find((r) => r.id === id))
-      .filter((r): r is Row => !!r && needsCategory(r));
-    if (uncategorized.length) {
-      const names = [...new Set(uncategorized.map((r) => r.vendor))];
-      toast(`Set a vendor category first — open ✎ on: ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` +${names.length - 3}` : ""}`);
-      if (uncategorized.length === 1) setVendorEdit({ name: uncategorized[0].vendor, entity: uncategorized[0].entity });
+      .filter((r): r is Row => !!r && !rowReady(r));
+    if (notReady.length) {
+      const missing = [...new Set(notReady.flatMap((r) => missingBits(r)))].join(", ");
+      toast(`Not ready to post — ${notReady.length} row${notReady.length === 1 ? "" : "s"} missing: ${missing}`);
+      const cat = notReady.find((r) => needsCategory(r));
+      if (cat) setVendorEdit({ name: cat.vendor, entity: cat.entity });
       return;
     }
     setPosting(true);
@@ -330,6 +332,16 @@ export default function Payables({
   // Travel rows have no editable vendor record (the QB vendor is the trip rollup) — they're exempt
   // from the mandatory-category gate. Everything else must carry a category before it can post.
   const needsCategory = (r: Row) => !r.tripId && !rowCat(r);
+  // What a row is still MISSING before it can post — so an incomplete row is never shown as ready.
+  const missingBits = (r: Row): string[] => {
+    const m: string[] = [];
+    if (!r.account || /pick account|pick a card|pay-?from/i.test(r.account)) m.push("pay-from");
+    if (r.entity === "BC" ? !r.bcCategory : !r.gl) m.push("account");
+    if (r.tripId && !r.invoiceNumber) m.push("ticket #");
+    if (r.exception) m.push("review");
+    return m;
+  };
+  const rowReady = (r: Row) => missingBits(r).length === 0;
   // Default Pay-from for a row: the account resolved from the invoice card
   // (paymentMethodId) wins; else a label match within this entity's options; else the
   // first option for this entity (entity account before personal).
@@ -1365,7 +1377,7 @@ export default function Payables({
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
                 {r.entity === "BC" ? (
                   // BC, travel or not: pick the Paylocity category — posts to Loan – Builders Capital.
-                  <SearchSelect value={r.category ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
+                  <SearchSelect value={r.bcCategory ?? matchBcCategory(r.category ?? r.gl)} options={bcCategories} onPick={(c) => saveRowBcCategory(r, c)} placeholder="Paylocity category…" tone="amber" />
                 ) : r.tripId ? (
                   <span title="Set by the trip — change it on the Travel page" className="inline-flex max-w-full items-center gap-1 px-1 py-0.5 text-[12px] font-medium text-slate-500">
                     <Lock className="h-3 w-3 shrink-0 opacity-50" /> <span className="truncate">{glShort(r.gl) || "travel"}</span>
@@ -1396,10 +1408,17 @@ export default function Payables({
                   <span title="No receipt on file" className="text-amber-500"><FileText className="h-4 w-4" /></span>
                 )}
                 {!r.resolved && (
-                  <button title="Post to QuickBooks" onClick={() => postBatch([r.id])} disabled={posting}
-                    className="text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
-                    <UploadCloud className="h-[18px] w-[18px]" />
-                  </button>
+                  rowReady(r) ? (
+                    <button title="Post to QuickBooks" onClick={() => postBatch([r.id])} disabled={posting}
+                      className="text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
+                      <UploadCloud className="h-[18px] w-[18px]" />
+                    </button>
+                  ) : (
+                    // Not ready — never show it as postable; say what's missing.
+                    <span title={`Not ready — needs ${missingBits(r).join(", ")}`} className="cursor-not-allowed text-slate-300">
+                      <UploadCloud className="h-[18px] w-[18px]" />
+                    </span>
+                  )
                 )}
               </div>
             </div>

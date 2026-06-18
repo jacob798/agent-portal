@@ -1271,7 +1271,7 @@ export default function Payables({
             <Fragment key={r.id}>
             <div
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : "transparent"}` }}
-              className={`grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] items-start gap-2.5 border-b border-slate-200/70 px-4 py-3 last:border-0 hover:bg-brand/[0.05] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}
+              className={`grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] items-start gap-2.5 border-b border-slate-200/70 px-4 py-3 last:border-0 hover:bg-brand/[0.05] ${_i % 2 === 1 ? "bg-slate-100" : "bg-white"}`}
             >
               {/* select */}
               <input
@@ -1407,7 +1407,7 @@ export default function Payables({
                 beneath the COLLAPSED row. When expanded it moves into the drawer's line 1 (so the
                 drawer stays two lines), so suppress this standalone span while open. */}
             {r.tripId && expandedRow !== r.id && (
-              <div className={`-mt-1 border-b border-slate-200/70 px-4 pb-2 pl-[116px] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}>
+              <div className={`-mt-1 border-b border-slate-200/70 px-4 pb-2 pl-[116px] ${_i % 2 === 1 ? "bg-slate-100" : "bg-white"}`}>
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
                   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
                   <span className="truncate">{r.vendor}</span>

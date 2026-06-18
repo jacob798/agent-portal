@@ -1333,7 +1333,8 @@ export default function Payables({
                   )}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                  {r.tripId ? (() => { const tp = trips.find((t) => t.tripId === r.tripId); const label = tp ? [tp.dest, tp.dates].filter(Boolean).join(" · ") : "Travel"; return <span title={tp?.header ?? "Travel"}><Badge tone="indigo">✈ {label || "Travel"}</Badge></span>; })() : null}
+                  {/* No trip badge here — travel is shown by the single plane toggle (right) + the
+                      QB-vendor rollup line; a badge here was a third, redundant travel icon. */}
                   {/* Travel rows: the confirmation IS the invoice (accepted on the Travel app) — never "no receipt". */}
                   {!r.tripId && (r.doc_waived ? <Badge tone="neutral">no receipt</Badge> : r.nodoc ? <Badge tone="amber">no receipt</Badge> : null)}
                   {r.status === "error" ? <Badge tone="red">Post failed</Badge> : null}
@@ -1408,7 +1409,6 @@ export default function Payables({
             {r.tripId && expandedRow !== r.id && (
               <div className={`-mt-1 border-b border-slate-200/70 px-4 pb-2 pl-[116px] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}>
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
-                  <Plane className="h-3 w-3 shrink-0" />
                   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
                   <span className="truncate">{r.vendor}</span>
                 </span>
@@ -1422,7 +1422,6 @@ export default function Payables({
                       span — so the drawer stays two lines. Vendor is editable for non-travel only. */}
                   {r.tripId && (
                     <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
-                      <Plane className="h-3 w-3 shrink-0" />
                       <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
                       <span className="truncate">{r.vendor}</span>
                     </span>

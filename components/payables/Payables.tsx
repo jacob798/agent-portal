@@ -1482,13 +1482,13 @@ export default function Payables({
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
                     <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.memo ?? "")) persistMemo(r.id, v); }}
-                      className="h-8 min-w-0 flex-1 rounded border border-slate-200 px-2 text-[13px]" />
+                      className="h-8 min-w-0 flex-1 rounded bg-transparent px-2 text-[13px] hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand/30" />
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Inv #</span>
                     <input key={`inv-${r.id}-${r.invoiceNumber ?? ""}`} defaultValue={r.invoiceNumber ?? ""} placeholder="—"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.invoiceNumber ?? "")) persistInvoice(r.id, v); }}
-                      className="h-8 w-32 rounded border border-slate-200 px-2 text-[13px]" />
+                      className="h-8 w-32 rounded bg-transparent px-2 text-[13px] hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand/30" />
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Doc-type</span>

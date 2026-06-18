@@ -331,7 +331,7 @@ function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; t
         body: JSON.stringify({ tripId: c.sourceTripId, creditNumber: c.creditNumber, reimbursedOrigin }),
       });
       if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
-      toast(`✓ ${c.passenger} → ${reimbursedOrigin ? "As paid" : "As used"}`);
+      toast(`✓ ${c.passenger} → expense cancelled trip: ${reimbursedOrigin ? "Yes" : "No"}`);
       router.refresh();
     } catch (e) {
       setRows((rs) => rs.map((x) => (x.creditNumber === c.creditNumber ? { ...x, reimbursedOrigin: !reimbursedOrigin } : x)));
@@ -344,8 +344,8 @@ function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; t
   const asUsed = open.filter((c) => !c.reimbursedOrigin).reduce((s, c) => s + bal(c), 0);
   const cards: [string, number][] = [
     ["Outstanding", outstanding],
-    ["As paid · draws down", asPaid],
-    ["As used · remaining", asUsed],
+    ["Expensed — draws down future", asPaid],
+    ["Not expensed — reimbursed on use", asUsed],
   ];
   return (
     <>
@@ -371,7 +371,7 @@ function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; t
                 <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-700">
                   <th className="py-2 pr-3 font-normal">Passenger</th>
                   <th className="px-3 py-2 font-normal">Document #</th>
-                  <th className="px-3 py-2 font-normal">Reimbursed</th>
+                  <th className="px-3 py-2 font-normal">Expense cancelled trip?</th>
                   <th className="px-3 py-2 text-right font-normal">Original</th>
                   <th className="px-3 py-2 text-right font-normal">Current</th>
                   <th className="px-3 py-2 font-normal">From</th>
@@ -388,13 +388,13 @@ function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; t
                     <td className="px-3 py-2.5 font-mono text-xs text-neutral-500">{c.creditNumber}</td>
                     <td className="px-3 py-2.5">
                       <select
-                        value={c.reimbursedOrigin ? "paid" : "used"}
-                        onChange={(e) => setMode(c, e.target.value === "paid")}
-                        aria-label="Reimbursement mode"
-                        className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${c.reimbursedOrigin ? "bg-slate-100 text-slate-600 ring-slate-200" : "bg-brand/10 text-brand-navy ring-brand/25"}`}
+                        value={c.reimbursedOrigin ? "yes" : "no"}
+                        onChange={(e) => setMode(c, e.target.value === "yes")}
+                        aria-label="Expense cancelled trip?"
+                        className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${c.reimbursedOrigin ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}
                       >
-                        <option value="paid">As paid</option>
-                        <option value="used">As used</option>
+                        <option value="yes">Yes — expensed</option>
+                        <option value="no">No — hold</option>
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-right text-neutral-500">{c.originalAmount == null ? "—" : money(c.originalAmount)}</td>
@@ -1166,7 +1166,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   const accepted = trip.exps.filter((e) => e.status === "accepted" || e.status === "staged");
   const showReimburse = trip.ent === "BC";
   const total = trip.exps.reduce((s, e) => s + e.amount, 0);
-  const reimburse = trip.exps.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
+  const reimburse = trip.exps.reduce((s, e) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0);
 
   // Show the whole tie-out (posted + accepted/awaiting), not just posted — otherwise the ledger is
   // empty until QuickBooks posting runs. A status tag distinguishes posted vs awaiting.
@@ -1194,7 +1194,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       case "account": return acctLeaf(expenseCode(trip.ent, e)).toLowerCase();
       case "payFrom": return (e.payFrom ?? "").toLowerCase();
       case "net": return e.amount;
-      case "reimburse": return e.reimbursementAmount ?? e.amount;
+      case "reimburse": return e.netReimbursement ?? e.reimbursementAmount ?? e.amount;
       default: return e.date ?? "";
     }
   };
@@ -1266,7 +1266,14 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                     <td className="px-2 pt-2.5"><Badge tone="indigo">{trip.ent}</Badge></td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600">{e.payFrom ?? "—"}</td>
                     <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(e.amount)}</td>
-                    {showReimburse && <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] font-semibold tabular-nums">{money(e.reimbursementAmount ?? e.amount)}</td>}
+                    {showReimburse && (
+                      <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums">
+                        <span className="font-semibold">{money(e.netReimbursement ?? e.reimbursementAmount ?? e.amount)}</span>
+                        {!!e.creditDrawdown && e.creditDrawdown > 0 && (
+                          <div className="text-[10.5px] font-normal text-amber-600">−{money(e.creditDrawdown)} credit drawdown · gross {money(e.reimbursementAmount ?? e.amount)}</div>
+                        )}
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-3 pt-2.5 text-right">
                       {e.docUrl && (
                         <a href={e.docUrl} target="_blank" rel="noopener noreferrer" title="Open invoice" className="text-brand hover:text-brand-navy"><FileText className="inline h-4 w-4" /></a>
@@ -1325,7 +1332,7 @@ function TripDetail({
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
   // collapsed by the worker (only the final row carries the claim), so this never double-counts.
-  const reimburseTotal = trip.exps.reduce((s, e) => s + (e.reimbursementAmount ?? e.amount), 0);
+  const reimburseTotal = trip.exps.reduce((s, e) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0);
   // "Needs receipt" gaps: an itinerary confirmation with no uploaded receipt yet. The confirmation
   // builds the schedule, never an expense — so these are computed (one per conf), not stored rows.
   const expConfs = new Set(trip.exps.map((e) => (e.confirmation ?? "").toUpperCase()).filter(Boolean));

@@ -116,6 +116,8 @@ export interface TripExpense {
   // chain only the FINAL row carries the claim; earlier same-confirmation rows are 0.
   creditNumber?: string | null; // eCredit/certificate # applied, for visibility
   creditAmount?: number | null; // eCredit AMOUNT applied — shown in-row next to the flight
+  creditDrawdown?: number;      // BC-claim reduction when the applied credit is "Expense Cancelled Trip = Yes"
+  netReimbursement?: number;    // reimbursementAmount − creditDrawdown (what BC actually pays this row)
   category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
   confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
   memo?: string | null;         // the QB memo (deterministic; includes the traveler for travel rows)
@@ -358,6 +360,20 @@ export async function getTravel(): Promise<{
       arr.push(line);
       ledger.set(r.trip_id, arr);
     }
+    // eCredit RECONCILIATION (handoff §1). A credit marked "Expense Cancelled Trip = Yes"
+    // (reimbursedOrigin) was already claimed at its origin, so a trip that USES it draws down:
+    // net reimbursement = fare − eCredit used. "No" credits draw down nothing (full fare reimbursed;
+    // the credit only lowered the card charge). Keyed by the credit number on each expense.
+    const allCredits = creditsFromTripRows(t ?? []);
+    const drawsDown = new Map<string, boolean>(allCredits.map((c) => [c.creditNumber, c.reimbursedOrigin]));
+    for (const arr of ledger.values()) {
+      for (const e of arr) {
+        const gross = e.reimbursementAmount ?? e.amount;
+        const dd = e.creditNumber && e.creditAmount && drawsDown.get(e.creditNumber) ? e.creditAmount : 0;
+        e.creditDrawdown = dd;
+        e.netReimbursement = Math.round((gross - dd) * 100) / 100;
+      }
+    }
     // Fall back to the mock when the table is empty (not just null/error), so
     // the page is never blank against an unseeded backend.
     const trips: Trip[] =
@@ -404,7 +420,7 @@ export async function getTravel(): Promise<{
         : QUEUE;
     // Overlaps are representative until a real backend source exists; the
     // queue/trips above come from Supabase, the overlap strip from the constant.
-    return { trips, queue, overlaps: OVERLAPS, credits: creditsFromTripRows(t ?? []) };
+    return { trips, queue, overlaps: OVERLAPS, credits: allCredits };
   } catch {
     return { trips: TRIPS, queue: QUEUE, overlaps: OVERLAPS, credits: [] };
   }

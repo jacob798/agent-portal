@@ -1505,13 +1505,8 @@ export default function Payables({
                       );
                     })()}
                   </span>
-                  {r.tripId && (
-                    <button onClick={() => setTrip(r.id, "")}
-                      title="Exclude from travel — detach from the trip; returns to Payables under the real merchant (reversible)"
-                      className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-rose-600">✈ Not travel</button>
-                  )}
                   <button onClick={() => setCancelId(cancelId === r.id ? null : r.id)}
-                    className={`${r.tripId ? "" : "ml-auto "}inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-red-600`}>⊘ Cancel</button>
+                    className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-red-600">⊘ Cancel</button>
                   {!r.tripId && drawerId === r.id && lines.length <= 1 && (
                     <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
                   )}
@@ -2814,9 +2809,14 @@ function TripPickerButton({ tripId, trips, onPick }: { tripId: string | null; tr
   const lbl = "mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400";
   return (
     <div ref={ref} className="relative inline-flex">
-      <button type="button" title="Attach / change trip" onClick={() => setOpen((v) => !v)}
-        className={`inline-flex ${tripId ? "text-brand" : "text-slate-300"} hover:text-brand-navy`}>
-        <Plane className="h-4 w-4" />
+      {/* The plane is the travel TOGGLE/indicator: FILLED (solid) when the row is on a trip, faint
+          outline when not. Click it to attach / change / make-not-travel via the menu below. */}
+      <button type="button" title={tripId ? "On a trip — click to change or make not travel" : "Attach to a trip"}
+        onClick={() => setOpen((v) => !v)}
+        className={tripId
+          ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white hover:bg-brand-navy"
+          : "inline-flex text-slate-300 hover:text-brand"}>
+        <Plane className={tripId ? "h-3 w-3" : "h-4 w-4"} />
       </button>
       {open && (
         <div className="absolute right-0 z-30 mt-5 w-[330px] rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -2859,7 +2859,8 @@ function TripPickerButton({ tripId, trips, onPick }: { tripId: string | null; tr
               ))}
           </div>
           <button onClick={() => { onPick(""); setOpen(false); }}
-            className="block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] text-slate-500 hover:bg-slate-50">— Not a trip —</button>
+            className={`block w-full border-t border-slate-100 px-3 py-2 text-left text-[12px] hover:bg-slate-50 ${tripId ? "font-medium text-rose-600" : "text-slate-500"}`}>
+            {tripId ? "✕ Make not travel — back to Payables" : "— Not a trip —"}</button>
         </div>
       )}
     </div>

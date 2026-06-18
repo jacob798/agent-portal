@@ -1450,46 +1450,18 @@ export default function Payables({
             )}
             {expandedRow === r.id && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
-                {/* LINE 1 — travel flag (QB rollup) OR vendor+category · actions. Two lines total. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                  {/* Travel: the trip flag (QB vendor rollup) lives HERE on line 1 — no separate
-                      span — so the drawer stays two lines. Vendor is editable for non-travel only. */}
-                  {r.tripId && (
+                {/* LINE 1 — TRAVEL ONLY: the QB-vendor (trip rollup) chip + actions. Non-travel shows
+                    the vendor + edit pencil in the MAIN row, so its drawer is a single classification
+                    line (two rows total) — its category + actions live on line 2 below. */}
+                {r.tripId && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                     <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
                       <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>
                       <span className="truncate">{r.vendor}</span>
                     </span>
-                  )}
-                  {!r.tripId && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
-                      <>
-                        <span className="inline-block min-w-[150px] max-w-[220px]">
-                          <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity} cats={vendorCatByName}
-                            onPick={(v) => { if (v && v !== r.vendor) persistVendor(r.id, v); }}
-                            onAddNew={(v) => { persistVendor(r.id, v); setVendorEdit({ name: v, entity: r.entity }); }} />
-                        </span>
-                        {/* new vs edit icon (Point 3); opens the vendor record where category is set */}
-                        <button aria-label={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor" : "Edit vendor"}
-                          title={r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? "New vendor — fill from invoice" : "Edit vendor"}
-                          onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
-                          className="inline-flex items-center text-brand hover:text-brand-navy">
-                          {r.vendorStatus === "new" || /unknown/i.test(r.vendor || "") ? <Plus className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                        </button>
-                        {/* mandatory category: show the set value, or an amber prompt that must be resolved before posting */}
-                        {rowCat(r) ? (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">{rowCat(r)}</span>
-                        ) : (
-                          <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
-                            className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">
-                            Set category
-                          </button>
-                        )}
-                      </>
-                  </span>
-                  )}
-                  <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
-                </div>
+                    <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
+                  </div>
+                )}
                 {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-2">
                   <span className="flex min-w-[260px] flex-1 items-center gap-1.5">
@@ -1519,8 +1491,27 @@ export default function Payables({
                       );
                     })()}
                   </span>
-                  {!r.tripId && drawerId === r.id && lines.length <= 1 && (
-                    <button onClick={addLine} className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
+                  {/* mandatory vendor category — moved here from the removed vendor line (non-travel). */}
+                  {!r.tripId && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Category</span>
+                      {rowCat(r) ? (
+                        <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                          title="Edit vendor category"
+                          className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-200">{rowCat(r)}</button>
+                      ) : (
+                        <button onClick={() => setVendorEdit({ name: r.vendor, entity: r.entity })}
+                          className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">Set category</button>
+                      )}
+                    </span>
+                  )}
+                  {!r.tripId && (
+                    <span className="ml-auto flex flex-wrap items-center gap-2">
+                      {drawerId === r.id && lines.length <= 1 && (
+                        <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
+                      )}
+                      {actionCell(r)}
+                    </span>
                   )}
                 </div>
                 {/* Split editor — only when actually split (non-travel). */}

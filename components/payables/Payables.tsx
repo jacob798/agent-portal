@@ -1294,11 +1294,11 @@ export default function Payables({
             Nothing here — every transaction is documented. 🎉
           </div>
         ) : (
-          visible.map((r) => (
+          visible.map((r, _i) => (
             <Fragment key={r.id}>
             <div
               style={{ borderLeft: `3px solid ${r.status === "error" || r.exception === "dup" ? "#ef4444" : "transparent"}` }}
-              className="grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] items-start gap-2.5 border-b border-slate-100 px-4 py-2 last:border-0 hover:bg-brand/[0.02]"
+              className={`grid grid-cols-[20px_14px_72px_minmax(0,1.6fr)_minmax(0,0.66fr)_minmax(0,1.35fr)_minmax(0,1.2fr)_84px_84px] items-start gap-2.5 border-b border-slate-200/70 px-4 py-3 last:border-0 hover:bg-brand/[0.05] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}
             >
               {/* select */}
               <input
@@ -1432,7 +1432,7 @@ export default function Payables({
             {/* Travel: the QB vendor is the trip rollup — too long for the column, so it spans
                 full-width beneath the line (the payee stays in the Vendor column above). */}
             {r.tripId && (
-              <div className="-mt-1 border-b border-slate-100 px-4 pb-2 pl-[116px]">
+              <div className={`-mt-1 border-b border-slate-200/70 px-4 pb-2 pl-[116px] ${_i % 2 === 1 ? "bg-slate-50/70" : "bg-white"}`}>
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-[12px] text-indigo-700">
                   <Plane className="h-3 w-3 shrink-0" />
                   <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">QB vendor</span>

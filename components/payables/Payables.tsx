@@ -1444,15 +1444,11 @@ export default function Payables({
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
                 {/* LINE 1 — vendor (+ category) · trip (icon+picker, travel only) · actions */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  {/* Vendor is editable only for non-travel rows. Travel rows show NO vendor line here
+                      — it's redundant (the payee is in the row header, the QB rollup spans below). */}
+                  {!r.tripId && (
                   <span className="inline-flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Vendor</span>
-                    {r.tripId ? (
-                      // Travel: vendor (payee) comes from Travel — read-only, no edit (Point 5).
-                      <span className="inline-block max-w-[420px] truncate text-[12px]" title={`Payee ${r.payee || r.vendor} · QB vendor ${r.vendor}`}>
-                        <span className="font-medium text-slate-800">{r.payee || r.vendor}</span>
-                        {r.vendor && r.payee && r.vendor !== r.payee ? <span className="text-slate-400"> · QB: {r.vendor}</span> : null}
-                      </span>
-                    ) : (
                       <>
                         <span className="inline-block min-w-[150px] max-w-[220px]">
                           <VendorPicker value={r.vendorDisplay ?? r.vendor} options={vendors} entity={r.entity} cats={vendorCatByName}
@@ -1476,8 +1472,8 @@ export default function Payables({
                           </button>
                         )}
                       </>
-                    )}
                   </span>
+                  )}
                   <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
                 </div>
                 {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
@@ -1903,7 +1899,9 @@ export default function Payables({
     if (!r.exception && r.entity)
       return (
         <>
-          <Chip solid onClick={() => postBatch([r.id])}>✓ Post</Chip>
+          {/* No big per-row Post button — posting is the batch checkpoint (the row's cloud icon +
+              the "Post N to QuickBooks" button). Just show it's coded & ready. */}
+          <span className="text-[12.5px] font-medium text-emerald-600">✓ Ready</span>
           {travelBtn}
         </>
       );

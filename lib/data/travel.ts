@@ -142,6 +142,7 @@ export interface ConfReviewSeg {
   route: string;
   depart: string; // "5:30a MT"
   arrive: string; // "9:15a CT"
+  day?: string; // per-leg date ("Wed Jul 1") — shown when a round trip spans multiple days
 }
 // One review item per flight LEG — co-travelers grouped; Split exposes the per-traveler confs.
 export interface ConfReviewItem {

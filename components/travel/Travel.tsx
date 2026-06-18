@@ -1042,17 +1042,25 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
               </div>
             </div>
             {/* SCHEDULE — the summary, inline: each leg with times, so no link-click to review */}
-            {g.segments && g.segments.length > 0 && (
-              <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-1.5">
-                {g.segments.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-600">
-                    <span className="min-w-[88px] font-medium text-slate-700">{s.flight}</span>
-                    <span className="min-w-0 truncate">{s.route}</span>
-                    <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {g.segments && g.segments.length > 0 && (() => {
+              // Show each leg's date when the trip spans more than one day, so a round trip's
+              // return leg reads on its real day (e.g. Jul 1) instead of under the departure day.
+              const multiDay = new Set(g.segments.map((s) => s.day).filter(Boolean)).size > 1;
+              return (
+                <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-1.5">
+                  {g.segments.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-600">
+                      <span className="min-w-[88px] font-medium text-slate-700">{s.flight}</span>
+                      <span className="min-w-0 truncate">{s.route}</span>
+                      {multiDay && s.day && (
+                        <span className="whitespace-nowrap text-slate-400">{s.day}</span>
+                      )}
+                      <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px] text-slate-600">
               {g.confs.map((c, i) => (
                 <span key={i} className="flex items-center gap-2">

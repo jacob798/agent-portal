@@ -1509,8 +1509,13 @@ export default function Payables({
                       );
                     })()}
                   </span>
+                  {r.tripId && (
+                    <button onClick={() => setTrip(r.id, "")}
+                      title="Exclude from travel — detach from the trip; returns to Payables under the real merchant (reversible)"
+                      className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-rose-600">✈ Not travel</button>
+                  )}
                   <button onClick={() => setCancelId(cancelId === r.id ? null : r.id)}
-                    className="ml-auto inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-red-600">⊘ Cancel</button>
+                    className={`${r.tripId ? "" : "ml-auto "}inline-flex items-center gap-1 text-[11.5px] font-medium text-slate-500 hover:text-red-600`}>⊘ Cancel</button>
                   {!r.tripId && drawerId === r.id && lines.length <= 1 && (
                     <button onClick={addLine} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand hover:underline">＋ Split</button>
                   )}

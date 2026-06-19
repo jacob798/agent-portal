@@ -394,14 +394,11 @@ export async function getTravel(): Promise<{
               status: (end >= todayISO() ? "up" : "closed") as TripStatus,
               purpose: r.purpose ?? undefined,
               travelers: Array.isArray(r.travelers) ? r.travelers : undefined,
-              // Trip total — entity-aware so the list, YTD, detail and report all agree:
-              //  • BC: the FARES / reimbursements (BC reimburses the fare; netReimbursement applies
-              //    the drawdown). The QB-posted card amount is a separate labeled stat.
-              //  • Non-BC: the AMEX charge (= the row's QB amount). We don't account for the eCredit
-              //    on non-BC trips, so the cost IS what hit the card — one number everywhere.
-              total: r.ent === "BC"
-                ? exps.reduce((s: number, e: TripExpense) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0)
-                : exps.reduce((s: number, e: TripExpense) => s + e.amount, 0),
+              // Trip total = the FARES for EVERY trip — the expense is the fare (the trip's cost),
+              // expensed when taken (Cleveland was the one expensed early). netReimbursement applies
+              // the drawdown when a previously-expensed credit is used. The AMEX charge is a separate
+              // number that only posts to QuickBooks, never the displayed expense. (Jacob, 2026-06-19.)
+              total: exps.reduce((s: number, e: TripExpense) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0),
               itin: r.itin ?? [],
               exps,
               confirmations: Array.isArray(r.confirmations) ? r.confirmations : [],

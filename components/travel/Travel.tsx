@@ -1167,7 +1167,6 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
   const posted = trip.exps.filter((e) => e.status === "posted");
   const accepted = trip.exps.filter((e) => e.status === "accepted" || e.status === "staged");
   const showReimburse = trip.ent === "BC";
-  const total = trip.exps.reduce((s, e) => s + e.amount, 0);
   const reimburse = trip.exps.reduce((s, e) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0);
 
   // Show the whole tie-out (posted + accepted/awaiting), not just posted — otherwise the ledger is
@@ -1195,7 +1194,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       case "payee": return (e.what ?? "").toLowerCase();
       case "account": return acctLeaf(expenseCode(trip.ent, e)).toLowerCase();
       case "payFrom": return (e.payFrom ?? "").toLowerCase();
-      case "net": return e.amount;
+      case "net": return trip.ent === "BC" ? e.amount : (e.netReimbursement ?? e.reimbursementAmount ?? e.amount);
       case "reimburse": return e.netReimbursement ?? e.reimbursementAmount ?? e.amount;
       default: return e.date ?? "";
     }
@@ -1219,7 +1218,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
         <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· the QuickBooks tie-out</span></div>
         <div className="flex items-center gap-3">
           <span className="text-[12px] text-slate-500">
-            {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(total)}`}
+            {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(reimburse)}`}
           </span>
         </div>
       </div>
@@ -1247,7 +1246,9 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
           <tbody>
             {rows.map((e) => {
               const id = e.id ?? "";
-              const acct = acctLeaf(expenseCode(trip.ent, e)) || e.category || "—";
+              // BC posts the full Paylocity category ("Travel : General") — show it whole, not the
+              // chopped leaf ("General"). Non-BC shows the GL leaf.
+              const acct = (trip.ent === "BC" ? expenseCode(trip.ent, e) : acctLeaf(expenseCode(trip.ent, e))) || e.category || "—";
               const trav = (() => {
                 const p = (e.traveler || "").trim().split(/\s+/).filter(Boolean);
                 if (p.length < 2) return e.traveler || "";
@@ -1267,7 +1268,8 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                     <td className="whitespace-nowrap px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}>{acct}</td>
                     <td className="px-2 pt-2.5"><Badge tone="indigo">{trip.ent}</Badge></td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600">{e.payFrom ?? "—"}</td>
-                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(e.amount)}</td>
+                    {/* BC "Net" = the AMEX charge; non-BC "Amount" = the fare (the expense). */}
+                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(trip.ent === "BC" ? e.amount : (e.netReimbursement ?? e.reimbursementAmount ?? e.amount))}</td>
                     {showReimburse && (
                       <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums">
                         <span className="font-semibold">{money(e.netReimbursement ?? e.reimbursementAmount ?? e.amount)}</span>
@@ -1395,9 +1397,8 @@ function TripDetail({
           <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
           <SummaryStat n={money(qbTotal - postedAmt)} l="Awaiting post" warn={qbTotal - postedAmt > 0} />
           <SummaryStat n={`${withDoc} / ${trip.exps.length + needsReceipt.length}`} l="Receipts on file" warn={withDoc < trip.exps.length + needsReceipt.length} />
-          {/* BC: "Reimbursement" = the fares. Non-BC: "Trip total" = the AMEX charges (= qbTotal),
-              matching the list/YTD — we don't account for eCredits off-BC, so cost = what was charged. */}
-          <SummaryStat n={money(trip.ent === "BC" ? reimburseTotal : qbTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
+          {/* The expense = the fare for every trip — "Reimbursement" (BC) / "Trip total" (non-BC). */}
+          <SummaryStat n={money(reimburseTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
         </div>
       )}
 

@@ -1395,7 +1395,9 @@ function TripDetail({
           <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
           <SummaryStat n={money(qbTotal - postedAmt)} l="Awaiting post" warn={qbTotal - postedAmt > 0} />
           <SummaryStat n={`${withDoc} / ${trip.exps.length + needsReceipt.length}`} l="Receipts on file" warn={withDoc < trip.exps.length + needsReceipt.length} />
-          <SummaryStat n={money(reimburseTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
+          {/* BC: "Reimbursement" = the fares. Non-BC: "Trip total" = the AMEX charges (= qbTotal),
+              matching the list/YTD — we don't account for eCredits off-BC, so cost = what was charged. */}
+          <SummaryStat n={money(trip.ent === "BC" ? reimburseTotal : qbTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
         </div>
       )}
 

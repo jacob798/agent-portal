@@ -1070,9 +1070,9 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                   {c.awaiting_invoice
                     ? <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">invoice after trip</span>
                     : <>
-                        {c.net != null && <span className="tabular-nums text-slate-400">net {money(c.net)}</span>}
+                        {c.net != null && <span className="tabular-nums text-slate-400">payment {money(c.net)}</span>}
                         {c.credit != null && c.credit > 0 && <span className="tabular-nums text-emerald-600">eCredit {money(c.credit)}</span>}
-                        {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">reimburse {money(c.fare)}</span>}
+                        {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">{trip.ent === "BC" ? "reimburse" : "ticket"} {money(c.fare)}</span>}
                       </>}
                   <Source c={c} />
                 </span>
@@ -1194,14 +1194,14 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       case "payee": return (e.what ?? "").toLowerCase();
       case "account": return acctLeaf(expenseCode(trip.ent, e)).toLowerCase();
       case "payFrom": return (e.payFrom ?? "").toLowerCase();
-      case "net": return trip.ent === "BC" ? e.amount : (e.netReimbursement ?? e.reimbursementAmount ?? e.amount);
+      case "net": return e.amount;  // Payment = the card charge
       case "reimburse": return e.netReimbursement ?? e.reimbursementAmount ?? e.amount;
       default: return e.date ?? "";
     }
   };
   const rows = [...display].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
   const toggleSort = (k: LedgerSort) => { if (sortK === k) setDir((d) => (d === 1 ? -1 : 1)); else { setSortK(k); setDir(k === "payee" || k === "account" || k === "payFrom" ? 1 : -1); } };
-  const cols = 4 + (showReimburse ? 2 : 1) + 1; // date,payee,account,entity + (net[+reimburse]) + links
+  const cols = 4 + 2 + 1; // date,payee,account,entity + payment + ticket/reimburse + links (both, every entity)
 
   const Th = ({ k, label, right }: { k: LedgerSort; label: string; right?: boolean }) => (
     <th onClick={() => toggleSort(k)}
@@ -1218,7 +1218,7 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
         <div className="text-[13.5px] font-semibold">Trip expenses <span className="font-normal text-slate-400">· the QuickBooks tie-out</span></div>
         <div className="flex items-center gap-3">
           <span className="text-[12px] text-slate-500">
-            {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ${money(reimburse)}`}
+            {posted.length} posted{accepted.length > 0 ? ` · ${accepted.length} awaiting` : ""}{showReimburse ? ` · reimburse ${money(reimburse)}` : ` · ticket ${money(reimburse)}`}
           </span>
         </div>
       </div>
@@ -1238,8 +1238,8 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
               <Th k="account" label="Cat" />
               <th className="w-px px-2 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Entity</th>
               <Th k="payFrom" label="Pay-from" />
-              <Th k="net" label={showReimburse ? "Net" : "Amount"} right />
-              {showReimburse && <Th k="reimburse" label="Reimburse" right />}
+              <Th k="net" label="Payment" right />
+              <Th k="reimburse" label={trip.ent === "BC" ? "Reimburse" : "Ticket"} right />
               <th className="w-px px-3 py-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">Links</th>
             </tr>
           </thead>
@@ -1268,16 +1268,15 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                     <td className="whitespace-nowrap px-2 pt-2.5 text-[12.5px] text-slate-600" title={expenseCode(trip.ent, e)}>{acct}</td>
                     <td className="px-2 pt-2.5"><Badge tone="indigo">{trip.ent}</Badge></td>
                     <td className="px-2 pt-2.5 text-[12.5px] text-slate-600">{e.payFrom ?? "—"}</td>
-                    {/* BC "Net" = the AMEX charge; non-BC "Amount" = the fare (the expense). */}
-                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(trip.ent === "BC" ? e.amount : (e.netReimbursement ?? e.reimbursementAmount ?? e.amount))}</td>
-                    {showReimburse && (
-                      <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums">
-                        <span className="font-semibold">{money(e.netReimbursement ?? e.reimbursementAmount ?? e.amount)}</span>
-                        {!!e.creditDrawdown && e.creditDrawdown > 0 && (
-                          <div className="text-[10.5px] font-normal text-amber-600">−{money(e.creditDrawdown)} credit drawdown · gross {money(e.reimbursementAmount ?? e.amount)}</div>
-                        )}
-                      </td>
-                    )}
+                    {/* Payment = the AMEX charge (what hit the card). */}
+                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums text-slate-600">{money(e.amount)}</td>
+                    {/* Ticket cost (non-BC) / Reimburse (BC) = the fare — shown for every entity. */}
+                    <td className="whitespace-nowrap px-2 pt-2.5 text-right text-[12.5px] tabular-nums">
+                      <span className="font-semibold">{money(e.netReimbursement ?? e.reimbursementAmount ?? e.amount)}</span>
+                      {!!e.creditDrawdown && e.creditDrawdown > 0 && (
+                        <div className="text-[10.5px] font-normal text-amber-600">−{money(e.creditDrawdown)} credit drawdown · gross {money(e.reimbursementAmount ?? e.amount)}</div>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-3 pt-2.5 text-right">
                       {e.docUrl && (
                         <a href={e.docUrl} target="_blank" rel="noopener noreferrer" title="Open invoice" className="text-brand hover:text-brand-navy"><FileText className="inline h-4 w-4" /></a>

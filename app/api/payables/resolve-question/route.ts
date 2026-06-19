@@ -40,28 +40,45 @@ export async function POST(req: NextRequest) {
   const extracted = (row.extracted ?? {}) as Record<string, unknown>;
   const update: Record<string, unknown> = {};
 
-  if (optionId === "enter_amount") {
-    const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      return NextResponse.json({ error: "a non-negative amount is required" }, { status: 400 });
+  switch (optionId) {
+    // cost_zero — enter the real amount, or accept $0. Either way the row stops asking.
+    case "enter_amount": {
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return NextResponse.json({ error: "a non-negative amount is required" }, { status: 400 });
+      }
+      update.amount = amount;
+      const lines = Array.isArray(row.lines) ? row.lines : [];
+      if (lines.length === 1) {
+        lines[0] = { ...lines[0], amount };
+        update.lines = lines;
+      }
+      extracted.cost_resolved = "entered";
+      break;
     }
-    update.amount = amount;
-    const lines = Array.isArray(row.lines) ? row.lines : [];
-    if (lines.length === 1) {
-      lines[0] = { ...lines[0], amount };
-      update.lines = lines;
-    }
-    extracted.cost_resolved = "entered";
-  } else if (optionId === "accept_zero") {
-    extracted.cost_resolved = "accepted_zero";
-  } else {
-    return NextResponse.json({ error: `unknown optionId '${optionId}'` }, { status: 400 });
+    case "accept_zero":
+      extracted.cost_resolved = "accepted_zero";
+      break;
+    // duplicate — discard it, or keep both (clear the dup flag).
+    case "discard_dup":
+      update.status = "discarded";
+      break;
+    case "keep_both":
+      update.exception = null;
+      break;
+    // missing receipt — "no receipt needed" is PER-CHARGE only (no vendor rule; next invoice re-asks).
+    case "waive_receipt":
+      extracted.doc_waived = true;
+      break;
+    // new vendor — confirm it as a real vendor (kept as-is, marked accepted; created in QBO at post).
+    case "add_vendor":
+      update.vendor_status = "accepted";
+      break;
+    default:
+      return NextResponse.json({ error: `unknown optionId '${optionId}'` }, { status: 400 });
   }
 
-  // Clear the question so the row leaves the "needs answer" state.
-  delete extracted.question;
   update.extracted = extracted;
-
   const { error } = await admin.from("payables_queue").update(update).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id, optionId });

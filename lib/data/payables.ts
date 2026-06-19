@@ -74,11 +74,14 @@ export interface PayableRow {
   /** The real merchant/payee (extracted.payee). For travel the QB vendor is the trip rollup, so
    *  the queue shows THIS as the Vendor/Payee. */
   payee?: string | null;
-  /** An inline QUESTION the system raised (extracted.question) — answered on the row, not parked in
-   *  a dead-end review state. e.g. cost_zero: "enter the amount, or accept $0". */
-  question?: RowQuestion | null;
   /** True for an operator-added expense (extracted.manual) — no source document by design. */
   manual?: boolean;
+  /** extracted.cost_resolved — the operator answered the $0-cost question (entered an amount or
+   *  accepted $0), so it no longer asks. (snake_case: read straight from the row's extracted blob.) */
+  cost_resolved?: boolean;
+  /** extracted.doc_waived — "no receipt needed" was chosen ON THIS row. Per-charge only; it never
+   *  becomes a vendor rule, so the next invoice from this vendor asks again. */
+  doc_waived?: boolean;
   /** This vendor's saved multi-line split layout (entity+account+amount per line), if any.
    *  The drawer offers a one-click "Apply saved split"; NOT auto-applied (split = exception). */
   lineTemplate?: { entity: string | null; gl: string | null; amount?: number; bcCategory?: string }[] | null;
@@ -314,8 +317,9 @@ export async function getPayablesQueue(): Promise<PayableRow[]> {
       docType: r.doc_type ?? null,
       tripId: r.trip_id ?? null,
       payee: (r.extracted as { payee?: string } | null)?.payee ?? null,
-      question: (r.extracted as { question?: RowQuestion } | null)?.question ?? null,
       manual: (r.extracted as { manual?: boolean } | null)?.manual ?? false,
+      cost_resolved: !!(r.extracted as { cost_resolved?: unknown } | null)?.cost_resolved,
+      doc_waived: !!(r.extracted as { doc_waived?: unknown } | null)?.doc_waived,
     }));
     // Attach each vendor's saved multi-line split layout (if any), so the drawer can offer
     // a one-click "Apply saved split". NOT auto-applied — a split is the exception, not the

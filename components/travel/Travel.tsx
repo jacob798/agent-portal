@@ -21,7 +21,6 @@ import {
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
 import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf, Credit } from "@/lib/data/travel";
-import { InlineQuestion } from "@/components/shared/InlineQuestion";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -1193,20 +1192,6 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
       window.alert(`Couldn't remove: ${(e as Error).message}`);
     }
   }
-  // Answer an inline question raised on a row (e.g. cost_zero → enter the amount, or accept $0).
-  async function resolveQuestion(id: string, optionId: string, amount?: number) {
-    try {
-      const res = await fetch("/api/payables/resolve-question", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, optionId, amount }),
-      });
-      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
-      router.refresh();
-    } catch (e) {
-      window.alert(`Couldn't save: ${(e as Error).message}`);
-    }
-  }
-
   const val = (e: TripExpense): string | number => {
     switch (sortK) {
       case "payee": return (e.what ?? "").toLowerCase();
@@ -1319,9 +1304,6 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                       <br />
                       {e.memo ? <><span className="text-slate-400">Memo</span> {e.memo}</> : null}
                       {e.qbRef ? <> {e.memo ? "· " : ""}<span className="text-slate-400">QB txn</span> {e.qbRef}</> : null}
-                      {e.question && id && (
-                        <InlineQuestion q={e.question} onAnswer={(opt, amt) => resolveQuestion(id, opt, amt)} />
-                      )}
                     </td>
                   </tr>
                 </Fragment>

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Upload, FileText, Plane, Plus, Pencil, Lock, UploadCloud } from "lucide-react";
-import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
+import type { PayableRow, TripOption, DocTypeOption, RowQuestion } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
 import {
   entName,
@@ -654,11 +654,42 @@ export default function Payables({
   const patch = (id: string, p: Partial<Row>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
 
-  // Answer an inline question raised on a row (e.g. cost_zero → enter the amount, or accept $0).
-  // Optimistic: clear the question (and set the amount when entered), revert on failure.
+  // The inline questions a row is asking, COMPUTED from its state (so >1 stacks naturally) in
+  // priority order: duplicate → cost($0) → new vendor → missing receipt. A travel row (trip rollup
+  // vendor; confirmation IS the invoice) never asks new-vendor or missing-receipt.
+  function questionsFor(r: Row): RowQuestion[] {
+    if (r.resolved) return [];
+    const qs: RowQuestion[] = [];
+    if (r.exception === "dup")
+      qs.push({ kind: "duplicate", prompt: "Possible duplicate of an existing invoice.",
+        options: [{ id: "discard_dup", label: "Discard duplicate" }, { id: "keep_both", label: "Keep both" }] });
+    if (r.amount === 0 && !r.cost_resolved)
+      qs.push({ kind: "cost_zero", prompt: "Cost is $0 — enter the amount charged to the card, or accept $0.",
+        options: [{ id: "enter_amount", label: "Enter actual cost", input: "amount" }, { id: "accept_zero", label: "Accept $0" }] });
+    const isNewVendor = r.vendorStatus === "new" || /unknown/i.test(r.vendor || "");
+    if (!r.tripId && isNewVendor)
+      qs.push({ kind: "new_vendor", prompt: `New vendor ‘${r.vendorDisplay || r.vendor}’.`,
+        options: [{ id: "add_vendor", label: "Add as new vendor" }, { id: "pick_vendor", label: "Pick existing →" }] });
+    if (!r.tripId && r.nodoc && !r.doc_waived)
+      qs.push({ kind: "missing_receipt", prompt: "No receipt on file.",
+        options: [{ id: "attach_receipt", label: "Attach" }, { id: "waive_receipt", label: "No receipt needed" }] });
+    return qs;
+  }
+
+  // Answer one of a row's inline questions. Attach/pick open existing UI (no server write); the rest
+  // optimistically patch + persist via /resolve-question, reverting on failure.
   async function answerQuestion(r: Row, optionId: string, amount?: number) {
-    const prev = { question: r.question, amount: r.amount };
-    patch(r.id, { question: null, ...(optionId === "enter_amount" && amount != null ? { amount } : {}) });
+    if (optionId === "attach_receipt") { setShowInvoices(true); return; }
+    if (optionId === "pick_vendor") { toggleExpand(r.id); return; }
+    const prev = { ...r };
+    const p: Partial<Row> = {};
+    if (optionId === "enter_amount" && amount != null) p.amount = amount;
+    if (optionId === "enter_amount" || optionId === "accept_zero") p.cost_resolved = true;
+    if (optionId === "waive_receipt") p.doc_waived = true;
+    if (optionId === "add_vendor") p.vendorStatus = "accepted";
+    if (optionId === "keep_both") p.exception = undefined;
+    if (optionId === "discard_dup") { p.resolved = true; p.resolvedTo = "→ discarded (duplicate)"; }
+    patch(r.id, p);
     try {
       const res = await fetch("/api/payables/resolve-question", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1504,11 +1535,17 @@ export default function Payables({
                 </span>
               </div>
             )}
-            {r.question && (
-              <div className="border-b border-slate-200/70 px-4 pb-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
-                <InlineQuestion q={r.question} onAnswer={(opt, amt) => answerQuestion(r, opt, amt)} />
-              </div>
-            )}
+            {(() => {
+              const qs = questionsFor(r);
+              return qs.length > 0 ? (
+                <div className="border-b border-slate-200/70 px-4 pb-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
+                  {qs.map((q, qi) => (
+                    <InlineQuestion key={q.kind} q={q} index={qs.length > 1 ? qi + 1 : undefined}
+                      onAnswer={(opt, amt) => answerQuestion(r, opt, amt)} />
+                  ))}
+                </div>
+              ) : null;
+            })()}
             {expandedRow === r.id && (
               <div className={`border-b border-slate-200/70 px-4 py-2 pl-[34px] ${_i % 2 === 1 ? "bg-slate-100" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
                 {/* LINE 1 — TRAVEL ONLY: the QB-vendor (trip rollup) chip + actions. Non-travel shows

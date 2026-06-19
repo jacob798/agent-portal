@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { tripVendor } from "@/lib/data/tripVendor";
 
 /**
  * Manually ADD an expense to the queue — for when extraction produced no row at all (e.g. an award
@@ -38,11 +39,19 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // QB posting name: explicit vendor, else the attached trip's label, else the merchant.
+  // QB posting name: explicit vendor, else the attached trip's CANONICAL rollup (same
+  // build_trip_header_subject format every other travel row uses, so they group in QuickBooks),
+  // else the merchant.
   let vendor = (b.vendor ?? "").trim() || payee;
   if (!b.vendor && b.tripId) {
-    const { data: trip } = await admin.from("trips").select("dest, ent").eq("id", b.tripId).single();
-    if (trip?.dest) vendor = `Travel — ${trip.ent ?? ""} ${trip.dest}`.replace(/\s+/g, " ").trim();
+    const { data: trip } = await admin
+      .from("trips").select("dest, ent, purpose, start_date, end_date").eq("id", b.tripId).single();
+    if (trip?.dest) {
+      vendor = tripVendor({
+        ent: trip.ent ?? "", purpose: trip.purpose ?? null, dest: trip.dest ?? null,
+        start: trip.start_date ?? null, end: trip.end_date ?? null,
+      });
+    }
   }
 
   const id = "man_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);

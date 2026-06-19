@@ -11,14 +11,17 @@ import type { RowQuestion } from "@/lib/data/payables";
 export function InlineQuestion({
   q,
   onAnswer,
+  index,
 }: {
   q: RowQuestion;
   onAnswer: (optionId: string, amount?: number) => void;
+  index?: number; // 1-based position when a row has more than one question (shows a number badge)
 }) {
   const [entering, setEntering] = useState(false);
   const [val, setVal] = useState("");
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-800">
+      {index != null && <span className="text-[10px] font-semibold text-amber-600">{index}</span>}
       <span className="font-medium">{q.prompt}</span>
       {entering ? (
         <span className="flex items-center gap-1">

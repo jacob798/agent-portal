@@ -64,13 +64,14 @@ function tripDates(t: { start?: string; end?: string; dates?: string }): string 
 function tripRollup(t: Trip) {
   const exps = t.exps || [];
   const posted = exps.filter((e) => e.status === "posted").length;
-  // "Accepted" = the operator decided it (routed to Payables) — no longer needs review.
-  const accepted = exps.filter((e) => e.status === "accepted").length;
-  // "To review" = still needs a decision (staged / open / error) — NOT accepted, NOT posted.
-  const open = exps.filter((e) => e.status !== "posted" && e.status !== "accepted").length;
+  // "Awaiting" = the operator already actioned it — accepted (routed to Payables) OR staged/approved
+  // (posting to QB). It no longer needs review; it's just waiting on the QB post. (staged = approved.)
+  const awaiting = exps.filter((e) => e.status === "accepted" || e.status === "staged").length;
+  // "To review" = STILL needs an operator decision (open) or failed and needs a fix (error).
+  const open = exps.filter((e) => e.status === "open" || e.status === "error").length;
   const missing = exps.filter((e) => e.needsDoc).length;
   const isPast = (t.end || "") < todayISO();
-  return { count: exps.length, posted, accepted, open, missing, isPast, attn: isPast && (open > 0 || missing > 0) };
+  return { count: exps.length, posted, awaiting, open, missing, isPast, attn: isPast && (open > 0 || missing > 0) };
 }
 
 export default function Travel({
@@ -922,15 +923,15 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
         {r.count === 0 ? (
           <span className="text-slate-400">—</span>
         ) : r.open === 0 ? (
-          // Nothing left to review — either all posted, or accepted and awaiting the Payables post.
-          r.accepted > 0 ? (
-            <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · {r.posted} posted · <span className="text-indigo-600">{r.accepted} accepted</span></span>
+          // Nothing left to review — either all posted, or accepted/approved and awaiting the QB post.
+          r.awaiting > 0 ? (
+            <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · {r.posted} posted · <span className="text-indigo-600">{r.awaiting} awaiting</span></span>
           ) : (
             <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · <span className="text-emerald-600">all posted</span></span>
           )
         ) : (
           <span className="text-slate-700" title="Open the trip to review — accept the confirmations, then post in Payables">
-            <b className="font-semibold">{r.count}</b> · {r.posted} posted{r.accepted > 0 ? ` · ${r.accepted} accepted` : ""} · <span className="font-semibold text-amber-600">{r.open} to review</span>
+            <b className="font-semibold">{r.count}</b> · {r.posted} posted{r.awaiting > 0 ? ` · ${r.awaiting} awaiting` : ""} · <span className="font-semibold text-amber-600">{r.open} to review</span>
           </span>
         )}
       </td>

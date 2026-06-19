@@ -7,6 +7,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import type { RowQuestion } from "@/lib/data/payables";
+
+export type { RowQuestion };
 
 // Upcoming (ends today or later) vs past. No "open for expenses" grace status.
 export type TripStatus = "up" | "closed";
@@ -42,7 +45,7 @@ function payableToLedger(r: {
   doc_url: string | null; nodoc: boolean | null;
   account: string | null; txn_date: string | null; invoice_number: string | null;
   posted_legs: { qbo_id?: string; txn_type?: string; role?: string }[] | null;
-  extracted: { payee?: string; traveler?: string | null; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
+  extracted: { payee?: string; traveler?: string | null; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null; question?: RowQuestion | null } | null;
 }): TripExpense {
   const calCat = calendarCategory(r.category);
   const status: ExpenseStatus =
@@ -71,6 +74,7 @@ function payableToLedger(r: {
     creditNumber: r.extracted?.credit_number ?? null,
     creditAmount: r.extracted?.credit_amount != null ? Number(r.extracted.credit_amount) : null,
     memo: r.memo ?? null,
+    question: r.extracted?.question ?? null,
     date: r.txn_date ? r.txn_date.slice(0, 10) : null,
     payFrom: r.account || null,
     qbUrl: qboTxnUrl(r.posted_legs),
@@ -121,6 +125,7 @@ export interface TripExpense {
   category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
   confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
   memo?: string | null;         // the QB memo (deterministic; includes the traveler for travel rows)
+  question?: RowQuestion | null; // inline question raised on this row (e.g. cost_zero) — answered here
   date?: string | null;         // expense/service date (txn_date) — the ledger Date column
   payFrom?: string | null;      // pay-from account display ("AMEX Delta ••5001")
   qbUrl?: string | null;        // deep link to the posted QuickBooks transaction

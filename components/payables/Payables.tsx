@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Zap, Upload, FileText, Plane, Plus, Pencil, Lock, UploadCloud } from "lucide-react";
 import type { PayableRow, TripOption, DocTypeOption } from "@/lib/data/payables";
 import type { IngestionJob } from "@/lib/data/ingestion";
@@ -29,6 +30,7 @@ import Drawer from "@/components/ui/Drawer";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
+import { InlineQuestion } from "@/components/shared/InlineQuestion";
 
 type Row = PayableRow & {
   resolved?: boolean;
@@ -70,6 +72,7 @@ export default function Payables({
     ),
   );
   const [jobs, setJobs] = useState<IngestionJob[]>(ingestion);
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [entityPickRow, setEntityPickRow] = useState<string | null>(null);
   // Mass-edit selected invoices (posting type, entity, pay-from, GL).
@@ -416,6 +419,39 @@ export default function Payables({
   const [payFrom, setPayFrom] = useState<string>("");
   const [postType, setPostType] = useState<"charge" | "bill">("charge");
   const [posting, setPosting] = useState(false);
+  // Manually add an expense (no document) — e.g. an award ticket we never got a receipt for.
+  const [showAdd, setShowAdd] = useState(false);
+  const [adding, setAdding] = useState(false);
+  type AddForm = { payee: string; amount: string; entity: string; tripId: string; paymentMethodId: string; gl: string; memo: string; txnDate: string };
+  const [addForm, setAddForm] = useState<AddForm>({ payee: "", amount: "", entity: "", tripId: "", paymentMethodId: "", gl: "", memo: "", txnDate: "" });
+  async function addExpense() {
+    if (!addForm.payee.trim()) { toast("Enter the merchant / payee"); return; }
+    setAdding(true);
+    try {
+      const res = await fetch("/api/payables/create", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payee: addForm.payee.trim(),
+          amount: Number(addForm.amount || 0),
+          entity: addForm.entity || undefined,
+          tripId: addForm.tripId || undefined,
+          paymentMethodId: addForm.paymentMethodId || undefined,
+          gl: addForm.gl || undefined,
+          memo: addForm.memo || undefined,
+          txnDate: addForm.txnDate || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
+      toast(`✓ Added ${addForm.payee.trim()} — code & post below`);
+      setShowAdd(false);
+      setAddForm({ payee: "", amount: "", entity: "", tripId: "", paymentMethodId: "", gl: "", memo: "", txnDate: "" });
+      router.refresh();
+    } catch (e) {
+      toast(`Couldn't add: ${(e as Error).message}`);
+    } finally {
+      setAdding(false);
+    }
+  }
   // Pick a sensible BC Paylocity category from the line's expense category, so
   // the dropdown doesn't default to the first (alphabetical) item.
   const matchBcCategory = (category?: string | null): string => {
@@ -617,6 +653,23 @@ export default function Payables({
 
   const patch = (id: string, p: Partial<Row>) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
+
+  // Answer an inline question raised on a row (e.g. cost_zero → enter the amount, or accept $0).
+  // Optimistic: clear the question (and set the amount when entered), revert on failure.
+  async function answerQuestion(r: Row, optionId: string, amount?: number) {
+    const prev = { question: r.question, amount: r.amount };
+    patch(r.id, { question: null, ...(optionId === "enter_amount" && amount != null ? { amount } : {}) });
+    try {
+      const res = await fetch("/api/payables/resolve-question", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, optionId, amount }),
+      });
+      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error || "failed");
+    } catch (e) {
+      patch(r.id, prev); // revert
+      toast(`Couldn't save: ${(e as Error).message}`);
+    }
+  }
 
   const counts = useMemo(() => {
     const need = rows.filter((r) => !r.auto && !r.resolved).length;
@@ -1133,6 +1186,9 @@ export default function Payables({
             <Button variant="secondary" onClick={() => setShowInvoices(true)}>
               <FileText className="h-4 w-4" /> Upload invoices
             </Button>
+            <Button variant="secondary" onClick={() => setShowAdd(true)} title="Manually add an expense with no document (e.g. an award ticket)">
+              <Plus className="h-4 w-4" /> Add expense
+            </Button>
             <Button variant="ghost" onClick={reprocessVendors} disabled={reprocessing} title="Re-run vendor ID on the queue using everything learned">
               ↻ {reprocessing ? "Reprocessing…" : "Reprocess vendors"}
             </Button>
@@ -1448,6 +1504,11 @@ export default function Payables({
                 </span>
               </div>
             )}
+            {r.question && (
+              <div className="border-b border-slate-200/70 px-4 pb-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
+                <InlineQuestion q={r.question} onAnswer={(opt, amt) => answerQuestion(r, opt, amt)} />
+              </div>
+            )}
             {expandedRow === r.id && (
               <div className={`border-b border-slate-200/70 px-4 py-2 pl-[34px] ${_i % 2 === 1 ? "bg-slate-100" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
                 {/* LINE 1 — TRAVEL ONLY: the QB-vendor (trip rollup) chip + actions. Non-travel shows
@@ -1585,6 +1646,78 @@ export default function Payables({
         }
       >
         {learnRow && learnBody(learnRow)}
+      </Modal>
+
+      {/* Manually add an expense (no document) — e.g. an award ticket with no receipt */}
+      <Modal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        title="Add expense"
+        width="max-w-lg"
+        footer={
+          <>
+            <Button onClick={addExpense} disabled={adding}>{adding ? "Adding…" : "Add to queue"}</Button>
+            <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-[12.5px] text-slate-500">
+          For an expense with no document (e.g. an award ticket). It enters the coding queue and posts like any other.
+        </p>
+        <div className="grid grid-cols-2 gap-3 text-[13px]">
+          <label className="col-span-2 block">
+            <span className={DLBL}>Merchant / payee</span>
+            <input value={addForm.payee} onChange={(e) => setAddForm({ ...addForm, payee: e.target.value })}
+              placeholder="Delta Air Lines" className="w-full rounded border border-slate-300 px-2 py-1.5" />
+          </label>
+          <label className="block">
+            <span className={DLBL}>Amount charged</span>
+            <input value={addForm.amount} onChange={(e) => setAddForm({ ...addForm, amount: e.target.value })}
+              inputMode="decimal" placeholder="0.00" className="w-full rounded border border-slate-300 px-2 py-1.5 tabular-nums" />
+          </label>
+          <label className="block">
+            <span className={DLBL}>Date</span>
+            <input type="date" value={addForm.txnDate} onChange={(e) => setAddForm({ ...addForm, txnDate: e.target.value })}
+              className="w-full rounded border border-slate-300 px-2 py-1.5" />
+          </label>
+          <label className="block">
+            <span className={DLBL}>Entity</span>
+            <select value={addForm.entity} onChange={(e) => setAddForm({ ...addForm, entity: e.target.value, paymentMethodId: "", gl: "" })}
+              className="w-full rounded border border-slate-300 px-2 py-1.5">
+              <option value="">—</option>
+              {ACTIVE_ENTITIES.map((en) => <option key={en.code} value={en.code}>{en.label}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className={DLBL}>Trip (optional)</span>
+            <select value={addForm.tripId} onChange={(e) => setAddForm({ ...addForm, tripId: e.target.value })}
+              className="w-full rounded border border-slate-300 px-2 py-1.5">
+              <option value="">— none —</option>
+              {trips.map((t) => <option key={t.tripId} value={t.tripId}>{t.dest || t.header} · {t.dates}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className={DLBL}>Pay from</span>
+            <select value={addForm.paymentMethodId} onChange={(e) => setAddForm({ ...addForm, paymentMethodId: e.target.value })}
+              className="w-full rounded border border-slate-300 px-2 py-1.5">
+              <option value="">—</option>
+              {payFromForEntity(accounts, addForm.entity).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className={DLBL}>GL account</span>
+            <select value={addForm.gl} onChange={(e) => setAddForm({ ...addForm, gl: e.target.value })}
+              className="w-full rounded border border-slate-300 px-2 py-1.5">
+              <option value="">—</option>
+              {glsForEntity(gls, addForm.entity).map((g) => <option key={g.id} value={g.fullName}>{g.fullName}</option>)}
+            </select>
+          </label>
+          <label className="col-span-2 block">
+            <span className={DLBL}>Memo</span>
+            <input value={addForm.memo} onChange={(e) => setAddForm({ ...addForm, memo: e.target.value })}
+              placeholder="Award ticket · BOI–MCO" className="w-full rounded border border-slate-300 px-2 py-1.5" />
+          </label>
+        </div>
       </Modal>
 
       {/* CSV / QBO upload */}

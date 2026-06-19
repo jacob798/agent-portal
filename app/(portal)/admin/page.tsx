@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import PageHeader from "@/components/ui/PageHeader";
 import UserTable from "@/components/admin/UserTable";
 import { getProfile, getProfiles } from "@/lib/auth/profile";

@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import { getOperatorActions } from "@/lib/data/actions";
 import Inbox from "@/components/inbox/Inbox";
 import PageHeader from "@/components/ui/PageHeader";

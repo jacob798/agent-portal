@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import Placeholder from "@/components/Placeholder";
 
 export default function MonitoringPage() {

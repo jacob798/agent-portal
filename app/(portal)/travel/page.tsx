@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import { getTravel, getNeedsTrip } from "@/lib/data/travel";
 import Travel from "@/components/travel/Travel";
 

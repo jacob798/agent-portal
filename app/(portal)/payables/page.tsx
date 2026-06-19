@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import { getPayablesQueue, getVendors, getTrips, getDocTypes } from "@/lib/data/payables";
 import { getCodingConfig } from "@/lib/data/config";
 import { getIngestionLog } from "@/lib/data/ingestion";

@@ -1,3 +1,6 @@
+// Operator data — render fresh so a change shows on the next screen without lag.
+export const dynamic = "force-dynamic";
+
 import { headers } from "next/headers";
 import Placeholder from "@/components/Placeholder";
 import ValuationFrame from "@/components/valuation/ValuationFrame";

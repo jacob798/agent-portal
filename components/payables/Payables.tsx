@@ -1449,7 +1449,7 @@ export default function Payables({
               </div>
             )}
             {expandedRow === r.id && (
-              <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 pl-[34px]" onClick={(e) => e.stopPropagation()}>
+              <div className={`border-b border-slate-200/70 px-4 py-2 pl-[34px] ${_i % 2 === 1 ? "bg-slate-100" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
                 {/* LINE 1 — TRAVEL ONLY: the QB-vendor (trip rollup) chip + actions. Non-travel shows
                     the vendor + edit pencil in the MAIN row, so its drawer is a single classification
                     line (two rows total) — its category + actions live on line 2 below. */}
@@ -1462,8 +1462,10 @@ export default function Payables({
                     <span className="ml-auto flex flex-wrap items-center gap-1.5">{actionCell(r)}</span>
                   </div>
                 )}
-                {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · split) */}
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 pt-2">
+                {/* LINE 2 — classification (memo wide · invoice # · doc-type · posting · category · split).
+                    The top divider/spacing only applies when LINE 1 is above it (travel); non-travel
+                    sits flush under the main row (no extra line, no gap). */}
+                <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 ${r.tripId ? "mt-2 border-t border-slate-100 pt-2" : ""}`}>
                   <span className="flex min-w-[260px] flex-1 items-center gap-1.5">
                     <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Memo</span>
                     <input key={`memo-${r.id}-${r.memo ?? ""}`} defaultValue={r.memo ?? ""} placeholder="+ memo"

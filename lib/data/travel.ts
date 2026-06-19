@@ -394,8 +394,10 @@ export async function getTravel(): Promise<{
               status: (end >= todayISO() ? "up" : "closed") as TripStatus,
               purpose: r.purpose ?? undefined,
               travelers: Array.isArray(r.travelers) ? r.travelers : undefined,
-              // Total always reflects the attributed detail (0 when none).
-              total: exps.reduce((s: number, e: TripExpense) => s + e.amount, 0),
+              // Trip total = the FARES / reimbursements (Travel-spend YTD measures trip value, not
+              // cash out). netReimbursement applies the BC drawdown; reimbursementAmount is the fare
+              // (kept even for non-BC, where the per-row QB amount is just the AMEX charge).
+              total: exps.reduce((s: number, e: TripExpense) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0),
               itin: r.itin ?? [],
               exps,
               confirmations: Array.isArray(r.confirmations) ? r.confirmations : [],

@@ -1331,6 +1331,10 @@ function TripDetail({
 }) {
   const b = brandFor(trip.ent);
   const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
+  // QB tie-out total = sum of the AMEX charges (e.amount), the amounts that post to QuickBooks — NOT
+  // trip.total (which is now the FARES, for the spend headline). "Posted" + "Awaiting post" are QB
+  // amounts, so they must use this, not the fare total.
+  const qbTotal = trip.exps.reduce((s, e) => s + e.amount, 0);
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
   // collapsed by the worker (only the final row carries the claim), so this never double-counts.
@@ -1389,7 +1393,7 @@ function TripDetail({
       {(trip.exps.length > 0 || needsReceipt.length > 0) && (
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryStat n={money(postedAmt)} l="Posted to QuickBooks" />
-          <SummaryStat n={money(trip.total - postedAmt)} l="Awaiting post" warn={trip.total - postedAmt > 0} />
+          <SummaryStat n={money(qbTotal - postedAmt)} l="Awaiting post" warn={qbTotal - postedAmt > 0} />
           <SummaryStat n={`${withDoc} / ${trip.exps.length + needsReceipt.length}`} l="Receipts on file" warn={withDoc < trip.exps.length + needsReceipt.length} />
           <SummaryStat n={money(reimburseTotal)} l={trip.ent === "BC" ? "Reimbursement" : "Trip total"} />
         </div>
@@ -1507,7 +1511,9 @@ function BrandedReport({ trip }: { trip: Trip }) {
         <tfoot>
           <tr className="border-t-2 border-slate-700 font-bold">
             <td colSpan={4} className="py-2 text-right">Total</td>
-            <td className="py-2 pl-2 text-right" style={{ color: b.navy }}>{money(trip.total)}</td>
+            {/* footer must equal the column above (each row shows e.amount = the AMEX charge); trip.total
+                is now the FARES total, so don't use it here. */}
+            <td className="py-2 pl-2 text-right" style={{ color: b.navy }}>{money(trip.exps.reduce((s, e) => s + e.amount, 0))}</td>
           </tr>
         </tfoot>
       </table>

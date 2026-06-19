@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   // gap, not a blocker.
   const { data: rowsToCheck } = await admin
     .from("payables_queue")
-    .select("id, entity, gl, bc_category, account, doc_type, trip_id, vendor, vendor_display, invoice_number")
+    .select("id, entity, gl, bc_category, account, doc_type, trip_id, vendor, vendor_display, invoice_number, payment_method_id")
     .in("id", ids);
   const incomplete: string[] = [];
   for (const r of rowsToCheck ?? []) {
@@ -61,6 +61,29 @@ export async function POST(req: NextRequest) {
     .in("id", ids)
     .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // LEARN THE OPERATOR'S CODING (the commit IS the label). For each approved NON-TRAVEL row, save
+  // the coding back onto the vendor (vendor_rules) so the NEXT invoice from that vendor arrives
+  // fully coded instead of blank — entity + GL auto-apply on ingest, and pay-from now too. Keyed by
+  // vendor (upsert). Best-effort: a learning failure must never fail the approve.
+  try {
+    const seen = new Set<string>();
+    const learn = (rowsToCheck ?? [])
+      .filter((r) => !r.trip_id && r.vendor && r.entity)
+      .map((r) => ({
+        vendor: String(r.vendor),
+        entity_code: r.entity as string,
+        // BC routes deterministically to the loan account by entity, so don't pin a GL there.
+        gl_full_name: r.entity === "BC" ? null : (r.gl ? String(r.gl) : null),
+        pay_method_id: r.payment_method_id ? String(r.payment_method_id) : null,
+        source: "approved",
+        updated_at: new Date().toISOString(),
+      }))
+      .filter((v) => { const k = v.vendor.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    if (learn.length) await admin.from("vendor_rules").upsert(learn, { onConflict: "vendor" });
+  } catch {
+    /* learning is best-effort — never block the approve */
+  }
 
   return NextResponse.json({ ok: true, staged: data?.length ?? 0 });
 }

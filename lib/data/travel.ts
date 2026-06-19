@@ -41,6 +41,7 @@ function payableToLedger(r: {
   gl: string | null; category: string | null; bc_category: string | null; status: string | null;
   doc_url: string | null; nodoc: boolean | null;
   account: string | null; txn_date: string | null; invoice_number: string | null;
+  report_id: string | null;
   posted_legs: { qbo_id?: string; txn_type?: string; role?: string }[] | null;
   extracted: { payee?: string; traveler?: string | null; credit_number?: string | null; credit_amount?: number | null; conf?: string | null; confirmation_number?: string | null; confirmation?: string | null } | null;
 }): TripExpense {
@@ -71,6 +72,7 @@ function payableToLedger(r: {
     creditNumber: r.extracted?.credit_number ?? null,
     creditAmount: r.extracted?.credit_amount != null ? Number(r.extracted.credit_amount) : null,
     memo: r.memo ?? null,
+    reportId: r.report_id ?? null,
     date: r.txn_date ? r.txn_date.slice(0, 10) : null,
     payFrom: r.account || null,
     qbUrl: qboTxnUrl(r.posted_legs),
@@ -121,6 +123,7 @@ export interface TripExpense {
   category?: string;            // calendar category (Flights/Lodging/Cars/Rides/Dining) for grouping
   confirmation?: string | null; // booking confirmation # — groups reissue chains in the display
   memo?: string | null;         // the QB memo (deterministic; includes the traveler for travel rows)
+  reportId?: string | null;     // expense_reports.id when this expense is on a report ("expensed", BC)
   date?: string | null;         // expense/service date (txn_date) — the ledger Date column
   payFrom?: string | null;      // pay-from account display ("AMEX Delta ••5001")
   qbUrl?: string | null;        // deep link to the posted QuickBooks transaction
@@ -351,7 +354,7 @@ export async function getTravel(): Promise<{
       // Real invoices attributed to a trip — the per-trip running ledger.
       supabase
         .from("payables_queue")
-        .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at,account,txn_date,invoice_number,posted_legs")
+        .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at,account,txn_date,invoice_number,report_id,posted_legs")
         .not("trip_id", "is", null),
     ]);
     // Group attributed invoices by trip → ledger lines.

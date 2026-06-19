@@ -71,7 +71,21 @@ function tripRollup(t: Trip) {
   const open = exps.filter((e) => e.status === "open" || e.status === "error").length;
   const missing = exps.filter((e) => e.needsDoc).length;
   const isPast = (t.end || "") < todayISO();
-  return { count: exps.length, posted, awaiting, open, missing, isPast, attn: isPast && (open > 0 || missing > 0) };
+  // ITINERARY review progress — from the confirmation legs (NOT expenses). A leg is "to review" while
+  // any of its confirmations is still needs_review; reviewed = total − to-review.
+  const legs = t.confirmations ?? [];
+  const itinTotal = legs.length;
+  const itinToReview = legs.filter((g) => g.confs.some((c) => (c.status ?? "needs_review") === "needs_review")).length;
+  const itinReviewed = itinTotal - itinToReview;
+  // EXPENSED progress — an expense is expensed when posted to QuickBooks OR placed on an expense
+  // report (report_id, the BC reimbursement path). Personal = posted; BC = on a report.
+  const expTotal = exps.length;
+  const expensed = exps.filter((e) => e.status === "posted" || !!e.reportId).length;
+  return {
+    count: exps.length, posted, awaiting, open, missing, isPast,
+    itinTotal, itinReviewed, itinToReview, expTotal, expensed,
+    attn: isPast && (open > 0 || missing > 0),
+  };
 }
 
 export default function Travel({
@@ -668,6 +682,10 @@ function TripsList({
   const [stat, setStat] = useState<"ALL" | "up" | "past" | "attn">("ALL");
   const [sortK, setSortK] = useState<SortKey>("start");
   const [dir, setDir] = useState<1 | -1>(-1); // newest first by default
+  // Until the operator clicks a header, keep the natural default (upcoming soonest-first, past
+  // recent-first). Once they sort, BOTH groups honor the chosen column + direction — previously the
+  // upcoming group ignored the sort entirely (hardcoded), so clicking a header did nothing for it.
+  const [userSorted, setUserSorted] = useState(false);
   const today = todayISO();
 
   const q = search.toLowerCase();
@@ -697,8 +715,9 @@ function TripsList({
   };
 
   const all = trips.filter(match);
-  const upcoming = all.filter((t) => (t.end || "") >= today).sort((a, b) => (a.start < b.start ? -1 : 1));
-  const past = all.filter((t) => (t.end || "") < today).sort(cmp);
+  const byStart = (asc: number) => (a: Trip, b: Trip) => ((a.start || "") < (b.start || "") ? -asc : (a.start || "") > (b.start || "") ? asc : 0);
+  const upcoming = all.filter((t) => (t.end || "") >= today).sort(userSorted ? cmp : byStart(1));
+  const past = all.filter((t) => (t.end || "") < today).sort(userSorted ? cmp : byStart(-1));
   const showUpcoming = stat === "ALL" || stat === "up";
   const filtered = ent !== "ALL" || stat !== "ALL" || !!q;
   const shown = (showUpcoming ? upcoming.length : 0) + (stat === "up" ? 0 : past.length);
@@ -717,6 +736,7 @@ function TripsList({
   );
 
   function toggleSort(k: SortKey) {
+    setUserSorted(true);
     if (sortK === k) setDir((d) => (d === 1 ? -1 : 1));
     else { setSortK(k); setDir(k === "dest" || k === "ent" ? 1 : -1); }
   }
@@ -784,8 +804,7 @@ function TripsList({
               <SortTh k="dest" label="Trip" />
               <SortTh k="ent" label="Entity" />
               <SortTh k="start" label="Dates" />
-              <SortTh k="count" label="Expenses" />
-              <SortTh k="missing" label="Receipts" />
+              <th className="px-4 py-2 text-left font-medium text-slate-400">Progress</th>
               <SortTh k="total" label="Amount" right />
               <th className="w-6" />
             </tr>
@@ -798,7 +817,7 @@ function TripsList({
               </>
             )}
             {shown === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-sm text-slate-400">No matching trips.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-sm text-slate-400">No matching trips.</td></tr>
             ) : (
               past.map((t, i) => {
                 const ty = (t.start || "").slice(0, 4);
@@ -891,7 +910,7 @@ function NeedsTripInbox({
 function GroupRow({ label }: { label: string }) {
   return (
     <tr className="bg-slate-50/70">
-      <td colSpan={7} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</td>
+      <td colSpan={6} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</td>
     </tr>
   );
 }
@@ -902,6 +921,30 @@ function SummaryStat({ n, l, warn }: { n: string; l: string; warn?: boolean }) {
       <div className={`text-[19px] font-bold tabular-nums ${warn ? "text-amber-600" : "text-brand-navy"}`}>{n}</div>
       <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{l}</div>
     </div>
+  );
+}
+
+// One thin labeled progress bar: green = done, amber = pending review, grey track = remaining.
+// Count reads N/M (amber when anything's pending), or a green check when complete.
+function ProgressBar({ label, done, pending, total }: { label: string; done: number; pending: number; total: number }) {
+  const pctDone = total > 0 ? Math.round((done / total) * 100) : 0;
+  const pctPending = total > 0 ? Math.round((pending / total) * 100) : 0;
+  const complete = total > 0 && done >= total;
+  return (
+    <>
+      <span className="text-slate-400">{label}</span>
+      {total === 0 ? (
+        <span className="h-[5px] rounded-full bg-slate-100" />
+      ) : (
+        <span className="flex h-[5px] overflow-hidden rounded-full bg-slate-100">
+          <span style={{ width: `${pctDone}%`, background: "#177245" }} />
+          <span style={{ width: `${pctPending}%`, background: "#EF9F27" }} />
+        </span>
+      )}
+      <span className={`text-right tabular-nums ${complete ? "text-emerald-600" : pending > 0 ? "font-semibold text-amber-700" : "text-slate-500"}`}>
+        {total === 0 ? "—" : complete ? "✓" : `${done}/${total}`}
+      </span>
+    </>
   );
 }
 
@@ -919,29 +962,14 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
       </td>
       <td className="px-4 py-3"><Badge tone="indigo">{ENT[t.ent] ?? t.ent}</Badge></td>
       <td className="whitespace-nowrap px-4 py-3 text-[12.5px] text-slate-600">{tripDates(t)}</td>
-      <td className="px-4 py-3 text-[12.5px]">
-        {r.count === 0 ? (
-          <span className="text-slate-400">—</span>
-        ) : r.open === 0 ? (
-          // Nothing left to review — either all posted, or accepted/approved and awaiting the QB post.
-          r.awaiting > 0 ? (
-            <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · {r.posted} posted · <span className="text-indigo-600">{r.awaiting} awaiting</span></span>
-          ) : (
-            <span className="text-slate-700"><b className="font-semibold">{r.count}</b> · <span className="text-emerald-600">all posted</span></span>
-          )
+      <td className="px-4 py-3">
+        {r.itinTotal === 0 && r.expTotal === 0 ? (
+          <span className="text-[12px] text-slate-400">nothing booked yet</span>
         ) : (
-          <span className="text-slate-700" title="Open the trip to review — accept the confirmations, then post in Payables">
-            <b className="font-semibold">{r.count}</b> · {r.posted} posted{r.awaiting > 0 ? ` · ${r.awaiting} awaiting` : ""} · <span className="font-semibold text-amber-600">{r.open} to review</span>
-          </span>
-        )}
-      </td>
-      <td className="px-4 py-3 text-[12.5px]">
-        {r.count === 0 ? (
-          <span className="text-slate-400">—</span>
-        ) : r.missing === 0 ? (
-          <span className="font-semibold text-emerald-600">✓ on file</span>
-        ) : (
-          <span className="font-semibold text-amber-600">⚠ {r.missing} missing</span>
+          <div className="grid grid-cols-[58px_1fr_30px] items-center gap-x-2 gap-y-[7px] text-[10px]">
+            <ProgressBar label="Itinerary" done={r.itinReviewed} pending={r.itinToReview} total={r.itinTotal} />
+            <ProgressBar label="Expensed" done={r.expensed} pending={0} total={r.expTotal} />
+          </div>
         )}
       </td>
       <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums">

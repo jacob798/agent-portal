@@ -5,6 +5,7 @@ import {
   Calculator,
   Plane,
   CreditCard,
+  Receipt,
   BookOpenCheck,
   ClipboardCheck,
   Shield,
@@ -38,6 +39,7 @@ export const NAV_SECTIONS: NavSection[] = [
     heading: "Agents",
     items: [
       { href: "/payables", label: "Payables", icon: CreditCard },
+      { href: "/expense-reports", label: "Expense reports", icon: Receipt },
       { href: "/travel", label: "Travel", icon: Plane },
       { href: "/bookkeeper", label: "Bookkeeper", icon: BookOpenCheck },
       { href: "/valuation", label: "Valuation", icon: Calculator },

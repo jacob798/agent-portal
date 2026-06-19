@@ -54,8 +54,12 @@ export async function POST(req: NextRequest) {
     dates: fmtDates(start, end),
     status: end && end >= today ? "up" : "closed",
     purpose: (body.purpose ?? "").trim() || null,
+    // Canonical Title Case — keeps a name consistent with the flights/everywhere. Casing only;
+    // distinct people stay distinct (Jacob Wolbach ≠ William Jacob Wolbach). (Jacob, 2026-06-19.)
     travelers: Array.isArray(body.travelers)
-      ? body.travelers.map((s: unknown) => String(s).trim()).filter(Boolean)
+      ? body.travelers.map((s: unknown) =>
+          String(s).trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(" "),
+        ).filter(Boolean)
       : [],
   };
 

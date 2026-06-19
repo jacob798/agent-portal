@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
   const end = (body.end ?? start).slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
   const id = "trip_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // Canonical Title Case (casing only; distinct people stay distinct). (Jacob, 2026-06-19.)
   const travelers = Array.isArray(body.travelers)
-    ? body.travelers.map((s: unknown) => String(s).trim()).filter(Boolean)
+    ? body.travelers.map((s: unknown) =>
+        String(s).trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(" "),
+      ).filter(Boolean)
     : [];
 
   const row = {

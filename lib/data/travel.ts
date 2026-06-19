@@ -133,7 +133,8 @@ export interface ConfReviewConf {
   traveler: string;
   net?: number | null;   // net that actually hit the card (0 when an eCredit covered it)
   fare?: number | null;  // reimbursable Total Price — shown inline so the summary lives in the row
-  credit?: number | null; // eCredit used = fare − card (shown so the credit is explicit, not implied)
+  credit?: number | null; // eCredit AMOUNT used = fare − card (accounted BC-only)
+  credit_number?: string | null; // eCredit NUMBER — shown for reference on every trip (even when not accounted)
   awaiting_invoice?: boolean; // car/hotel — confirmation only; the folio/charge lands after the trip
   source_url?: string;   // FULL email PDF (document of record / accounting) — "" until filed
   summary_url?: string;  // clean one-page receipt — quick-review glance

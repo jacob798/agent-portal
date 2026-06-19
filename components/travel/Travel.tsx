@@ -1071,7 +1071,11 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                     ? <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">invoice after trip</span>
                     : <>
                         {c.net != null && <span className="tabular-nums text-slate-400">payment {money(c.net)}</span>}
-                        {c.credit != null && c.credit > 0 && <span className="tabular-nums text-emerald-600">eCredit {money(c.credit)}</span>}
+                        {(c.credit || c.credit_number) && (
+                          <span className="tabular-nums text-emerald-600">
+                            eCredit{c.credit ? ` ${money(c.credit)}` : ""}{c.credit_number ? ` · #${c.credit_number}` : ""}
+                          </span>
+                        )}
                         {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">{trip.ent === "BC" ? "reimburse" : "ticket"} {money(c.fare)}</span>}
                       </>}
                   <Source c={c} />
@@ -1275,6 +1279,9 @@ function TripExpensesLedger({ trip }: { trip: Trip }) {
                       <span className="font-semibold">{money(e.netReimbursement ?? e.reimbursementAmount ?? e.amount)}</span>
                       {!!e.creditDrawdown && e.creditDrawdown > 0 && (
                         <div className="text-[10.5px] font-normal text-amber-600">−{money(e.creditDrawdown)} credit drawdown · gross {money(e.reimbursementAmount ?? e.amount)}</div>
+                      )}
+                      {e.creditNumber && (
+                        <div className="text-[10.5px] font-normal text-emerald-600">eCredit #{e.creditNumber}</div>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 pt-2.5 text-right">

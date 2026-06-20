@@ -359,7 +359,10 @@ export async function getTravel(): Promise<{
       supabase
         .from("payables_queue")
         .select("id,vendor,memo,amount,reimbursement_amount,gl,category,bc_category,status,doc_url,nodoc,extracted,trip_id,created_at,account,txn_date,invoice_number,report_id,posted_legs")
-        .not("trip_id", "is", null),
+        .not("trip_id", "is", null)
+        // discarded duplicates / declined items are not part of the trip's expense tie-out — they
+        // were showing as phantom extra rows (the Orlando G9FGY2 dups) even though the count excluded them.
+        .not("status", "in", "(discarded,declined,reclassified)"),
     ]);
     // Group attributed invoices by trip → ledger lines.
     const ledger = new Map<string, TripExpense[]>();

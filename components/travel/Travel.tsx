@@ -1036,7 +1036,7 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
       if (!t) {
         t = { key, conf: c.conf, traveler: c.traveler, directions: [], fare: null, net: null,
               credit: null, credit_number: null, awaiting_invoice: false, source_url: undefined,
-              status: c.status ?? "needs_review" };
+              status: "needs_review" };
         map.set(key, t);
       }
       t.directions.push(dir);
@@ -1046,7 +1046,9 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
       if (!t.credit_number && c.credit_number) t.credit_number = c.credit_number;
       if (c.awaiting_invoice) t.awaiting_invoice = true;
       if (!t.source_url && c.source_url) t.source_url = c.source_url;
-      if ((c.status ?? "needs_review") === "needs_review") t.status = "needs_review";
+      // Any already-decided leg (posted / accepted / declined) takes the WHOLE ticket out of review —
+      // a posted invoice must never reappear as a tile (re-accepting could re-touch it).
+      if ((c.status ?? "needs_review") !== "needs_review") t.status = "decided";
     }
   }
   return [...map.values()];

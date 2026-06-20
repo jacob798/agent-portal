@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
     // nothing, so accepted rows never left 'staged' and never appeared in the Payables queue.
     let q = admin.from("payables_queue").update(
       action === "reassign" ? { trip_id: newTripId } : { status: STATUS[action] },
-    ).eq("trip_id", tripId).ilike("extracted->>conf", conf);
+    ).eq("trip_id", tripId).ilike("extracted->>conf", conf)
+      // NEVER touch an already-posted row — a posted invoice is done; re-accepting/declining/moving
+      // it from the review surface could regress its status or risk duplicating it in QB.
+      .neq("status", "posted");
     if ((it.traveler ?? "").trim()) q = q.ilike("extracted->>traveler", (it.traveler ?? "").trim());
     const { data, error } = await q.select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -86,11 +89,13 @@ export async function POST(req: NextRequest) {
       for (const g of groups) {
         const confs = Array.isArray(g.confs) ? g.confs : [];
         if (action === "reassign") {
-          // drop the matched confs from this trip's review list (they moved)
-          g.confs = confs.filter((c) => { const hit = matchItem(c.conf ?? "", c.traveler ?? ""); if (hit) confsUpdated++; return !hit; });
+          // drop the matched confs from this trip's review list (they moved) — but never move a
+          // posted leg.
+          g.confs = confs.filter((c) => { const hit = matchItem(c.conf ?? "", c.traveler ?? "") && c.status !== "posted"; if (hit) confsUpdated++; return !hit; });
         } else {
           for (const c of confs) {
-            if (matchItem(c.conf ?? "", c.traveler ?? "")) { c.status = CONF_STATUS[action]; confsUpdated++; }
+            // never overwrite a posted leg's status from the review surface.
+            if (c.status !== "posted" && matchItem(c.conf ?? "", c.traveler ?? "")) { c.status = CONF_STATUS[action]; confsUpdated++; }
           }
         }
       }

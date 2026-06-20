@@ -80,7 +80,7 @@ export default function ReportDetail({ report }: { report: ExpenseReport }) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
       <button
         onClick={() => router.push("/expense-reports")}
         className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition hover:text-slate-800"

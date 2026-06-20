@@ -85,7 +85,7 @@ export default function ExpenseReports({ initial }: { initial: ExpenseReport[] }
   );
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6 px-6 py-8">
       <PageHeader
         title="Expense reports"
         subtitle="Bundle unexpensed payables into a report, generate the package, then reconcile the reimbursement."

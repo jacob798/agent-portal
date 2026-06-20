@@ -150,49 +150,50 @@ function buildPrompt(
   exps: ExpDb[],
   trips: Map<string, TripDb>,
 ): string {
-  const items = exps.map((e, i) => {
+  const rows = exps.map((e, i) => {
     const claim = e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount);
-    return [
-      `${i + 1}. Title: ${e.memo || payeeOf(e)}`,
-      `   Transaction Date: ${fmtDate(e.txn_date)}`,
-      `   Payment Method: Personal Credit Card (reimbursable)`,
-      `   Category: ${acctOf(e)}`,
-      `   Amount: ${claim.toFixed(2)}`,
-      `   Business Purpose: ${e.trip_id ? tripLabel(trips.get(e.trip_id)) : ""}`,
-      `   Notes: ${e.invoice_number || ""}`,
-      `   Override Cost Center / Job?: No`,
-      `   Itemize?: No`,
-      `   Receipt: ${e.doc_url ? receiptName(e) : "(no receipt — leave empty, note it)"}`,
-    ].join("\n");
-  }).join("\n\n");
+    const bp = e.trip_id ? tripLabel(trips.get(e.trip_id)) : "";
+    const cells = [
+      String(i + 1),
+      e.memo || payeeOf(e),
+      fmtDate(e.txn_date),
+      "Personal Credit Card (reimbursable)",
+      acctOf(e),
+      claim.toFixed(2),
+      bp,
+      e.invoice_number || "",
+      e.doc_url ? receiptName(e) : "(no receipt)",
+    ].map((c) => String(c).replace(/\|/g, "/"));
+    return `| ${cells.join(" | ")} |`;
+  }).join("\n");
 
-  return `You are filing a Builders Capital expense report in Paylocity. Drive the browser; do not invent or reformat any value.
+  return `File a Builders Capital expense report in Paylocity. Drive the browser. Enter every value verbatim — do not invent or reformat.
 
-LOG IN — https://access.paylocity.com
-  Company ID: 123342
-  Username: jacob.wolbach
-  Password: the operator enters it (1Password). Never type, copy, or request the password.
-Then open Expense (left nav) → Expense Reports.
+LOGIN — https://access.paylocity.com  (Company ID 123342, Username jacob.wolbach; the operator enters the password — never type or request it)
+NAV — Expense (left nav) → Expense Reports → Create Expense Report
 
-All files for this report are in this Dropbox folder (synced locally under your Dropbox sync of /Finance):
+PRE-FLIGHT: All receipts are in:
   ${dropboxFolder}
-Each expense's Receipt below is a PDF filename inside that folder.
+Before opening the browser, validate every receipt PDF in one shell pass (header + %%EOF + page count). Flag any corrupt file and STOP for the operator to fix it before uploading.
 
-STEP 1 — Create a NEW expense report ("Create Expense Report"):
-  Report Title: ${dropboxFolder.split("/").pop()}
-  Business Purpose: ${businessPurpose || "(none)"}
-  Event: N/A · Department / Location: default
+REPORT
+  Title: ${dropboxFolder.split("/").pop()}   Business Purpose: ${businessPurpose || "(none)"}   Event: N/A   Dept/Location: default
 
-STEP 2 — Add one expense per item below (Create New Expense), filling each field verbatim, then Save:
+EXPENSES (add each, then Save; do NOT submit):
+| # | Title | Txn Date | Payment Method | Category | Amount | Business Purpose | Notes | Receipt filename |
+|---|---|---|---|---|---|---|---|---|
+${rows}
+(Override Cost Center? = No and Itemize? = No on every expense.)
 
-${items}
+KNOWN UI QUIRKS — apply these, don't rediscover:
+- Date / Amount / Notes are masked → TYPE them (form_input returns NaN/blank).
+- Payment Method & Category are custom dropdowns → click the option TWICE (first highlights, second commits). Match visible text exactly; if no exact match, STOP and report the item # + value.
+- "Business Purpose" field only appears AFTER Category is selected.
+- Upload receipts via the hidden file input by ref (find "hidden file input"), not by clicking the button.
+- Do NOT full-reload the report URL — it logs the session out. Use in-app navigation.
+- Batch each expense's field entry into as few steps as possible; screenshot once per expense, not per click.
 
-RULES
-- For dropdowns (Payment Method, Category), pick the option whose visible text equals the value. If none matches, STOP and report the item number + value — don't guess.
-- Upload each Receipt from the path shown (it's unique per expense — don't match by amount/date, co-travelers share those).
-- Set Override Cost Center / Job? and Itemize? to No on every expense.
-- Do NOT submit the report — leave it saved in draft for review.
-- When done, give a short table: item #, Title, Amount, receipt uploaded?, any field you couldn't set.
+VERIFY at the end from the saved expense list (titles, amounts, green status, receipt attached). Leave the report in DRAFT and give a summary table + anything you couldn't set.
 `;
 }
 

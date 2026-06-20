@@ -986,17 +986,20 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
   );
 }
 
-// ---------- confirmation review — ONE TILE PER PASSENGER ----------
-// Charges break out per passenger, so each (confirmation, traveler) is its own tile with its own
-// four actions (Accept invoice / Accept confirmation / Move trip / Discard). A round trip is ONE
-// tile: the worker emits one leg-group per direction, so regrouping by passenger collapses out +
-// return into a single tile. The itinerary is summarized PER DIRECTION (route · via · date /
-// flights · times) into a fixed-height block, so 2, 3, or 4 legs per direction — and one-way vs
-// round trip — all render at the same tile size; full per-segment detail is behind "View legs".
+// ---------- confirmation review — ONE CARD PER TICKET (flight ticket / hotel / car) ----------
+// Each (confirmation, traveler) is one card. FLIGHTS summarize per directional leg — out / return
+// for a round trip, one line per leg for multi-city — with NO View legs. HOTELS and CARS render
+// their detail inline (check-in/out; pickup/drop-off with distinct locations). Every card has a
+// FIXED-height schedule region + a FIXED-height financial box, so the cost boxes MATCH and align
+// across cards; the multi-city flight fills the region (balanced top/bottom). Four equal buttons.
 type TicketDir = { route: string; day?: string; via: string; flights: string; depart?: string; arrive?: string; segs: ConfReviewSeg[] };
+type Endpoint = { label: string; loc: string; time?: string; day?: string };
 type ReviewTicket = {
-  key: string; conf: string; traveler: string; directions: TicketDir[];
+  key: string; conf: string; traveler: string; kind: "flight" | "hotel" | "car";
+  directions: TicketDir[];
+  name?: string; inPt?: Endpoint; outPt?: Endpoint;
   fare: number | null; net: number | null; credit: number | null; credit_number: string | null;
+  estTotal: number | null; estRate: number | null;
   awaiting_invoice: boolean; source_url?: string; status: string;
 };
 
@@ -1024,22 +1027,35 @@ function dirSummary(item: ConfReviewItem): TicketDir {
   };
 }
 
-// Regroup the per-leg confirmations into one ticket per (confirmation, traveler). Financials ride a
-// single leg (the outbound), so we take the first non-null value we see across the passenger's legs.
+// Regroup the per-leg confirmations into one ticket per (confirmation, traveler). FLIGHT financials
+// ride a single leg (the outbound) → take the first non-null across legs. HOTEL/CAR detail + the
+// captured estimated cost come off the single leg-group.
 function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
   const map = new Map<string, ReviewTicket>();
   for (const item of items) {
-    const dir = dirSummary(item);
+    const routeStr = item.route || "";
+    const kindGuess: ReviewTicket["kind"] = routeStr.startsWith("Hotel") ? "hotel" : routeStr.startsWith("Car rental") ? "car" : "flight";
     for (const c of item.confs) {
       const key = `${c.conf}|${c.traveler}`;
+      const kind = (c.kind as ReviewTicket["kind"]) || kindGuess;
       let t = map.get(key);
       if (!t) {
-        t = { key, conf: c.conf, traveler: c.traveler, directions: [], fare: null, net: null,
-              credit: null, credit_number: null, awaiting_invoice: false, source_url: undefined,
-              status: "needs_review" };
+        t = { key, conf: c.conf, traveler: c.traveler, kind, directions: [], name: undefined,
+              inPt: undefined, outPt: undefined, fare: null, net: null, credit: null, credit_number: null,
+              estTotal: null, estRate: null, awaiting_invoice: false, source_url: undefined, status: "needs_review" };
         map.set(key, t);
       }
-      t.directions.push(dir);
+      if (kind === "flight") {
+        t.directions.push(dirSummary(item));
+      } else {
+        t.name = routeStr.replace(/^(Hotel|Car rental)\s*·\s*/, "").trim() || c.vendor || routeStr;
+        const segs = item.segments ?? [];
+        const mk = (s?: ConfReviewSeg): Endpoint | undefined => (s ? { label: s.flight, loc: s.route, time: s.depart, day: s.day } : undefined);
+        if (segs[0]) t.inPt = mk(segs[0]);
+        if (segs[1]) t.outPt = mk(segs[1]);
+        if (c.est_total != null) t.estTotal = c.est_total;
+        if (c.est_rate != null) t.estRate = c.est_rate;
+      }
       if (t.fare == null && c.fare != null) t.fare = c.fare;
       if (t.net == null && c.net != null) t.net = c.net;
       if (t.credit == null && c.credit != null) t.credit = c.credit;
@@ -1047,7 +1063,7 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
       if (c.awaiting_invoice) t.awaiting_invoice = true;
       if (!t.source_url && c.source_url) t.source_url = c.source_url;
       // Any already-decided leg (posted / accepted / declined) takes the WHOLE ticket out of review —
-      // a posted invoice must never reappear as a tile (re-accepting could re-touch it).
+      // a posted invoice must never reappear as a card (re-accepting could re-touch it).
       if ((c.status ?? "needs_review") !== "needs_review") t.status = "decided";
     }
   }
@@ -1061,7 +1077,6 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
   // Decisions applied this session — hide that ticket immediately (optimistic) so the click lands
   // before the server refresh re-reads trips.confirmations.
   const [done, setDone] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const others = trips.filter((t) => t.id !== trip.id);
 
   const tickets = buildTickets(trip.confirmations ?? [])
@@ -1099,89 +1114,92 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
     <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="text-[13.5px] font-semibold">Review &amp; approve <span className="font-normal text-slate-400">· from travel@</span></div>
-        <span className="text-[11.5px] text-slate-400">{tickets.length} passenger ticket{tickets.length === 1 ? "" : "s"}</span>
+        <span className="text-[11.5px] text-slate-400">{tickets.length} to review</span>
       </div>
-      <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-stretch gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
         {tickets.map((t) => {
-          const noCost = t.fare == null && t.net == null && t.credit == null && !t.awaiting_invoice;
-          const isOpen = expanded.has(t.key);
-          const allSegs = t.directions.flatMap((d) => d.segs);
+          const subtitle = t.kind === "flight" ? `Flight · ${tripShape(t.directions.length)}` : t.kind === "car" ? "Car rental" : "Hotel";
+          const flightNoCost = t.kind === "flight" && t.fare == null && t.net == null && t.credit == null;
           return (
-            <div key={t.key} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
-              {/* header — passenger + trip shape + confirmation # */}
+            <div key={t.key} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3.5">
+              {/* header — traveler + type + confirmation # */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-medium text-indigo-600">{ticketInitials(t.traveler)}</span>
                   <div className="min-w-0">
                     <div className="truncate text-[14px] font-medium">{t.traveler}</div>
-                    <div className="text-[12px] text-slate-500">{tripShape(t.directions.length)}</div>
+                    <div className="text-[12px] text-slate-500">{subtitle}</div>
                   </div>
                 </div>
                 <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">{t.conf}</span>
               </div>
 
-              {/* itinerary — fixed height, one summary per direction */}
-              <div className="min-h-[72px] border-t border-slate-100 pt-2 text-[12px]">
-                {t.directions.map((d, i) => (
-                  <div key={i} className={i ? "mt-1" : ""}>
+              {/* schedule — FIXED height so the financial boxes below all align across cards */}
+              <div className="min-h-[120px] border-t border-slate-100 mt-3 pt-2 text-[12px]">
+                {t.kind === "flight" ? t.directions.map((d, i) => (
+                  <div key={i} className={i ? "mt-1.5" : ""}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="min-w-0 truncate">
-                        <span className="text-slate-400">{t.directions.length > 1 ? (i === 0 ? "↗ " : "↙ ") : ""}</span>
+                        {t.directions.length === 2 ? <span className="text-slate-400">{i === 0 ? "↗ " : "↙ "}</span> : null}
                         <span className="font-medium">{d.route}</span> <span className="text-slate-400">· {d.via}</span>
                       </span>
                       {d.day && <span className="shrink-0 text-slate-400">{d.day}</span>}
                     </div>
-                    <div className="truncate pl-4 text-[11px] text-slate-400">{d.flights}{d.depart ? ` · ${d.depart}–${d.arrive}` : ""}</div>
+                    <div className="truncate text-[11px] text-slate-400">{d.flights}{d.depart ? ` · ${d.depart}–${d.arrive}` : ""}</div>
                   </div>
-                ))}
-                {allSegs.length > 0 && (
-                  <button onClick={() => setExpanded((s) => { const n = new Set(s); n.has(t.key) ? n.delete(t.key) : n.add(t.key); return n; })}
-                    className="mt-1 pl-4 text-[11px] font-medium text-brand hover:underline">{isOpen ? "Hide legs" : "View legs"}</button>
-                )}
-                {isOpen && (
-                  <div className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5">
-                    {allSegs.map((s, i) => (
-                      <div key={i} className="flex items-center gap-2 py-0.5 text-[11.5px] text-slate-600">
-                        <span className="min-w-[78px] font-medium text-slate-700">{shortFlight(s.flight)}</span>
-                        <span className="min-w-0 truncate">{s.route}</span>
-                        <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* charge — broken out per passenger */}
-              <div className="border-t border-slate-100 pt-2 text-[12px]">
-                {t.awaiting_invoice ? (
-                  <div className="text-slate-500">Invoice after the trip — confirmation only.</div>
-                ) : noCost ? (
-                  <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
-                ) : (
+                )) : (
                   <>
-                    <div className={ROW}><span className="text-slate-500">{trip.ent === "BC" ? "Reimburse" : "Ticket"}</span><span className="tabular-nums">{t.fare != null ? money(t.fare) : "—"}</span></div>
-                    <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
-                    <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
+                    <div className="mb-0.5 font-medium">{t.name}</div>
+                    {t.inPt && (
+                      <div className="flex items-center justify-between gap-2 py-0.5">
+                        <span>{t.kind === "car" ? `Pickup · ${t.inPt.loc}` : "Check-in"}</span>
+                        <span className="shrink-0 text-slate-400">{[t.inPt.day, t.inPt.time].filter(Boolean).join(" · ")}</span>
+                      </div>
+                    )}
+                    {t.outPt && (
+                      <div className="flex items-center justify-between gap-2 py-0.5">
+                        <span>{t.kind === "car" ? `Drop-off · ${t.outPt.loc}` : "Check-out"}</span>
+                        <span className="shrink-0 text-slate-400">{[t.outPt.day, t.outPt.time].filter(Boolean).join(" · ")}</span>
+                      </div>
+                    )}
                   </>
                 )}
-                {t.source_url && (
-                  <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[11px] font-medium text-brand hover:underline">view source ↗</a>
+              </div>
+
+              {/* financial box — FIXED height, matches across every card */}
+              <div className="min-h-[58px] border-t border-slate-100 pt-2 text-[12px]">
+                {t.kind === "flight" ? (
+                  flightNoCost ? (
+                    <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
+                  ) : (
+                    <>
+                      <div className={ROW}><span className="text-slate-500">{trip.ent === "BC" ? "Reimburse" : "Ticket"}</span><span className="tabular-nums">{t.fare != null ? money(t.fare) : "—"}</span></div>
+                      <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
+                      <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
+                    </>
+                  )
+                ) : (
+                  <>
+                    {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{money(t.estRate)}{t.kind === "car" ? " / day" : " / night"}</span></div>}
+                    {t.estTotal != null && <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{money(t.estTotal)}</span></div>}
+                    <div className="mt-0.5 text-[11px] text-slate-400">Captured · invoice posts after the trip</div>
+                  </>
                 )}
               </div>
 
-              {/* actions — four, applied to this passenger ticket */}
-              <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-100 pt-2.5">
-                <div className="flex gap-1.5">
-                  <button disabled={busy} onClick={() => act("accept_invoice", t)}
-                    className="flex-1 rounded-md bg-emerald-50 px-2 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
-                  <button disabled={busy} onClick={() => act("accept_confirmation", t)}
-                    className="flex-1 rounded-md bg-indigo-50 px-2 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Confirmation</button>
-                </div>
-                <div className="flex items-stretch gap-1.5">
-                  <div className="flex-1"><MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", t, id)} /></div>
-                  <button disabled={busy} onClick={() => { if (confirm("Discard this confirmation from the program?")) act("decline", t); }}
-                    className="flex-1 rounded-md bg-rose-50 px-2 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Discard</button>
-                </div>
+              {t.source_url && (
+                <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 text-[11px] font-medium text-brand hover:underline">view source ↗</a>
+              )}
+
+              {/* actions — four equal buttons, 2×2 */}
+              <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                <button disabled={busy} onClick={() => act("accept_invoice", t)}
+                  className="flex h-[34px] items-center justify-center gap-1 rounded-md bg-emerald-50 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
+                <button disabled={busy} onClick={() => act("accept_confirmation", t)}
+                  className="flex h-[34px] items-center justify-center gap-1 rounded-md bg-indigo-50 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Confirmation</button>
+                <MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", t, id)} />
+                <button disabled={busy} onClick={() => { if (confirm("Discard this confirmation from the program?")) act("decline", t); }}
+                  className="flex h-[34px] items-center justify-center gap-1 rounded-md bg-rose-50 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Discard</button>
               </div>
             </div>
           );
@@ -1214,7 +1232,7 @@ function MoveTripSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50"
+        className="flex h-[34px] w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-2 text-[12px] text-slate-600 disabled:opacity-50"
       >
         ↪ Move trip… <ChevronDown className="h-3 w-3" />
       </button>

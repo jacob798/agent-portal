@@ -143,8 +143,9 @@ export interface ConfReviewConf {
   summary_url?: string;  // clean one-page receipt — quick-review glance
   status?: string;      // needs_review | accepted_invoice | accepted_confirmation | declined | posted
   vendor?: string;
-  kind?: string;         // flight | hotel | car — drives the card layout
-  est_total?: number | null; // hotel/car CAPTURED estimated cost (not posted until the folio lands)
+  kind?: string;         // route | stay | span | point — the card LAYOUT
+  type_label?: string;   // Flight | Train | Ferry | Hotel | Car rental | Parking | Event | Meeting …
+  est_total?: number | null; // hotel/car/event CAPTURED estimated cost (not posted until the folio lands)
   est_rate?: number | null;  // hotel nightly / car daily rate, when the confirmation carries it
 }
 export interface ConfReviewSeg {

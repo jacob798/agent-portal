@@ -992,10 +992,11 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
 // their detail inline (check-in/out; pickup/drop-off with distinct locations). Every card has a
 // FIXED-height schedule region + a FIXED-height financial box, so the cost boxes MATCH and align
 // across cards; the multi-city flight fills the region (balanced top/bottom). Four equal buttons.
+type Layout = "route" | "stay" | "span" | "point";
 type TicketDir = { route: string; day?: string; via: string; flights: string; depart?: string; arrive?: string; segs: ConfReviewSeg[] };
 type Endpoint = { label: string; loc: string; time?: string; day?: string };
 type ReviewTicket = {
-  key: string; conf: string; traveler: string; kind: "flight" | "hotel" | "car";
+  key: string; conf: string; traveler: string; kind: Layout; typeLabel: string;
   directions: TicketDir[];
   name?: string; inPt?: Endpoint; outPt?: Endpoint;
   fare: number | null; net: number | null; credit: number | null; credit_number: string | null;
@@ -1034,21 +1035,25 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
   const map = new Map<string, ReviewTicket>();
   for (const item of items) {
     const routeStr = item.route || "";
-    const kindGuess: ReviewTicket["kind"] = routeStr.startsWith("Hotel") ? "hotel" : routeStr.startsWith("Car rental") ? "car" : "flight";
+    // fallback layout guess for pre-`kind` data: a "X → Y" route is transport, else by prefix
+    const kindGuess: Layout = /→/.test(routeStr) ? "route"
+      : /^(Hotel|Airbnb)\b/.test(routeStr) ? "stay"
+      : /^(Event|Meeting)\b/.test(routeStr) ? "point" : "span";
     for (const c of item.confs) {
       const key = `${c.conf}|${c.traveler}`;
-      const kind = (c.kind as ReviewTicket["kind"]) || kindGuess;
+      const kind = ((c.kind as Layout) || kindGuess);
+      const typeLabel = c.type_label || (kind === "route" ? "Flight" : kind === "stay" ? "Hotel" : kind === "point" ? "Event" : "Car rental");
       let t = map.get(key);
       if (!t) {
-        t = { key, conf: c.conf, traveler: c.traveler, kind, directions: [], name: undefined,
+        t = { key, conf: c.conf, traveler: c.traveler, kind, typeLabel, directions: [], name: undefined,
               inPt: undefined, outPt: undefined, fare: null, net: null, credit: null, credit_number: null,
               estTotal: null, estRate: null, awaiting_invoice: false, source_url: undefined, status: "needs_review" };
         map.set(key, t);
       }
-      if (kind === "flight") {
+      if (kind === "route") {
         t.directions.push(dirSummary(item));
       } else {
-        t.name = routeStr.replace(/^(Hotel|Car rental)\s*·\s*/, "").trim() || c.vendor || routeStr;
+        t.name = routeStr.replace(/^[^·]*·\s*/, "").trim() || c.vendor || routeStr;
         const segs = item.segments ?? [];
         const mk = (s?: ConfReviewSeg): Endpoint | undefined => (s ? { label: s.flight, loc: s.route, time: s.depart, day: s.day } : undefined);
         if (segs[0]) t.inPt = mk(segs[0]);
@@ -1118,8 +1123,8 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
       </div>
       <div className="grid items-stretch gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
         {tickets.map((t) => {
-          const subtitle = t.kind === "flight" ? `Flight · ${tripShape(t.directions.length)}` : t.kind === "car" ? "Car rental" : "Hotel";
-          const flightNoCost = t.kind === "flight" && t.fare == null && t.net == null && t.credit == null;
+          const subtitle = t.kind === "route" ? `${t.typeLabel} · ${tripShape(t.directions.length)}` : t.typeLabel;
+          const hasPrepaid = t.fare != null || t.net != null || t.credit != null;
           return (
             <div key={t.key} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3.5">
               {/* header — traveler + type + confirmation # */}
@@ -1136,7 +1141,7 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
 
               {/* schedule — FIXED height so the financial boxes below all align across cards */}
               <div className="min-h-[120px] border-t border-slate-100 mt-3 pt-2 text-[12px]">
-                {t.kind === "flight" ? t.directions.map((d, i) => (
+                {t.kind === "route" ? t.directions.map((d, i) => (
                   <div key={i} className={i ? "mt-1.5" : ""}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="min-w-0 truncate">
@@ -1147,18 +1152,28 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                     </div>
                     <div className="truncate text-[11px] text-slate-400">{d.flights}{d.depart ? ` · ${d.depart}–${d.arrive}` : ""}</div>
                   </div>
-                )) : (
+                )) : t.kind === "point" ? (
                   <>
                     <div className="mb-0.5 font-medium">{t.name}</div>
                     {t.inPt && (
                       <div className="flex items-center justify-between gap-2 py-0.5">
-                        <span>{t.kind === "car" ? `Pickup · ${t.inPt.loc}` : "Check-in"}</span>
+                        <span className="min-w-0 truncate">{t.inPt.loc || t.typeLabel}</span>
+                        <span className="shrink-0 text-slate-400">{[t.inPt.day, t.inPt.time].filter(Boolean).join(" · ")}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-0.5 font-medium">{t.name}</div>
+                    {t.inPt && (
+                      <div className="flex items-center justify-between gap-2 py-0.5">
+                        <span className="min-w-0 truncate">{t.kind === "span" ? `${t.inPt.label}${t.inPt.loc ? ` · ${t.inPt.loc}` : ""}` : t.inPt.label}</span>
                         <span className="shrink-0 text-slate-400">{[t.inPt.day, t.inPt.time].filter(Boolean).join(" · ")}</span>
                       </div>
                     )}
                     {t.outPt && (
                       <div className="flex items-center justify-between gap-2 py-0.5">
-                        <span>{t.kind === "car" ? `Drop-off · ${t.outPt.loc}` : "Check-out"}</span>
+                        <span className="min-w-0 truncate">{t.kind === "span" ? `${t.outPt.label}${t.outPt.loc ? ` · ${t.outPt.loc}` : ""}` : t.outPt.label}</span>
                         <span className="shrink-0 text-slate-400">{[t.outPt.day, t.outPt.time].filter(Boolean).join(" · ")}</span>
                       </div>
                     )}
@@ -1166,24 +1181,25 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                 )}
               </div>
 
-              {/* financial box — FIXED height, matches across every card */}
+              {/* financial box — FIXED height, matches across every card; driven by the DATA:
+                  prepaid (fare/card) → ticket lines · captured estimate → est total · neither → note */}
               <div className="min-h-[58px] border-t border-slate-100 pt-2 text-[12px]">
-                {t.kind === "flight" ? (
-                  flightNoCost ? (
-                    <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
-                  ) : (
-                    <>
-                      <div className={ROW}><span className="text-slate-500">{trip.ent === "BC" ? "Reimburse" : "Ticket"}</span><span className="tabular-nums">{t.fare != null ? money(t.fare) : "—"}</span></div>
-                      <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
-                      <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
-                    </>
-                  )
-                ) : (
+                {hasPrepaid ? (
                   <>
-                    {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{money(t.estRate)}{t.kind === "car" ? " / day" : " / night"}</span></div>}
-                    {t.estTotal != null && <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{money(t.estTotal)}</span></div>}
+                    <div className={ROW}><span className="text-slate-500">{trip.ent === "BC" ? "Reimburse" : "Ticket"}</span><span className="tabular-nums">{t.fare != null ? money(t.fare) : "—"}</span></div>
+                    <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
+                    <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
+                  </>
+                ) : t.estTotal != null ? (
+                  <>
+                    {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{money(t.estRate)}{t.kind === "span" ? " / day" : " / night"}</span></div>}
+                    <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{money(t.estTotal)}</span></div>
                     <div className="mt-0.5 text-[11px] text-slate-400">Captured · invoice posts after the trip</div>
                   </>
+                ) : t.kind === "route" ? (
+                  <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
+                ) : (
+                  <div className="text-slate-500">Confirmation only — cost captured in payables.</div>
                 )}
               </div>
 

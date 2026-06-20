@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { money } from "@/lib/data/entities";
-import { type ExpenseReport, type ExpenseRow, fmtMD, fmtRange, requestedAmount } from "@/lib/data/expenseReportsShared";
+import { type ExpenseReport, type ExpenseRow, fmtMD, fmtRange, requestedAmount, ecreditNote } from "@/lib/data/expenseReportsShared";
 import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
@@ -167,8 +167,10 @@ export default function SelectExpenses({
           <tbody className="divide-y divide-slate-100">
             {sorted.map((r) => {
               const on = checked.has(r.id);
+              const ec = ecreditNote(r);
               return (
-                <tr key={r.id} className={`transition ${on ? "bg-emerald-50/40" : "hover:bg-slate-50"}`}>
+                <Fragment key={r.id}>
+                <tr className={`transition ${on ? "bg-emerald-50/40" : "hover:bg-slate-50"}`}>
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -210,6 +212,17 @@ export default function SelectExpenses({
                   <td className="px-4 py-3 text-sm font-medium" style={{ color: "#ba7517" }}>{r.account || "—"}</td>
                   <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-slate-900">{money(requestedAmount(r))}</td>
                 </tr>
+                {ec && (
+                  <tr className={on ? "bg-emerald-50/40" : ""}>
+                    <td></td>
+                    <td colSpan={6} className="px-4 pb-3 pt-0">
+                      <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
+                        <span aria-hidden="true">🎫</span> eCredit {money(ec.amount)} applied{ec.number ? ` · #${ec.number}` : ""} — claim not duplicated
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
             {sorted.length === 0 && (

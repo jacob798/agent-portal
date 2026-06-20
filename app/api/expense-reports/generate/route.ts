@@ -31,7 +31,7 @@ interface ExpDb {
   memo: string | null;
   doc_url: string | null;
   trip_id: string | null;
-  extracted: { payee?: string; traveler?: string } | null;
+  extracted: { payee?: string; traveler?: string; credit_number?: string | null; credit_amount?: number | string | null } | null;
 }
 interface TripDb {
   id: string;
@@ -185,6 +185,7 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
   }
 
   let grand = 0;
+  let ecGrand = 0;  // total eCredit applied but not previously expensed (claimed, not duplicated)
   for (const g of ordered) {
     newPageIfNeeded(40);
     // group header
@@ -215,6 +216,16 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
       cell(page, e.doc_url ? "receipt" : "MISSING", cDoc, y, 8, font, e.doc_url ? GREEN : RED);
       cell(page, `$${amt.toFixed(2)}`, 0, y, 8, font, OXFORD, RIGHT);
       y -= 16;
+      // CALLOUT: an eCredit was applied that wasn't previously expensed → the full fare is claimed,
+      // not duplicated. Drawn under the line so the reviewer sees why a low/zero card charge claims more.
+      const credit = e.extracted?.credit_amount == null || e.extracted?.credit_amount === "" ? 0 : num(e.extracted.credit_amount);
+      if (credit > 0) {
+        newPageIfNeeded(12);
+        ecGrand += credit;
+        const note = `eCredit $${credit.toFixed(2)} applied${e.extracted?.credit_number ? ` · #${e.extracted.credit_number}` : ""} — claim not duplicated`;
+        cell(page, clip(font, note, 7.5, RIGHT - cVendor - 6), cVendor, y, 7.5, font, GREEN);
+        y -= 13;
+      }
     }
     cell(page, "Subtotal", cAcct, y, 8, bold, GRAY);
     cell(page, `$${sub.toFixed(2)}`, 0, y, 8, bold, OXFORD, RIGHT);
@@ -223,8 +234,16 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
 
   newPageIfNeeded(24);
   page.drawLine({ start: { x: M, y: y + 8 }, end: { x: RIGHT, y: y + 8 }, thickness: 1, color: OXFORD });
-  cell(page, "Total", cAcct, y - 6, 11, bold);
+  cell(page, "Total reimbursement claimed", cAcct - 90, y - 6, 11, bold);
   cell(page, `$${grand.toFixed(2)}`, 0, y - 6, 11, bold, OXFORD, RIGHT);
+  if (ecGrand > 0) {
+    y -= 24;
+    cell(page, "— of which eCredit not previously expensed", cAcct - 90, y, 8, font, GREEN);
+    cell(page, `$${ecGrand.toFixed(2)}`, 0, y, 8, font, GREEN, RIGHT);
+    y -= 12;
+    cell(page, "— charged to card", cAcct - 90, y, 8, font, GRAY);
+    cell(page, `$${(grand - ecGrand).toFixed(2)}`, 0, y, 8, font, GRAY, RIGHT);
+  }
 
   return doc.save();
 }

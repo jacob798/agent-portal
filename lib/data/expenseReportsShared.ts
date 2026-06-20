@@ -24,8 +24,10 @@ export interface ExpenseReport {
   reimbursedAt: string | null;
   /** Number of payables rows whose report_id = this report. */
   itemCount: number;
-  /** Sum of those rows' amount. */
+  /** Sum of those rows' CLAIM (reimbursement, else amount). */
   total: number;
+  /** Sum of eCredits applied across the report's rows (not previously expensed → still claimed). */
+  ecreditApplied: number;
 }
 
 export interface TripRef {
@@ -53,6 +55,9 @@ export interface ExpenseRow {
   docUrl: string | null;
   paymentMethod: string | null;
   memo: string | null;
+  /** eCredit applied to this ticket (the part NOT charged to the card), and its full number. */
+  creditAmount: number | null;
+  creditNumber: string | null;
   reconcile: ReconcileData;
 }
 
@@ -92,4 +97,11 @@ export function tripLabel(t?: TripRef | null): string {
 /** Requested (claimable) amount for a row: reimbursementAmount, else amount. */
 export function requestedAmount(e: ExpenseRow): number {
   return e.reimbursementAmount ?? e.amount;
+}
+
+/** An eCredit was applied that wasn't previously expensed → the full fare is still claimed, not
+ * duplicated. Returns {amount, number} for the callout, else null. */
+export function ecreditNote(e: ExpenseRow): { amount: number; number: string | null } | null {
+  const amt = e.creditAmount ?? 0;
+  return amt > 0 ? { amount: amt, number: e.creditNumber } : null;
 }

@@ -33,6 +33,7 @@ const MOCK_REPORTS: ExpenseReport[] = [
     reimbursedAt: null,
     itemCount: 6,
     total: 3284.51,
+    ecreditApplied: 0,
   },
   {
     id: "er_mock2",
@@ -49,6 +50,7 @@ const MOCK_REPORTS: ExpenseReport[] = [
     reimbursedAt: "2026-06-05T13:00:00Z",
     itemCount: 4,
     total: 1842.0,
+    ecreditApplied: 0,
   },
   {
     id: "er_mock3",
@@ -65,6 +67,7 @@ const MOCK_REPORTS: ExpenseReport[] = [
     reimbursedAt: null,
     itemCount: 0,
     total: 0,
+    ecreditApplied: 0,
   },
 ];
 
@@ -82,6 +85,8 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    creditAmount: null,
+    creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
   },
   {
@@ -97,6 +102,8 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    creditAmount: null,
+    creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
   },
   {
@@ -112,6 +119,8 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    creditAmount: null,
+    creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
   },
 ];
@@ -138,7 +147,7 @@ interface ReportRowDb {
   reimbursed_at: string | null;
 }
 
-function mapReport(r: ReportRowDb, itemCount = 0, total = 0): ExpenseReport {
+function mapReport(r: ReportRowDb, itemCount = 0, total = 0, ecreditApplied = 0): ExpenseReport {
   const status = (["draft", "generated", "submitted", "reimbursed"].includes(r.status ?? "")
     ? r.status
     : "draft") as ReportStatus;
@@ -157,6 +166,7 @@ function mapReport(r: ReportRowDb, itemCount = 0, total = 0): ExpenseReport {
     reimbursedAt: r.reimbursed_at ?? null,
     itemCount,
     total,
+    ecreditApplied,
   };
 }
 
@@ -177,6 +187,8 @@ interface PayableExpenseDb {
   extracted: {
     payee?: string;
     traveler?: string;
+    credit_number?: string | null;
+    credit_amount?: number | string | null;
     recon?: { reimbursed?: number | null; variance_entity?: string | null };
   } | null;
 }
@@ -202,6 +214,8 @@ function mapExpense(r: PayableExpenseDb, trips: TripMap): ExpenseRow {
     docUrl: r.doc_url ?? null,
     paymentMethod: r.account || r.payment_method_id || null,
     memo: r.memo ?? null,
+    creditAmount: ex.credit_amount === null || ex.credit_amount === undefined || ex.credit_amount === "" ? null : num(ex.credit_amount),
+    creditNumber: ex.credit_number ?? null,
     reconcile: {
       reimbursed: recon.reimbursed === undefined ? null : recon.reimbursed,
       varianceEntity: recon.variance_entity ?? null,
@@ -251,19 +265,21 @@ export async function getExpenseReports(): Promise<ExpenseReport[]> {
     // CLAIM (reimbursement = full fare), not the card charge — an eCredit ticket claims the full fare.
     const { data: items } = await supabase
       .from("payables_queue")
-      .select("report_id, amount, reimbursement_amount")
+      .select("report_id, amount, reimbursement_amount, extracted")
       .not("report_id", "is", null);
-    const counts = new Map<string, { n: number; sum: number }>();
+    const counts = new Map<string, { n: number; sum: number; ec: number }>();
     for (const it of items ?? []) {
       const rid = it.report_id as string;
-      const cur = counts.get(rid) ?? { n: 0, sum: 0 };
+      const cur = counts.get(rid) ?? { n: 0, sum: 0, ec: 0 };
       cur.n += 1;
       cur.sum += it.reimbursement_amount == null || it.reimbursement_amount === "" ? num(it.amount) : num(it.reimbursement_amount);
+      const ca = (it.extracted as { credit_amount?: number | string | null } | null)?.credit_amount;
+      cur.ec += ca == null || ca === "" ? 0 : num(ca);
       counts.set(rid, cur);
     }
     return (reports as ReportRowDb[]).map((r) => {
-      const c = counts.get(r.id) ?? { n: 0, sum: 0 };
-      return mapReport(r, c.n, c.sum);
+      const c = counts.get(r.id) ?? { n: 0, sum: 0, ec: 0 };
+      return mapReport(r, c.n, c.sum, c.ec);
     });
   } catch {
     return MOCK_REPORTS;
@@ -278,11 +294,15 @@ export async function getExpenseReport(id: string): Promise<ExpenseReport | null
     if (error || !data) return null;
     const { data: items } = await supabase
       .from("payables_queue")
-      .select("amount, reimbursement_amount")
+      .select("amount, reimbursement_amount, extracted")
       .eq("report_id", id);
     const n = items?.length ?? 0;
     const sum = (items ?? []).reduce((a, it) => a + (it.reimbursement_amount == null || it.reimbursement_amount === "" ? num(it.amount) : num(it.reimbursement_amount)), 0);
-    return mapReport(data as ReportRowDb, n, sum);
+    const ec = (items ?? []).reduce((a, it) => {
+      const ca = (it.extracted as { credit_amount?: number | string | null } | null)?.credit_amount;
+      return a + (ca == null || ca === "" ? 0 : num(ca));
+    }, 0);
+    return mapReport(data as ReportRowDb, n, sum, ec);
   } catch {
     return null;
   }

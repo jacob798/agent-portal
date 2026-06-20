@@ -139,6 +139,15 @@ export default function ReportDetail({ report }: { report: ExpenseReport }) {
           {report.payrollPaidDate && <Meta label="Payroll paid" value={fmtDate(report.payrollPaidDate)} />}
           {report.note && <Meta label="Note" value={report.note} />}
         </div>
+
+        {report.ecreditApplied > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2">
+            <span aria-hidden="true">🎫</span>
+            <p className="text-[12.5px] text-emerald-900">
+              <b>{money(report.ecreditApplied)} of this claim was paid with eCredits</b> applied but not previously expensed — the full fares are reimbursable, so the claim is not duplicated.
+            </p>
+          </div>
+        )}
       </div>
 
       <Toast message={message} />

@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Package, Download, Pencil, Check } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Package, Download, Pencil, Check, Bot } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -189,6 +189,24 @@ export default function ReportWorkspace({
     }
   }
 
+  async function copyPrompt() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/expense-reports/generate?only=prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: report.id }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed");
+      await navigator.clipboard.writeText(await res.text());
+      toast("Claude Work prompt copied — paste it into Claude Work");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to build prompt");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function generate() {
     await download(`/api/expense-reports/generate`, `${report.name}.zip`);
     toast("Package generated");
@@ -223,6 +241,9 @@ export default function ReportWorkspace({
       </Button>
       <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
         <FileText className="h-4 w-4" /> BCX report PDF
+      </Button>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={copyPrompt}>
+        <Bot className="h-4 w-4" /> Claude Work prompt
       </Button>
     </>
   );

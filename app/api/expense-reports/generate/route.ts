@@ -115,6 +115,54 @@ function buildXlsx(
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
 }
 
+/** A ready-to-paste Claude Work prompt with every value filled in from the report — the operator
+ *  pastes it to Claude Work, which drives Paylocity. Only the local folder path is a placeholder
+ *  (the portal can't know where the package was unzipped). */
+function buildPrompt(
+  folder: string,
+  businessPurpose: string,
+  exps: ExpDb[],
+  trips: Map<string, TripDb>,
+): string {
+  const items = exps.map((e, i) => {
+    const claim = e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount);
+    return [
+      `${i + 1}. Title: ${e.memo || payeeOf(e)}`,
+      `   Transaction Date: ${fmtDate(e.txn_date)}`,
+      `   Payment Method: Personal Credit Card (reimbursable)`,
+      `   Category: ${acctOf(e)}`,
+      `   Amount: ${claim.toFixed(2)}`,
+      `   Business Purpose: ${e.trip_id ? tripLabel(trips.get(e.trip_id)) : ""}`,
+      `   Notes: ${e.invoice_number || ""}`,
+      `   Override Cost Center / Job?: No`,
+      `   Itemize?: No`,
+      `   Receipt: ${e.doc_url ? `invoices/${invoiceFileName(e)}` : "(no receipt — leave empty, note it)"}`,
+    ].join("\n");
+  }).join("\n\n");
+
+  return `You are filing a Builders Capital expense report in Paylocity (app.paylocity.com → Expense → Expense Reports). Drive the browser; do not invent or reformat any value.
+
+Unzipped package folder: <PASTE THE FOLDER PATH WHERE YOU SAVED THE PACKAGE>
+(The receipt PDFs are in that folder's invoices/ subfolder.)
+
+STEP 1 — Create the expense report:
+  Report Title: ${folder}
+  Business Purpose: ${businessPurpose || "(none)"}
+  Event: N/A · Department / Location: default
+
+STEP 2 — Add one expense per item below (Create New Expense), filling each field verbatim, then Save:
+
+${items}
+
+RULES
+- For dropdowns (Payment Method, Category), pick the option whose visible text equals the value. If none matches, STOP and report the item number + value — don't guess.
+- Upload each Receipt from the path shown (it's unique per expense — don't match by amount/date, co-travelers share those).
+- Set Override Cost Center / Job? and Itemize? to No on every expense.
+- Do NOT submit the report — leave it saved in draft for review.
+- When done, give a short table: item #, Title, Amount, receipt uploaded?, any field you couldn't set.
+`;
+}
+
 // ─── PDF helpers ─────────────────────────────────────────────────────────────
 function clip(font: PDFFont, text: string, size: number, maxW: number): string {
   let t = String(text ?? "");
@@ -359,6 +407,13 @@ export async function POST(req: NextRequest) {
       },
     });
   }
+  if (only === "prompt") {
+    const prompt = buildPrompt(folder, report.note ?? "", exps, trips);
+    return new NextResponse(prompt, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 
   // Full package: XLSX + BCX PDF + receipts/ folder, zipped. Flips status → generated.
   const zip = new JSZip();
@@ -372,6 +427,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[expense-reports/generate] pdf failed:", err);
   }
+  // The ready-to-paste Claude Work prompt rides along in the package too.
+  zip.file(`${folder}/PROMPT.txt`, buildPrompt(folder, report.note ?? "", exps, trips));
 
   const receipts = zip.folder(`${folder}/invoices`)!;
   let attached = 0;

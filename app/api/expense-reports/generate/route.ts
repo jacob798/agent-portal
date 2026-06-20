@@ -71,18 +71,25 @@ function forceDownload(url: string): string {
 
 // ─── XLSX ────────────────────────────────────────────────────────────────────
 function buildXlsx(exps: ExpDb[], trips: Map<string, TripDb>): Uint8Array {
-  const rows = exps.map((e) => ({
-    Title: payeeOf(e),
-    "Transaction Date": fmtDate(e.txn_date),
-    "Payment Method": e.account || e.payment_method_id || "",
-    Account: acctOf(e),
-    Amount: Number((e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount)).toFixed(2)),
-    Traveler: e.extracted?.traveler || "",
-    Trip: e.trip_id ? tripLabel(trips.get(e.trip_id)) : "Non-trip",
-    Notes: e.memo || "",
-  }));
+  // Columns mirror Paylocity's "Create New Expense" form 1:1 so each row keys straight in
+  // (Jacob, 2026-06-20): Title · Transaction Date · Payment Method · Category · Amount · Notes ·
+  // Override Cost Center / Job? · Itemize?.
+  const rows = exps.map((e) => {
+    const dest = e.trip_id ? trips.get(e.trip_id)?.dest : null;
+    const title = [payeeOf(e), dest].filter(Boolean).join(" - ");
+    return {
+      Title: title,
+      "Transaction Date": fmtDate(e.txn_date),
+      "Payment Method": "Personal Credit Card (reimbursable)",
+      Category: acctOf(e),
+      Amount: Number((e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount)).toFixed(2)),
+      Notes: e.memo || "",
+      "Override Cost Center / Job?": "No",
+      "Itemize?": "No",
+    };
+  });
   const ws = XLSX.utils.json_to_sheet(rows, {
-    header: ["Title", "Transaction Date", "Payment Method", "Account", "Amount", "Traveler", "Trip", "Notes"],
+    header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Notes", "Override Cost Center / Job?", "Itemize?"],
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Expenses");

@@ -182,6 +182,8 @@ export default function ReportWorkspace({
       a.click();
       a.remove();
       URL.revokeObjectURL(a.href);
+      const saved = res.headers.get("X-Dropbox-Saved");
+      if (saved) toast(`Saved to Dropbox: ${saved}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Download failed");
     } finally {

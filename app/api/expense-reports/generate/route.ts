@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { ENT } from "@/lib/data/entities";
+import { dropboxConfigured, ensureFolder, uploadFile } from "@/lib/dropbox/dropbox";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -68,6 +69,10 @@ const acctOf = (e: ExpDb): string => e.bc_category || e.gl || e.account || "";
 // keyed on the ticket/invoice number (co-travelers share date+amount, so those alone collide).
 const invoiceFileName = (e: ExpDb): string =>
   `${safe(String(e.txn_date || ""))}_${safe(payeeOf(e))}_${safe(e.invoice_number || num(e.amount).toFixed(2))}.pdf`;
+// The receipt file's name in the report folder = its canonical Dropbox name (basename of doc_path)
+// when filed, else the deterministic bundled name. Everything for a report sits flat in one folder.
+const receiptName = (e: ExpDb): string =>
+  e.doc_path ? e.doc_path.split("/").pop()! : invoiceFileName(e);
 const safe = (s: string): string => (s || "").replace(/[^\w.\-]+/g, "_").slice(0, 80);
 function forceDownload(url: string): string {
   if (/[?&]dl=1/.test(url)) return url;
@@ -95,9 +100,8 @@ function buildXlsx(
     Notes: e.invoice_number || "",
     "Override Cost Center / Job?": "No",
     "Itemize?": "No",
-    // The receipt's canonical Dropbox path (synced locally under /Finance) — a known location, no
-    // download needed. Falls back to the package's bundled copy if a row has no filed Dropbox doc.
-    "Invoice File": e.doc_path || (e.doc_url ? `invoices/${invoiceFileName(e)}` : ""),
+    // The receipt sits in this same report folder — reference it by filename.
+    "Invoice File": e.doc_url ? receiptName(e) : "",
   }));
   const wsExp = XLSX.utils.json_to_sheet(rows, {
     header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Business Purpose", "Notes", "Override Cost Center / Job?", "Itemize?", "Invoice File"],
@@ -122,7 +126,7 @@ function buildXlsx(
  *  pastes it to Claude Work, which drives Paylocity. Only the local folder path is a placeholder
  *  (the portal can't know where the package was unzipped). */
 function buildPrompt(
-  folder: string,
+  dropboxFolder: string,
   businessPurpose: string,
   exps: ExpDb[],
   trips: Map<string, TripDb>,
@@ -139,16 +143,18 @@ function buildPrompt(
       `   Notes: ${e.invoice_number || ""}`,
       `   Override Cost Center / Job?: No`,
       `   Itemize?: No`,
-      `   Receipt: ${e.doc_path || (e.doc_url ? `invoices/${invoiceFileName(e)}` : "(no receipt — leave empty, note it)")}`,
+      `   Receipt: ${e.doc_url ? receiptName(e) : "(no receipt — leave empty, note it)"}`,
     ].join("\n");
   }).join("\n\n");
 
   return `You are filing a Builders Capital expense report in Paylocity (app.paylocity.com → Expense → Expense Reports). Drive the browser; do not invent or reformat any value.
 
-The receipt PDFs are already in Dropbox, synced locally under your Dropbox "/Finance" folder. Each expense below lists its receipt's Dropbox path (e.g. /Finance/CY2026/2026-06 Invoices/...) — open it from your local Dropbox sync of that path.
+All files for this report are in this Dropbox folder (synced locally under your Dropbox sync of /Finance):
+  ${dropboxFolder}
+Each expense's Receipt below is a PDF filename inside that folder.
 
 STEP 1 — Create the expense report:
-  Report Title: ${folder}
+  Report Title: ${dropboxFolder.split("/").pop()}
   Business Purpose: ${businessPurpose || "(none)"}
   Event: N/A · Department / Location: default
 
@@ -382,11 +388,16 @@ export async function POST(req: NextRequest) {
   };
 
   const base = safe(report.name || "expense_report");
-  // The package nests everything under one folder named "YYYY-MM Entity Report Name"
-  // (Jacob, 2026-06-20). Keep spaces; strip only path-illegal characters.
+  // One folder per report, named "YYYY-MM <ENTITY CODE> Expenses - <Report name>" (Jacob,
+  // 2026-06-20). Keep spaces; strip only path-illegal characters.
   const ym = (report.date_from || "").slice(0, 7) || "undated";
-  const folder = `${ym} ${report.entity ?? "UNK"} ${report.name ?? "Expense Report"}`
+  const folder = `${ym} ${report.entity ?? "UNK"} Expenses - ${report.name ?? "Expense Report"}`
     .replace(/[/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  // The report folder lives INSIDE the current month's Dropbox folder (where the receipts already
+  // live). Derive that month folder from a receipt's doc_path; else the canonical path.
+  const monthFolder = exps.find((e) => e.doc_path)?.doc_path?.replace(/\/[^/]+$/, "")
+    || `/Finance/CY${ym.slice(0, 4)}/${ym} Invoices`;
+  const dropboxFolder = `${monthFolder}/${folder}`;
 
   // Single-artifact downloads (from the report detail page).
   if (only === "xlsx") {
@@ -410,29 +421,35 @@ export async function POST(req: NextRequest) {
     });
   }
   if (only === "prompt") {
-    const prompt = buildPrompt(folder, report.note ?? "", exps, trips);
+    const prompt = buildPrompt(dropboxFolder, report.note ?? "", exps, trips);
     return new NextResponse(prompt, {
       status: 200,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
 
-  // Full package: XLSX + BCX PDF + receipts/ folder, zipped. Flips status → generated.
+  // Full package: ONE flat folder — BCX PDF + XLSX + PROMPT.txt + a copy of every receipt. Zipped
+  // for download AND copied into the month's Dropbox folder. Flips status → generated.
   const zip = new JSZip();
+  let xlsxBytes: Uint8Array | null = null;
+  let pdfBytes: Uint8Array | null = null;
   try {
-    zip.file(`${folder}/${base}.xlsx`, buildXlsx(exps, trips, { title: report.name ?? "", businessPurpose: report.note ?? "" }));
+    xlsxBytes = buildXlsx(exps, trips, { title: report.name ?? "", businessPurpose: report.note ?? "" });
+    zip.file(`${folder}/${base}.xlsx`, xlsxBytes);
   } catch (err) {
     console.error("[expense-reports/generate] xlsx failed:", err);
   }
   try {
-    zip.file(`${folder}/${base}.pdf`, await buildReportPdf(meta, exps, trips));
+    pdfBytes = await buildReportPdf(meta, exps, trips);
+    zip.file(`${folder}/${base}.pdf`, pdfBytes);
   } catch (err) {
     console.error("[expense-reports/generate] pdf failed:", err);
   }
-  // The ready-to-paste Claude Work prompt rides along in the package too.
-  zip.file(`${folder}/PROMPT.txt`, buildPrompt(folder, report.note ?? "", exps, trips));
+  const promptTxt = buildPrompt(dropboxFolder, report.note ?? "", exps, trips);
+  zip.file(`${folder}/PROMPT.txt`, promptTxt);
 
-  const receipts = zip.folder(`${folder}/invoices`)!;
+  // Fetch each receipt once; bundle it flat in the zip and keep the bytes to copy to Dropbox.
+  const receiptFiles: { name: string; buf: Buffer }[] = [];
   let attached = 0;
   let missing = 0;
   for (const e of exps) {
@@ -447,10 +464,28 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const buf = Buffer.from(await res.arrayBuffer());
-      receipts.file(invoiceFileName(e), buf);
+      const name = receiptName(e);
+      zip.file(`${folder}/${name}`, buf);
+      receiptFiles.push({ name, buf });
       attached += 1;
     } catch {
       missing += 1;
+    }
+  }
+
+  // Copy the whole package into the month's Dropbox folder (best-effort — never blocks the
+  // download). The month's loose originals are untouched; this is a self-contained copy.
+  let dropboxSaved = false;
+  if (dropboxConfigured()) {
+    try {
+      await ensureFolder(dropboxFolder);
+      if (xlsxBytes) await uploadFile(`${dropboxFolder}/${base}.xlsx`, xlsxBytes);
+      if (pdfBytes) await uploadFile(`${dropboxFolder}/${base}.pdf`, pdfBytes);
+      await uploadFile(`${dropboxFolder}/PROMPT.txt`, Buffer.from(promptTxt, "utf-8"));
+      for (const rf of receiptFiles) await uploadFile(`${dropboxFolder}/${rf.name}`, rf.buf);
+      dropboxSaved = true;
+    } catch (err) {
+      console.error("[expense-reports/generate] dropbox save failed:", err);
     }
   }
 
@@ -468,6 +503,7 @@ export async function POST(req: NextRequest) {
       "Content-Disposition": `attachment; filename="${folder}.zip"`,
       "X-Receipts-Attached": String(attached),
       "X-Receipts-Missing": String(missing),
+      "X-Dropbox-Saved": dropboxSaved ? dropboxFolder : "",
     },
   });
 }

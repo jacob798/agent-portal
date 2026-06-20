@@ -19,12 +19,18 @@ interface LineState {
 const dateInput =
   "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 
+/** "1,412.80" — comma-grouped, 2 decimals (the $ is rendered as a prefix adornment). */
+const fmtAmt = (n: number): string => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function Reconcile({ report, expenses }: { report: ExpenseReport; expenses: ExpenseRow[] }) {
   const router = useRouter();
   const { message, toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [payrollPaid, setPayrollPaid] = useState(report.payrollPaidDate ?? "");
   const [openEntityPick, setOpenEntityPick] = useState<string | null>(null);
+  // Editable amount fields show formatted ($1,412.80) when blurred, raw digits while editing.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
   const [lines, setLines] = useState<Record<string, LineState>>(() => {
     const init: Record<string, LineState> = {};
@@ -158,14 +164,19 @@ export default function Reconcile({ report, expenses }: { report: ExpenseReport;
                     )}
                   </td>
                   <td className="px-3 py-3 text-right text-sm tabular-nums text-slate-700">{money(req)}</td>
-                  <td className="px-3 py-3 text-right">
-                    <input
-                      inputMode="decimal"
-                      value={ls.reimbursed === 0 ? "" : String(ls.reimbursed)}
-                      onChange={(ev) => setReimbursed(e.id, ev.target.value)}
-                      placeholder="0.00"
-                      className="ml-auto block w-[84px] rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
+                  <td className="px-3 py-3">
+                    <div className="ml-auto flex w-[104px] items-center rounded-md border border-slate-300 px-2 py-1 transition focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <span className="text-sm text-slate-400">$</span>
+                      <input
+                        inputMode="decimal"
+                        value={focusedId === e.id ? draft : ls.reimbursed === 0 ? "" : fmtAmt(ls.reimbursed)}
+                        onFocus={() => { setFocusedId(e.id); setDraft(ls.reimbursed === 0 ? "" : String(ls.reimbursed)); }}
+                        onChange={(ev) => { setDraft(ev.target.value); setReimbursed(e.id, ev.target.value); }}
+                        onBlur={() => setFocusedId(null)}
+                        placeholder="0.00"
+                        className="w-full bg-transparent pl-1 text-right text-sm tabular-nums text-slate-900 outline-none"
+                      />
+                    </div>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-2">

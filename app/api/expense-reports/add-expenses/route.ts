@@ -32,17 +32,18 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Items are locked once a report leaves Draft: a generated report's expenses are committed and
-  // must never move onto a future report (Jacob, 2026-06-20). Only a draft's set is editable.
+  // Items lock once a report is SUBMITTED: at that point its expenses are committed and must never
+  // move onto a future report (Jacob, 2026-06-20). Draft and Generated stay editable (you can still
+  // re-work the set and re-generate before submitting).
   const { data: rep, error: repErr } = await admin
     .from("expense_reports")
     .select("status")
     .eq("id", reportId)
     .single();
   if (repErr || !rep) return NextResponse.json({ error: "report not found" }, { status: 404 });
-  if (rep.status !== "draft") {
+  if (rep.status !== "draft" && rep.status !== "generated") {
     return NextResponse.json(
-      { error: "This report has been generated — its items are locked and can't be changed." },
+      { error: "This report has been submitted — its items are locked and can't be changed." },
       { status: 409 },
     );
   }

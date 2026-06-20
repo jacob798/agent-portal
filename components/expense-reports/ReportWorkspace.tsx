@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil, Check } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -42,10 +42,11 @@ export default function ReportWorkspace({
   const { message, toast } = useToast();
   const [busy, setBusy] = useState(false);
 
-  // Items are editable ONLY while the report is a Draft. Once generated, its expenses are committed
-  // to this report and can never move onto a future report (Jacob, 2026-06-20) — so the ledger is
-  // read-only and the set is frozen.
-  const editable = report.status === "draft";
+  // Items stay editable through Draft AND Generated; they lock at Submitted (committed — can never
+  // move onto a future report). Editing is gated behind the "Edit items" toggle (Jacob, 2026-06-20).
+  const canEdit = report.status === "draft" || report.status === "generated";
+  const [editing, setEditing] = useState(false);
+  const editable = canEdit && editing;
 
   const [checked, setChecked] = useState<Set<string>>(() => new Set(onReport.map((r) => r.id)));
   const [from, setFrom] = useState(fromISO);
@@ -214,13 +215,13 @@ export default function ReportWorkspace({
 
   const DownloadGroup = () => (
     <>
-      <Button variant="ghost" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=xlsx`, `${report.name}.xlsx`)}>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=xlsx`, `${report.name}.xlsx`)}>
         <FileSpreadsheet className="h-4 w-4" /> XLSX
       </Button>
-      <Button variant="ghost" disabled={busy} onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
         <Archive className="h-4 w-4" /> Invoices .zip
       </Button>
-      <Button variant="ghost" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
         <FileText className="h-4 w-4" /> BCX report PDF
       </Button>
     </>
@@ -253,7 +254,7 @@ export default function ReportWorkspace({
               {editingName ? (
                 <input
                   autoFocus
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xl font-semibold tracking-tight text-brand-navy outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  className="w-[28rem] max-w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xl font-semibold tracking-tight text-brand-navy outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={saveName}
@@ -277,21 +278,32 @@ export default function ReportWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {canEdit && (
+              editing ? (
+                <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                  <Check className="h-4 w-4" /> Done editing
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+                  <Pencil className="h-4 w-4" /> Edit items
+                </Button>
+              )
+            )}
             {report.status === "draft" && (
-              <Button variant="success" disabled={busy} onClick={generate}>
+              <Button variant="success" size="sm" disabled={busy} onClick={generate}>
                 <Download className="h-4 w-4" /> Generate package
               </Button>
             )}
             {report.status === "generated" && (
               <>
                 <DownloadGroup />
-                <Button variant="primary" disabled={busy} onClick={markSubmitted}>Mark submitted</Button>
+                <Button variant="primary" size="sm" disabled={busy} onClick={markSubmitted}>Mark submitted</Button>
               </>
             )}
             {report.status === "submitted" && (
               <>
                 <DownloadGroup />
-                <Button variant="success" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <Button variant="success" size="sm" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   Reconcile
                 </Button>
               </>
@@ -299,7 +311,7 @@ export default function ReportWorkspace({
             {report.status === "reimbursed" && (
               <>
                 <DownloadGroup />
-                <Button variant="ghost" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <Button variant="ghost" size="sm" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   View reconciliation
                 </Button>
               </>
@@ -392,10 +404,10 @@ export default function ReportWorkspace({
                         />
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-4 py-3 align-top text-sm tabular-nums text-slate-600">{fmtMD(r.date)}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-2.5 align-top text-[12.5px] tabular-nums text-slate-600">{fmtMD(r.date)}</td>
+                    <td className="px-4 py-2.5 align-top">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-900">{r.payee}</span>
+                        <span className="text-[12.5px] font-medium text-slate-900">{r.payee}</span>
                         {r.entityCode && (
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{r.entityCode}</span>
                         )}
@@ -407,20 +419,20 @@ export default function ReportWorkspace({
                       </div>
                       {r.memo && <div className="mt-0.5 text-[11px] text-slate-400">{r.memo}</div>}
                     </td>
-                    <td className="px-4 py-3 align-top text-sm text-slate-600">{r.traveler ?? "—"}</td>
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-4 py-2.5 align-top text-[12.5px] text-slate-600">{r.traveler ?? "—"}</td>
+                    <td className="px-4 py-2.5 align-top">
                       {r.tripName ? (
                         <div className="leading-tight">
-                          <div className="text-sm text-slate-800">{[r.tripName.destination, r.tripName.purpose].filter(Boolean).join(" · ")}</div>
-                          <div className="text-xs text-slate-400 tabular-nums">{fmtRange(r.tripName.start, r.tripName.end)}</div>
+                          <div className="text-[12.5px] text-slate-800">{[r.tripName.destination, r.tripName.purpose].filter(Boolean).join(" · ")}</div>
+                          <div className="text-[11px] text-slate-400 tabular-nums">{fmtRange(r.tripName.start, r.tripName.end)}</div>
                         </div>
                       ) : (
-                        <span className="text-sm text-slate-400">—</span>
+                        <span className="text-[12.5px] text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-top text-sm font-medium" style={{ color: "#ba7517" }}>{r.account || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 align-top text-[13px] tabular-nums text-slate-600">{r.invoiceNumber || "—"}</td>
-                    <td className="px-4 py-3 text-right align-top text-sm font-medium tabular-nums text-slate-900">{money(requestedAmount(r))}</td>
+                    <td className="px-4 py-2.5 align-top text-[12.5px] font-medium" style={{ color: "#ba7517" }}>{r.account || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 align-top text-[12.5px] tabular-nums text-slate-600">{r.invoiceNumber || "—"}</td>
+                    <td className="px-4 py-2.5 text-right align-top text-[12.5px] font-medium tabular-nums text-slate-900">{money(requestedAmount(r))}</td>
                   </tr>
                   {ec && (
                     <tr className={on ? "bg-emerald-50/40" : ""}>

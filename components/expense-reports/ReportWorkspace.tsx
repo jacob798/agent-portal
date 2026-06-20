@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil, Check } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Package, Download, Pencil, Check } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -219,7 +219,7 @@ export default function ReportWorkspace({
         <FileSpreadsheet className="h-4 w-4" /> XLSX
       </Button>
       <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
-        <Archive className="h-4 w-4" /> Invoices .zip
+        <Package className="h-4 w-4" /> Download package
       </Button>
       <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
         <FileText className="h-4 w-4" /> BCX report PDF

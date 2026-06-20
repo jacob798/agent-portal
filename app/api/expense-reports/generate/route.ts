@@ -306,6 +306,11 @@ export async function POST(req: NextRequest) {
   };
 
   const base = safe(report.name || "expense_report");
+  // The package nests everything under one folder named "YYYY-MM Entity Report Name"
+  // (Jacob, 2026-06-20). Keep spaces; strip only path-illegal characters.
+  const ym = (report.date_from || "").slice(0, 7) || "undated";
+  const folder = `${ym} ${report.entity ?? "UNK"} ${report.name ?? "Expense Report"}`
+    .replace(/[/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 
   // Single-artifact downloads (from the report detail page).
   if (only === "xlsx") {
@@ -332,17 +337,17 @@ export async function POST(req: NextRequest) {
   // Full package: XLSX + BCX PDF + receipts/ folder, zipped. Flips status → generated.
   const zip = new JSZip();
   try {
-    zip.file(`${base}.xlsx`, buildXlsx(exps, trips));
+    zip.file(`${folder}/${base}.xlsx`, buildXlsx(exps, trips));
   } catch (err) {
     console.error("[expense-reports/generate] xlsx failed:", err);
   }
   try {
-    zip.file(`${base}.pdf`, await buildReportPdf(meta, exps, trips));
+    zip.file(`${folder}/${base}.pdf`, await buildReportPdf(meta, exps, trips));
   } catch (err) {
     console.error("[expense-reports/generate] pdf failed:", err);
   }
 
-  const receipts = zip.folder("receipts")!;
+  const receipts = zip.folder(`${folder}/invoices`)!;
   let attached = 0;
   let missing = 0;
   for (const e of exps) {
@@ -375,7 +380,7 @@ export async function POST(req: NextRequest) {
     status: 200,
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${base}.zip"`,
+      "Content-Disposition": `attachment; filename="${folder}.zip"`,
       "X-Receipts-Attached": String(attached),
       "X-Receipts-Missing": String(missing),
     },

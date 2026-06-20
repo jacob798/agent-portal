@@ -222,7 +222,7 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
       if (credit > 0) {
         newPageIfNeeded(12);
         ecGrand += credit;
-        const note = `eCredit $${credit.toFixed(2)} applied${e.extracted?.credit_number ? ` · #${e.extracted.credit_number}` : ""} — claim not duplicated`;
+        const note = `eCredit $${credit.toFixed(2)} applied${e.extracted?.credit_number ? ` · #${e.extracted.credit_number}` : ""} — original ticket not previously expensed`;
         cell(page, clip(font, note, 7.5, RIGHT - cVendor - 6), cVendor, y, 7.5, font, GREEN);
         y -= 13;
       }

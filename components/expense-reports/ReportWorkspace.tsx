@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil, Check } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -17,7 +17,7 @@ import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 import { StatusStepper } from "./statusUi";
 
-type SortKey = "date" | "payee" | "traveler" | "trip" | "account" | "amount";
+type SortKey = "date" | "payee" | "traveler" | "trip" | "account" | "invoice" | "amount";
 
 const inputCls =
   "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
@@ -42,15 +42,19 @@ export default function ReportWorkspace({
   const { message, toast } = useToast();
   const [busy, setBusy] = useState(false);
 
-  // Draft is editable inline; a generated/submitted report is locked until "Edit items" unlocks it.
-  const lifecycleEditable = report.status === "draft";
-  const [editing, setEditing] = useState(false);
-  const editable = lifecycleEditable || editing;
+  // Items are editable ONLY while the report is a Draft. Once generated, its expenses are committed
+  // to this report and can never move onto a future report (Jacob, 2026-06-20) — so the ledger is
+  // read-only and the set is frozen.
+  const editable = report.status === "draft";
 
   const [checked, setChecked] = useState<Set<string>>(() => new Set(onReport.map((r) => r.id)));
   const [from, setFrom] = useState(fromISO);
   const [to, setTo] = useState(toISO);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "date", dir: 1 });
+
+  // The report name/label — editable on any status (renaming never touches posted expenses).
+  const [name, setName] = useState(report.name ?? "");
+  const [editingName, setEditingName] = useState(false);
 
   // The memo that flows onto the BCX submission.
   const [note, setNote] = useState(report.note ?? "");
@@ -73,6 +77,7 @@ export default function ReportWorkspace({
         case "traveler": return (r.traveler ?? "").toLowerCase();
         case "trip": return r.tripName?.destination?.toLowerCase() ?? "";
         case "account": return r.account.toLowerCase();
+        case "invoice": return (r.invoiceNumber ?? "").toLowerCase();
         case "amount": return requestedAmount(r);
       }
     };
@@ -125,6 +130,24 @@ export default function ReportWorkspace({
     if (from) q.set("from", from);
     if (to) q.set("to", to);
     router.push(`/expense-reports/${report.id}?${q.toString()}`);
+  }
+
+  async function saveName() {
+    setEditingName(false);
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === report.name) { setName(report.name ?? ""); return; }
+    try {
+      const res = await fetch("/api/expense-reports/set-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: report.id, name: trimmed }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to rename");
+      setName(report.name ?? "");
+    }
   }
 
   async function saveNote() {
@@ -227,7 +250,25 @@ export default function ReportWorkspace({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-semibold tracking-tight text-brand-navy">{report.name}</h1>
+              {editingName ? (
+                <input
+                  autoFocus
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xl font-semibold tracking-tight text-brand-navy outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={saveName}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                />
+              ) : (
+                <button
+                  onClick={() => setEditingName(true)}
+                  className="group flex items-center gap-1.5 text-left"
+                  title="Rename report"
+                >
+                  <h1 className="text-xl font-semibold tracking-tight text-brand-navy">{name || report.name}</h1>
+                  <Pencil className="h-3.5 w-3.5 text-slate-300 transition group-hover:text-slate-500" />
+                </button>
+              )}
               <span className="inline-flex items-center rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand-navy ring-1 ring-inset ring-brand/25">
                 {report.entity}
               </span>
@@ -236,17 +277,6 @@ export default function ReportWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {(report.status === "generated" || report.status === "submitted") && (
-              editing ? (
-                <Button variant="ghost" onClick={() => setEditing(false)}>
-                  <Check className="h-4 w-4" /> Done editing
-                </Button>
-              ) : (
-                <Button variant="ghost" onClick={() => setEditing(true)}>
-                  <Pencil className="h-4 w-4" /> Edit items
-                </Button>
-              )
-            )}
             {report.status === "draft" && (
               <Button variant="success" disabled={busy} onClick={generate}>
                 <Download className="h-4 w-4" /> Generate package
@@ -313,7 +343,7 @@ export default function ReportWorkspace({
           <div className="flex items-start gap-2 rounded-lg border-l-2 border-emerald-600 bg-emerald-50 px-3 py-2">
             <span aria-hidden="true">🎫</span>
             <p className="text-[12.5px] text-emerald-900">
-              <b>{money(liveEcredit)} of this claim was paid with eCredits</b> applied but not previously expensed — the full fares are reimbursable, so the claim is not duplicated.
+              <b>{money(liveEcredit)} of this claim was paid with eCredits</b> — the original tickets were not previously expensed, so the full fares are reimbursable.
             </p>
           </div>
         )}
@@ -332,7 +362,7 @@ export default function ReportWorkspace({
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full" style={{ minWidth: 870 }}>
+        <table className="w-full" style={{ minWidth: 980 }}>
           <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
               {editable && <th className="w-10 px-4 py-2.5" />}
@@ -341,6 +371,7 @@ export default function ReportWorkspace({
               <Th k="traveler">Traveler</Th>
               <Th k="trip">Trip</Th>
               <Th k="account">Account</Th>
+              <Th k="invoice">Invoice #</Th>
               <Th k="amount" right>Amount</Th>
             </tr>
           </thead>
@@ -375,7 +406,6 @@ export default function ReportWorkspace({
                         )}
                       </div>
                       {r.memo && <div className="mt-0.5 text-[11px] text-slate-400">{r.memo}</div>}
-                      {r.invoiceNumber && <div className="mt-0.5 text-[11px] text-slate-400">Ticket / invoice #{r.invoiceNumber}</div>}
                     </td>
                     <td className="px-4 py-3 align-top text-sm text-slate-600">{r.traveler ?? "—"}</td>
                     <td className="px-4 py-3 align-top">
@@ -389,14 +419,15 @@ export default function ReportWorkspace({
                       )}
                     </td>
                     <td className="px-4 py-3 align-top text-sm font-medium" style={{ color: "#ba7517" }}>{r.account || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 align-top text-[13px] tabular-nums text-slate-600">{r.invoiceNumber || "—"}</td>
                     <td className="px-4 py-3 text-right align-top text-sm font-medium tabular-nums text-slate-900">{money(requestedAmount(r))}</td>
                   </tr>
                   {ec && (
                     <tr className={on ? "bg-emerald-50/40" : ""}>
                       {editable && <td></td>}
-                      <td colSpan={6} className="px-4 pb-3 pt-0">
+                      <td colSpan={7} className="px-4 pb-3 pt-0">
                         <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">
-                          <span aria-hidden="true">🎫</span> eCredit {money(ec.amount)} applied{ec.number ? ` · #${ec.number}` : ""} — claim not duplicated
+                          <span aria-hidden="true">🎫</span> eCredit {money(ec.amount)} applied{ec.number ? ` · #${ec.number}` : ""} — original ticket not previously expensed
                         </span>
                       </td>
                     </tr>
@@ -406,7 +437,7 @@ export default function ReportWorkspace({
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={editable ? 7 : 6} className="px-4 py-12 text-center text-sm text-slate-400">
+                <td colSpan={editable ? 8 : 7} className="px-4 py-12 text-center text-sm text-slate-400">
                   {editable ? `No unexpensed ${report.entity} expenses in this window.` : "No items on this report yet."}
                 </td>
               </tr>

@@ -32,6 +32,21 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Items are locked once a report leaves Draft: a generated report's expenses are committed and
+  // must never move onto a future report (Jacob, 2026-06-20). Only a draft's set is editable.
+  const { data: rep, error: repErr } = await admin
+    .from("expense_reports")
+    .select("status")
+    .eq("id", reportId)
+    .single();
+  if (repErr || !rep) return NextResponse.json({ error: "report not found" }, { status: 404 });
+  if (rep.status !== "draft") {
+    return NextResponse.json(
+      { error: "This report has been generated — its items are locked and can't be changed." },
+      { status: 409 },
+    );
+  }
+
   if (add) {
     // Only claim rows that are unclaimed OR already on this report — never steal another report's.
     const { data, error } = await admin

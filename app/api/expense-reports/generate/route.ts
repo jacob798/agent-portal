@@ -297,7 +297,16 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
       cell(page, clip(font, acctOf(e), 8, cDoc - cAcct - 6), cAcct, y, 8, font);
       cell(page, e.doc_url ? "receipt" : "MISSING", cDoc, y, 8, font, e.doc_url ? GREEN : RED);
       cell(page, `$${amt.toFixed(2)}`, 0, y, 8, font, OXFORD, RIGHT);
-      y -= 16;
+      y -= 12;
+      // Detail sub-line: route/conf (the memo) + ticket/invoice #, mirroring the portal ledger.
+      const detail = [e.memo, e.invoice_number ? `Inv ${e.invoice_number}` : ""].filter(Boolean).join(" · ");
+      if (detail) {
+        newPageIfNeeded(11);
+        cell(page, clip(font, detail, 7, RIGHT - cVendor - 6), cVendor, y, 7, font, GRAY);
+        y -= 12;
+      } else {
+        y -= 4;
+      }
       // CALLOUT: an eCredit was applied that wasn't previously expensed → the full fare is claimed,
       // not duplicated. Drawn under the line so the reviewer sees why a low/zero card charge claims more.
       const credit = e.extracted?.credit_amount == null || e.extracted?.credit_amount === "" ? 0 : num(e.extracted.credit_amount);
@@ -391,7 +400,10 @@ export async function POST(req: NextRequest) {
   // One folder per report, named "YYYY-MM <ENTITY CODE> Expenses - <Report name>" (Jacob,
   // 2026-06-20). Keep spaces; strip only path-illegal characters.
   const ym = (report.date_from || "").slice(0, 7) || "undated";
-  const folder = `${ym} ${report.entity ?? "UNK"} Expenses - ${report.name ?? "Expense Report"}`
+  // Don't duplicate the YYYY-MM when the operator already named the report with it
+  // (e.g. "2026-06 Cleveland Trip" → "2026-06 BC Expenses - Cleveland Trip") (Jacob, 2026-06-20).
+  const nameClean = (report.name ?? "Expense Report").replace(/^\s*\d{4}-\d{2}\s+/, "");
+  const folder = `${ym} ${report.entity ?? "UNK"} Expenses - ${nameClean}`
     .replace(/[/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   // The report folder lives INSIDE the current month's Dropbox folder (where the receipts already
   // live). Derive that month folder from a receipt's doc_path; else the canonical path.

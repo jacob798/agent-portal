@@ -29,6 +29,7 @@ interface ExpDb {
   reimbursement_amount: number | string | null;
   payment_method_id: string | null;
   memo: string | null;
+  invoice_number: string | null;
   doc_url: string | null;
   trip_id: string | null;
   extracted: { payee?: string; traveler?: string; credit_number?: string | null; credit_amount?: number | string | null } | null;
@@ -70,29 +71,42 @@ function forceDownload(url: string): string {
 }
 
 // ─── XLSX ────────────────────────────────────────────────────────────────────
-function buildXlsx(exps: ExpDb[], trips: Map<string, TripDb>): Uint8Array {
-  // Columns mirror Paylocity's "Create New Expense" form 1:1 so each row keys straight in
-  // (Jacob, 2026-06-20): Title · Transaction Date · Payment Method · Category · Amount · Notes ·
-  // Override Cost Center / Job? · Itemize?.
-  const rows = exps.map((e) => {
-    const dest = e.trip_id ? trips.get(e.trip_id)?.dest : null;
-    const title = [payeeOf(e), dest].filter(Boolean).join(" - ");
-    return {
-      Title: title,
-      "Transaction Date": fmtDate(e.txn_date),
-      "Payment Method": "Personal Credit Card (reimbursable)",
-      Category: acctOf(e),
-      Amount: Number((e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount)).toFixed(2)),
-      Notes: e.memo || "",
-      "Override Cost Center / Job?": "No",
-      "Itemize?": "No",
-    };
+function buildXlsx(
+  exps: ExpDb[],
+  trips: Map<string, TripDb>,
+  header: { title: string; businessPurpose: string },
+): Uint8Array {
+  // Per-expense columns map 1:1 to Paylocity's "Edit Expense" form, in the exact way the operator
+  // fills it (Jacob, 2026-06-20): Title = the memo; Business Purpose = the trip label; Notes = the
+  // ticket/invoice number; Payment Method = Personal Credit Card (reimbursable); Category = the BC
+  // Paylocity category; Override/Itemize = No. Claude Work keys each row straight in.
+  const rows = exps.map((e) => ({
+    Title: e.memo || payeeOf(e),
+    "Transaction Date": fmtDate(e.txn_date),
+    "Payment Method": "Personal Credit Card (reimbursable)",
+    Category: acctOf(e),
+    Amount: Number((e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount)).toFixed(2)),
+    "Business Purpose": e.trip_id ? tripLabel(trips.get(e.trip_id)) : "",
+    Notes: e.invoice_number || "",
+    "Override Cost Center / Job?": "No",
+    "Itemize?": "No",
+  }));
+  const wsExp = XLSX.utils.json_to_sheet(rows, {
+    header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Business Purpose", "Notes", "Override Cost Center / Job?", "Itemize?"],
   });
-  const ws = XLSX.utils.json_to_sheet(rows, {
-    header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Notes", "Override Cost Center / Job?", "Itemize?"],
-  });
+
+  // Report-level fields (the Paylocity "Create Expense Report" header), so Claude Work fills those
+  // too. Report Title defaults to the report name (the operator may instead use the package's
+  // file name); Business Purpose = the report memo.
+  const wsRep = XLSX.utils.aoa_to_sheet([
+    ["Field", "Value"],
+    ["Report Title", header.title],
+    ["Business Purpose", header.businessPurpose],
+  ]);
+
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+  XLSX.utils.book_append_sheet(wb, wsRep, "Report");
+  XLSX.utils.book_append_sheet(wb, wsExp, "Expenses");
   return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
 }
 
@@ -278,7 +292,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: report } = await admin
     .from("expense_reports")
-    .select("id, name, entity, date_from, date_to, payroll_paid_date")
+    .select("id, name, entity, date_from, date_to, payroll_paid_date, note")
     .eq("id", reportId)
     .maybeSingle();
   if (!report) return NextResponse.json({ error: "report not found" }, { status: 404 });
@@ -286,7 +300,7 @@ export async function POST(req: NextRequest) {
   const { data: rows } = await admin
     .from("payables_queue")
     .select(
-      "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, payment_method_id, memo, doc_url, trip_id, extracted",
+      "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, payment_method_id, memo, invoice_number, doc_url, trip_id, extracted",
     )
     .eq("report_id", reportId)
     .order("txn_date", { ascending: true });
@@ -321,7 +335,7 @@ export async function POST(req: NextRequest) {
 
   // Single-artifact downloads (from the report detail page).
   if (only === "xlsx") {
-    const xlsx = buildXlsx(exps, trips);
+    const xlsx = buildXlsx(exps, trips, { title: report.name ?? "", businessPurpose: report.note ?? "" });
     return new NextResponse(new Uint8Array(xlsx), {
       status: 200,
       headers: {
@@ -344,7 +358,7 @@ export async function POST(req: NextRequest) {
   // Full package: XLSX + BCX PDF + receipts/ folder, zipped. Flips status → generated.
   const zip = new JSZip();
   try {
-    zip.file(`${folder}/${base}.xlsx`, buildXlsx(exps, trips));
+    zip.file(`${folder}/${base}.xlsx`, buildXlsx(exps, trips, { title: report.name ?? "", businessPurpose: report.note ?? "" }));
   } catch (err) {
     console.error("[expense-reports/generate] xlsx failed:", err);
   }

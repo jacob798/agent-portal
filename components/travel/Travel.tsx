@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { tripVendor } from "@/lib/data/tripVendor";
-import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewConf, Credit } from "@/lib/data/travel";
+import type { Trip, TripExpense, ItinItem, NeedsTripItem, ConfReviewItem, ConfReviewSeg, Credit } from "@/lib/data/travel";
 import { ENT, money, ACTIVE_ENTITIES } from "@/lib/data/entities";
 import { Badge } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
@@ -986,38 +986,102 @@ function TripRow({ t, onOpen }: { t: Trip; onOpen: (id: string) => void }) {
   );
 }
 
-// ---------- confirmation review (accept the ITINERARY, not the invoice) ----------
+// ---------- confirmation review — ONE TILE PER PASSENGER ----------
+// Charges break out per passenger, so each (confirmation, traveler) is its own tile with its own
+// four actions (Accept invoice / Accept confirmation / Move trip / Discard). A round trip is ONE
+// tile: the worker emits one leg-group per direction, so regrouping by passenger collapses out +
+// return into a single tile. The itinerary is summarized PER DIRECTION (route · via · date /
+// flights · times) into a fixed-height block, so 2, 3, or 4 legs per direction — and one-way vs
+// round trip — all render at the same tile size; full per-segment detail is behind "View legs".
+type TicketDir = { route: string; day?: string; via: string; flights: string; depart?: string; arrive?: string; segs: ConfReviewSeg[] };
+type ReviewTicket = {
+  key: string; conf: string; traveler: string; directions: TicketDir[];
+  fare: number | null; net: number | null; credit: number | null; credit_number: string | null;
+  awaiting_invoice: boolean; source_url?: string; status: string;
+};
+
+const ticketInitials = (name: string) =>
+  (name || "?").split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+const tripShape = (n: number) => (n <= 1 ? "One-way" : n === 2 ? "Round trip" : "Multi-city");
+const shortFlight = (f: string) => (f || "").replace(/\bdelta\b/i, "DL").replace(/\s+/g, " ").trim();
+
+function dirSummary(item: ConfReviewItem): TicketDir {
+  const segs = item.segments ?? [];
+  // connection cities = the destination of every segment except the last
+  const stops: string[] = [];
+  segs.slice(0, -1).forEach((s) => {
+    const dest = s.route.split("→").map((x) => x.trim())[1];
+    if (dest) stops.push(dest);
+  });
+  return {
+    route: item.route,
+    day: item.day ?? segs[0]?.day,
+    via: stops.length ? `via ${[...new Set(stops)].join(", ")}` : "nonstop",
+    flights: segs.map((s) => shortFlight(s.flight)).filter(Boolean).join(", "),
+    depart: segs[0]?.depart,
+    arrive: segs[segs.length - 1]?.arrive,
+    segs,
+  };
+}
+
+// Regroup the per-leg confirmations into one ticket per (confirmation, traveler). Financials ride a
+// single leg (the outbound), so we take the first non-null value we see across the passenger's legs.
+function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
+  const map = new Map<string, ReviewTicket>();
+  for (const item of items) {
+    const dir = dirSummary(item);
+    for (const c of item.confs) {
+      const key = `${c.conf}|${c.traveler}`;
+      let t = map.get(key);
+      if (!t) {
+        t = { key, conf: c.conf, traveler: c.traveler, directions: [], fare: null, net: null,
+              credit: null, credit_number: null, awaiting_invoice: false, source_url: undefined,
+              status: c.status ?? "needs_review" };
+        map.set(key, t);
+      }
+      t.directions.push(dir);
+      if (t.fare == null && c.fare != null) t.fare = c.fare;
+      if (t.net == null && c.net != null) t.net = c.net;
+      if (t.credit == null && c.credit != null) t.credit = c.credit;
+      if (!t.credit_number && c.credit_number) t.credit_number = c.credit_number;
+      if (c.awaiting_invoice) t.awaiting_invoice = true;
+      if (!t.source_url && c.source_url) t.source_url = c.source_url;
+      if ((c.status ?? "needs_review") === "needs_review") t.status = "needs_review";
+    }
+  }
+  return [...map.values()];
+}
+
 function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
   const router = useRouter();
   const { message, toast } = useToast();
-  const [split, setSplit] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  // Decisions applied this session — hide those legs immediately (optimistic) so the operator
-  // sees the click land even before the server refresh re-reads trips.confirmations.
+  // Decisions applied this session — hide that ticket immediately (optimistic) so the click lands
+  // before the server refresh re-reads trips.confirmations.
   const [done, setDone] = useState<Set<string>>(new Set());
-  const legKey = (g: ConfReviewItem) => g.confs.map((c) => `${c.conf}|${c.traveler}`).sort().join("·");
-  // Only legs that still need a decision; once every conf is decided the item drops off.
-  const items = (trip.confirmations ?? []).filter((g) =>
-    !done.has(legKey(g)) && g.confs.some((c) => (c.status ?? "needs_review") === "needs_review"));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const others = trips.filter((t) => t.id !== trip.id);
 
-  async function act(action: string, targets: ConfReviewConf[], newTripId?: string, legKeyHide?: string) {
+  const tickets = buildTickets(trip.confirmations ?? [])
+    .filter((t) => !done.has(t.key) && t.status === "needs_review");
+
+  async function act(action: string, ticket: ReviewTicket, newTripId?: string) {
     setBusy(true);
     const LABEL: Record<string, string> = {
       accept_invoice: "Accepted → routed to Payables",
       accept_confirmation: "Accepted — holding for the invoice",
       reassign: "Moved to the selected trip",
-      decline: "Declined",
+      decline: "Discarded",
     };
     try {
       const res = await fetch("/api/travel/review-action", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, tripId: trip.id, newTripId,
-          items: targets.map((c) => ({ conf: c.conf, traveler: c.traveler })) }),
+          items: [{ conf: ticket.conf, traveler: ticket.traveler }] }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { toast(`Couldn't apply — ${j.error || res.status}`); return; }
-      if (legKeyHide) setDone((d) => new Set(d).add(legKeyHide)); // optimistic hide
+      setDone((d) => new Set(d).add(ticket.key)); // optimistic hide
       const linked = (j.changed ?? 0) > 0;
       toast(linked ? `✓ ${LABEL[action]}` : `✓ ${LABEL[action]} · no expense linked yet (will match when it arrives)`);
       router.refresh();
@@ -1026,105 +1090,101 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
     } finally { setBusy(false); }
   }
 
-  if (!items.length) return null;
+  if (!tickets.length) return null;
 
-  const Actions = ({ targets, legKeyHide }: { targets: ConfReviewConf[]; legKeyHide?: string }) => (
-    <div className="flex flex-wrap items-center gap-2">
-      <button disabled={busy} onClick={() => act("accept_invoice", targets, undefined, legKeyHide)}
-        className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
-      <button disabled={busy} onClick={() => act("accept_confirmation", targets, undefined, legKeyHide)}
-        className="rounded-md bg-indigo-50 px-2.5 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Accept confirmation</button>
-      <MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", targets, id, legKeyHide)} />
-      <button disabled={busy} onClick={() => { if (confirm("Remove this confirmation from the program?")) act("decline", targets, undefined, legKeyHide); }}
-        className="rounded-md bg-rose-50 px-2.5 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Decline</button>
-    </div>
-  );
-
-  // The summary is now shown INLINE (schedule + fare below), so the only link is the full email
-  // (the document of record for accounting).
-  const Source = ({ c }: { c: ConfReviewConf }) => c.source_url
-    ? <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="text-[11.5px] font-medium text-brand hover:underline">view source ↗</a>
-    : <span className="text-[11.5px] text-slate-400">source pending</span>;
-
+  const ROW = "flex items-center justify-between";
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="text-[13.5px] font-semibold">Review &amp; approve <span className="font-normal text-slate-400">· from travel@</span></div>
-        <span className="text-[11.5px] text-slate-400">accept the itinerary, not the invoice</span>
+        <span className="text-[11.5px] text-slate-400">{tickets.length} passenger ticket{tickets.length === 1 ? "" : "s"}</span>
       </div>
-      {items.map((g) => {
-        const isSplit = !!split[g.key];
-        return (
-          <div key={g.key} className="border-b border-slate-100 px-4 py-3 last:border-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium">{g.route}{g.flights ? <span className="ml-1 font-normal text-slate-400">· {g.flights}</span> : null}</div>
-                <div className="text-[12px] text-slate-500">{g.day}</div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                  {g.confs.length} confirmation{g.confs.length === 1 ? "" : "s"}{(g.pnr_count ?? 1) > 1 ? ` · ${g.pnr_count} PNRs` : ""}
-                </span>
-                {g.confs.length > 1 && (
-                  <button onClick={() => setSplit((s) => ({ ...s, [g.key]: !s[g.key] }))}
-                    className="text-[11.5px] font-medium text-brand hover:underline">{isSplit ? "Re-group" : "Split"}</button>
-                )}
-              </div>
-            </div>
-            {/* SCHEDULE — the summary, inline: each leg with times, so no link-click to review */}
-            {g.segments && g.segments.length > 0 && (() => {
-              // Show each leg's date when the trip spans more than one day, so a round trip's
-              // return leg reads on its real day (e.g. Jul 1) instead of under the departure day.
-              const multiDay = new Set(g.segments.map((s) => s.day).filter(Boolean)).size > 1;
-              return (
-                <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-1.5">
-                  {g.segments.map((s, i) => (
-                    <div key={i} className="flex items-center gap-2 py-0.5 text-[12px] text-slate-600">
-                      <span className="min-w-[88px] font-medium text-slate-700">{s.flight}</span>
-                      <span className="min-w-0 truncate">{s.route}</span>
-                      {multiDay && s.day && (
-                        <span className="whitespace-nowrap text-slate-400">{s.day}</span>
-                      )}
-                      <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
-                    </div>
-                  ))}
+      <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+        {tickets.map((t) => {
+          const noCost = t.fare == null && t.net == null && t.credit == null && !t.awaiting_invoice;
+          const isOpen = expanded.has(t.key);
+          const allSegs = t.directions.flatMap((d) => d.segs);
+          return (
+            <div key={t.key} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
+              {/* header — passenger + trip shape + confirmation # */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-medium text-indigo-600">{ticketInitials(t.traveler)}</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[14px] font-medium">{t.traveler}</div>
+                    <div className="text-[12px] text-slate-500">{tripShape(t.directions.length)}</div>
+                  </div>
                 </div>
-              );
-            })()}
-            <div className="mt-1.5 flex flex-col gap-0.5 text-[12.5px] text-slate-600">
-              {g.confs.map((c, i) => (
-                <span key={i} className="flex items-center gap-2">
-                  <span>✈ {c.traveler} <span className="text-slate-400">· conf {c.conf}</span></span>
-                  {c.awaiting_invoice
-                    ? <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">invoice after trip</span>
-                    : <>
-                        {c.net != null && <span className="tabular-nums text-slate-400">payment {money(c.net)}</span>}
-                        {(c.credit || c.credit_number) && (
-                          <span className="tabular-nums text-emerald-600">
-                            eCredit{c.credit ? ` ${money(c.credit)}` : ""}{c.credit_number ? ` · #${c.credit_number}` : ""}
-                          </span>
-                        )}
-                        {c.fare != null && <span className="font-semibold tabular-nums text-slate-700">{trip.ent === "BC" ? "reimburse" : "ticket"} {money(c.fare)}</span>}
-                      </>}
-                  <Source c={c} />
-                </span>
-              ))}
-            </div>
-            {isSplit ? (
-              <div className="mt-2 flex flex-col gap-2 border-l-2 border-slate-100 pl-3">
-                {g.confs.map((c, i) => (
-                  <div key={i} className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[12.5px] font-medium">{c.traveler}</span>
-                    <Actions targets={[c]} />
+                <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500">{t.conf}</span>
+              </div>
+
+              {/* itinerary — fixed height, one summary per direction */}
+              <div className="min-h-[72px] border-t border-slate-100 pt-2 text-[12px]">
+                {t.directions.map((d, i) => (
+                  <div key={i} className={i ? "mt-1" : ""}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        <span className="text-slate-400">{t.directions.length > 1 ? (i === 0 ? "↗ " : "↙ ") : ""}</span>
+                        <span className="font-medium">{d.route}</span> <span className="text-slate-400">· {d.via}</span>
+                      </span>
+                      {d.day && <span className="shrink-0 text-slate-400">{d.day}</span>}
+                    </div>
+                    <div className="truncate pl-4 text-[11px] text-slate-400">{d.flights}{d.depart ? ` · ${d.depart}–${d.arrive}` : ""}</div>
                   </div>
                 ))}
+                {allSegs.length > 0 && (
+                  <button onClick={() => setExpanded((s) => { const n = new Set(s); n.has(t.key) ? n.delete(t.key) : n.add(t.key); return n; })}
+                    className="mt-1 pl-4 text-[11px] font-medium text-brand hover:underline">{isOpen ? "Hide legs" : "View legs"}</button>
+                )}
+                {isOpen && (
+                  <div className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5">
+                    {allSegs.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5 text-[11.5px] text-slate-600">
+                        <span className="min-w-[78px] font-medium text-slate-700">{shortFlight(s.flight)}</span>
+                        <span className="min-w-0 truncate">{s.route}</span>
+                        <span className="ml-auto whitespace-nowrap tabular-nums text-slate-400">{s.depart} – {s.arrive}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="mt-2"><Actions targets={g.confs} legKeyHide={legKey(g)} /></div>
-            )}
-          </div>
-        );
-      })}
+
+              {/* charge — broken out per passenger */}
+              <div className="border-t border-slate-100 pt-2 text-[12px]">
+                {t.awaiting_invoice ? (
+                  <div className="text-slate-500">Invoice after the trip — confirmation only.</div>
+                ) : noCost ? (
+                  <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
+                ) : (
+                  <>
+                    <div className={ROW}><span className="text-slate-500">{trip.ent === "BC" ? "Reimburse" : "Ticket"}</span><span className="tabular-nums">{t.fare != null ? money(t.fare) : "—"}</span></div>
+                    <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
+                    <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
+                  </>
+                )}
+                {t.source_url && (
+                  <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[11px] font-medium text-brand hover:underline">view source ↗</a>
+                )}
+              </div>
+
+              {/* actions — four, applied to this passenger ticket */}
+              <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-100 pt-2.5">
+                <div className="flex gap-1.5">
+                  <button disabled={busy} onClick={() => act("accept_invoice", t)}
+                    className="flex-1 rounded-md bg-emerald-50 px-2 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">✓ Accept invoice</button>
+                  <button disabled={busy} onClick={() => act("accept_confirmation", t)}
+                    className="flex-1 rounded-md bg-indigo-50 px-2 py-1.5 text-[12px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">✓ Confirmation</button>
+                </div>
+                <div className="flex items-stretch gap-1.5">
+                  <div className="flex-1"><MoveTripSelect trips={others} disabled={busy} onPick={(id) => act("reassign", t, id)} /></div>
+                  <button disabled={busy} onClick={() => { if (confirm("Discard this confirmation from the program?")) act("decline", t); }}
+                    className="flex-1 rounded-md bg-rose-50 px-2 py-1.5 text-[12px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50">✕ Discard</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <Toast message={message} />
     </div>
   );
@@ -1152,7 +1212,7 @@ function MoveTripSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[12px] text-slate-600 disabled:opacity-50"
       >
         ↪ Move trip… <ChevronDown className="h-3 w-3" />
       </button>

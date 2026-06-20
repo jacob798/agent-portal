@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Package, Download, Pencil, Check, Bot } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Download, Pencil, Check, ChevronRight } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -233,22 +233,55 @@ export default function ReportWorkspace({
     }
   }
 
-  const DownloadGroup = () => (
-    <>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=xlsx`, `${report.name}.xlsx`)}>
-        <FileSpreadsheet className="h-4 w-4" /> XLSX
-      </Button>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
-        <Package className="h-4 w-4" /> Download package
-      </Button>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
-        <FileText className="h-4 w-4" /> BCX report PDF
-      </Button>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={copyPrompt}>
-        <Bot className="h-4 w-4" /> Claude Work prompt
-      </Button>
-    </>
+  // Uniform 40×40 icon-only action button; `tint` overrides the default tonal fill.
+  const IconBtn = ({ title, onClick, tint = "bg-slate-100 text-slate-600 hover:bg-slate-200", children }:
+    { title: string; onClick: () => void; tint?: string; children: React.ReactNode }) => (
+    <button
+      title={title}
+      aria-label={title}
+      disabled={busy}
+      onClick={onClick}
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] transition disabled:opacity-50 ${tint}`}
+    >
+      {children}
+    </button>
   );
+  const DropboxMark = () => (
+    <svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 2 0 6l6 4 6-4-6-4Zm12 0-6 4 6 4 6-4-6-4ZM0 14l6 4 6-4-6-4-6 4Zm18-4-6 4 6 4 6-4-6-4ZM6 19l6 4 6-4-6-4-6 4Z" fill="#0061FF" />
+    </svg>
+  );
+  const ClaudeMark = () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <g fill="#D97757">
+        <rect x="10.7" y="1" width="2.6" height="22" rx="1.3" />
+        <rect x="10.7" y="1" width="2.6" height="22" rx="1.3" transform="rotate(60 12 12)" />
+        <rect x="10.7" y="1" width="2.6" height="22" rx="1.3" transform="rotate(120 12 12)" />
+      </g>
+    </svg>
+  );
+  const Chev = () => <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />;
+  const XlsxBtn = () => (
+    <IconBtn title="Download XLSX" onClick={() => download(`/api/expense-reports/generate?only=xlsx`, `${report.name}.xlsx`)}>
+      <FileSpreadsheet className="h-[19px] w-[19px] text-emerald-600" />
+    </IconBtn>
+  );
+  const PdfBtn = () => (
+    <IconBtn title="BCX report PDF" onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
+      <FileText className="h-[19px] w-[19px] text-slate-500" />
+    </IconBtn>
+  );
+  const DropboxBtn = () => (
+    <IconBtn title="Download package to Dropbox" onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
+      <DropboxMark />
+    </IconBtn>
+  );
+  const ClaudeBtn = () => (
+    <IconBtn title="Copy Claude Work prompt" tint="bg-[#fbf3ee] hover:bg-[#f6e7dc]" onClick={copyPrompt}>
+      <ClaudeMark />
+    </IconBtn>
+  );
+  const Divider = () => <span className="mx-1 h-6 w-px shrink-0 bg-slate-200" />;
 
   const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
     <th
@@ -302,39 +335,49 @@ export default function ReportWorkspace({
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {canEdit && (
-              editing ? (
-                <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
-                  <Check className="h-4 w-4" /> Done editing
-                </Button>
-              ) : (
-                <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-                  <Pencil className="h-4 w-4" /> Edit items
-                </Button>
-              )
+              <IconBtn title={editing ? "Done editing" : "Edit items"} onClick={() => setEditing(!editing)}>
+                {editing ? <Check className="h-[19px] w-[19px]" /> : <Pencil className="h-[19px] w-[19px]" />}
+              </IconBtn>
             )}
             {report.status === "draft" && (
-              <Button variant="success" size="sm" disabled={busy} onClick={generate}>
+              <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={generate}>
                 <Download className="h-4 w-4" /> Generate package
               </Button>
             )}
             {report.status === "generated" && (
               <>
-                <DownloadGroup />
-                <Button variant="primary" size="sm" disabled={busy} onClick={markSubmitted}>Mark submitted</Button>
+                <XlsxBtn />
+                <PdfBtn />
+                <Divider />
+                <DropboxBtn />
+                <Chev />
+                <ClaudeBtn />
+                <Chev />
+                <Button variant="primary" size="sm" className="h-10 px-5 text-sm" disabled={busy} onClick={markSubmitted}>
+                  <Check className="h-4 w-4" /> Submit
+                </Button>
               </>
             )}
             {report.status === "submitted" && (
               <>
-                <DownloadGroup />
-                <Button variant="success" size="sm" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <XlsxBtn />
+                <PdfBtn />
+                <DropboxBtn />
+                <ClaudeBtn />
+                <Divider />
+                <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   Reconcile
                 </Button>
               </>
             )}
             {report.status === "reimbursed" && (
               <>
-                <DownloadGroup />
-                <Button variant="ghost" size="sm" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <XlsxBtn />
+                <PdfBtn />
+                <DropboxBtn />
+                <ClaudeBtn />
+                <Divider />
+                <Button variant="ghost" size="sm" className="h-10 px-4 text-sm" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   View reconciliation
                 </Button>
               </>

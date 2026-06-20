@@ -31,6 +31,7 @@ interface ExpDb {
   memo: string | null;
   invoice_number: string | null;
   doc_url: string | null;
+  doc_path: string | null;
   trip_id: string | null;
   extracted: { payee?: string; traveler?: string; credit_number?: string | null; credit_amount?: number | string | null } | null;
 }
@@ -94,7 +95,9 @@ function buildXlsx(
     Notes: e.invoice_number || "",
     "Override Cost Center / Job?": "No",
     "Itemize?": "No",
-    "Invoice File": e.doc_url ? `invoices/${invoiceFileName(e)}` : "",
+    // The receipt's canonical Dropbox path (synced locally under /Finance) — a known location, no
+    // download needed. Falls back to the package's bundled copy if a row has no filed Dropbox doc.
+    "Invoice File": e.doc_path || (e.doc_url ? `invoices/${invoiceFileName(e)}` : ""),
   }));
   const wsExp = XLSX.utils.json_to_sheet(rows, {
     header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Business Purpose", "Notes", "Override Cost Center / Job?", "Itemize?", "Invoice File"],
@@ -136,14 +139,13 @@ function buildPrompt(
       `   Notes: ${e.invoice_number || ""}`,
       `   Override Cost Center / Job?: No`,
       `   Itemize?: No`,
-      `   Receipt: ${e.doc_url ? `invoices/${invoiceFileName(e)}` : "(no receipt — leave empty, note it)"}`,
+      `   Receipt: ${e.doc_path || (e.doc_url ? `invoices/${invoiceFileName(e)}` : "(no receipt — leave empty, note it)")}`,
     ].join("\n");
   }).join("\n\n");
 
   return `You are filing a Builders Capital expense report in Paylocity (app.paylocity.com → Expense → Expense Reports). Drive the browser; do not invent or reformat any value.
 
-Unzipped package folder: <PASTE THE FOLDER PATH WHERE YOU SAVED THE PACKAGE>
-(The receipt PDFs are in that folder's invoices/ subfolder.)
+The receipt PDFs are already in Dropbox, synced locally under your Dropbox "/Finance" folder. Each expense below lists its receipt's Dropbox path (e.g. /Finance/CY2026/2026-06 Invoices/...) — open it from your local Dropbox sync of that path.
 
 STEP 1 — Create the expense report:
   Report Title: ${folder}
@@ -353,7 +355,7 @@ export async function POST(req: NextRequest) {
   const { data: rows } = await admin
     .from("payables_queue")
     .select(
-      "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, payment_method_id, memo, invoice_number, doc_url, trip_id, extracted",
+      "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, payment_method_id, memo, invoice_number, doc_url, doc_path, trip_id, extracted",
     )
     .eq("report_id", reportId)
     .order("txn_date", { ascending: true });

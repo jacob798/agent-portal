@@ -34,7 +34,7 @@ The folder contains:
    - **Notes** ← `Notes` (this is the ticket / invoice number)
    - **Override Cost Center / Job?** ← set to **No**
    - **Itemize?** ← set to **No**
-   - **Receipt** ← upload the file at the row's `Invoice File` path inside the package folder (e.g. `invoices/2026-06-10_Delta_Air_Lines_0062437164562.pdf`). If `Invoice File` is blank, leave the receipt empty and note it.
+   - **Receipt** ← upload the file at the row's `Invoice File` path. This is the receipt's Dropbox path (e.g. `/Finance/CY2026/2026-06 Invoices/2026-06-17 BC Cleveland Delta Air Lines Jessica Davidson 328.20.pdf`), already synced locally under your Dropbox `/Finance` folder. If `Invoice File` is blank, leave the receipt empty and note it.
    - **Save** the expense.
 
 3. Repeat until every Expenses row has a saved expense. The expense count on the report should equal the number of rows.

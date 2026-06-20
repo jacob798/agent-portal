@@ -1194,12 +1194,11 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                   <>
                     {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{money(t.estRate)}{t.kind === "span" ? " / day" : " / night"}</span></div>}
                     <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{money(t.estTotal)}</span></div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">Captured · invoice posts after the trip</div>
                   </>
                 ) : t.kind === "route" ? (
                   <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
                 ) : (
-                  <div className="text-slate-500">Confirmation only — cost captured in payables.</div>
+                  <div className="text-slate-500">No cost on the confirmation.</div>
                 )}
               </div>
 

@@ -63,6 +63,10 @@ function tripLabel(t?: TripDb | null): string {
 }
 const payeeOf = (e: ExpDb): string => e.extracted?.payee || e.vendor || "—";
 const acctOf = (e: ExpDb): string => e.bc_category || e.gl || e.account || "";
+// Deterministic, unique receipt filename so each Expenses row maps 1:1 to its invoice file —
+// keyed on the ticket/invoice number (co-travelers share date+amount, so those alone collide).
+const invoiceFileName = (e: ExpDb): string =>
+  `${safe(String(e.txn_date || ""))}_${safe(payeeOf(e))}_${safe(e.invoice_number || num(e.amount).toFixed(2))}.pdf`;
 const safe = (s: string): string => (s || "").replace(/[^\w.\-]+/g, "_").slice(0, 80);
 function forceDownload(url: string): string {
   if (/[?&]dl=1/.test(url)) return url;
@@ -90,9 +94,10 @@ function buildXlsx(
     Notes: e.invoice_number || "",
     "Override Cost Center / Job?": "No",
     "Itemize?": "No",
+    "Invoice File": e.doc_url ? `invoices/${invoiceFileName(e)}` : "",
   }));
   const wsExp = XLSX.utils.json_to_sheet(rows, {
-    header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Business Purpose", "Notes", "Override Cost Center / Job?", "Itemize?"],
+    header: ["Title", "Transaction Date", "Payment Method", "Category", "Amount", "Business Purpose", "Notes", "Override Cost Center / Job?", "Itemize?", "Invoice File"],
   });
 
   // Report-level fields (the Paylocity "Create Expense Report" header), so Claude Work fills those
@@ -383,7 +388,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const buf = Buffer.from(await res.arrayBuffer());
-      receipts.file(`${safe(String(e.txn_date || ""))}_${safe(payeeOf(e))}_${num(e.amount).toFixed(2)}.pdf`, buf);
+      receipts.file(invoiceFileName(e), buf);
       attached += 1;
     } catch {
       missing += 1;

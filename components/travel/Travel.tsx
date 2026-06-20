@@ -1289,16 +1289,14 @@ function fmtMD(iso?: string | null): string {
 }
 
 function TripExpensesLedger({ trip }: { trip: Trip }) {
-  // Only expenses POSTED to QuickBooks appear — nothing shows until it's approved + posted in
-  // Payables. Reimburse is a BC-only column (employer reimbursement); non-BC shows a single Amount.
-  const posted = trip.exps.filter((e) => e.status === "posted");
-  const accepted = trip.exps.filter((e) => e.status === "accepted" || e.status === "staged");
+  // A ticket is JUST A CONFIRMATION until it's accepted (Jacob, 2026-06-19) — a STAGED prepaid row
+  // is not yet an expense, so it lives only in the Review & approve cards and does NOT appear here.
+  // The tie-out shows accepted/posted only; staged enters once Accept invoice is clicked.
+  const display = trip.exps.filter((e) => e.status !== "staged");
+  const posted = display.filter((e) => e.status === "posted");
+  const accepted = display.filter((e) => e.status === "accepted");
   const showReimburse = trip.ent === "BC";
-  const reimburse = trip.exps.reduce((s, e) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0);
-
-  // Show the whole tie-out (posted + accepted/awaiting), not just posted — otherwise the ledger is
-  // empty until QuickBooks posting runs. A status tag distinguishes posted vs awaiting.
-  const display = trip.exps;
+  const reimburse = display.reduce((s, e) => s + (e.netReimbursement ?? e.reimbursementAmount ?? e.amount), 0);
   const [sortK, setSortK] = useState<LedgerSort>("date");
   const [dir, setDir] = useState<1 | -1>(1);
   const router = useRouter();
@@ -1460,11 +1458,12 @@ function TripDetail({
   onEdit: () => void;
 }) {
   const b = brandFor(trip.ent);
-  const postedAmt = trip.exps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
-  // QB tie-out total = sum of the AMEX charges (e.amount), the amounts that post to QuickBooks — NOT
-  // trip.total (which is now the FARES, for the spend headline). "Posted" + "Awaiting post" are QB
-  // amounts, so they must use this, not the fare total.
-  const qbTotal = trip.exps.reduce((s, e) => s + e.amount, 0);
+  // "Posted" / "Awaiting post" are QB amounts for ACCEPTED expenses only — a staged ticket is still
+  // just a confirmation (not accepted), so it isn't "awaiting post" yet. Trip total + Receipts below
+  // still count every confirmation (the trip's cost + filed receipts), staged or not.
+  const liveExps = trip.exps.filter((e) => e.status !== "staged");
+  const postedAmt = liveExps.filter((e) => e.status === "posted").reduce((s, e) => s + e.amount, 0);
+  const qbTotal = liveExps.reduce((s, e) => s + e.amount, 0);
   const withDoc = trip.exps.filter((e) => !e.needsDoc).length;
   // Reimbursement total = the trip COST (sum of each receipt's claim). Reissue chains are already
   // collapsed by the worker (only the final row carries the claim), so this never double-counts.

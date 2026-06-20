@@ -247,17 +247,18 @@ export async function getExpenseReports(): Promise<ExpenseReport[]> {
       .order("created_at", { ascending: false });
     if (error || !reports) return MOCK_REPORTS;
 
-    // One pass over the line items to compute count + total per report_id.
+    // One pass over the line items to compute count + total per report_id. The report TOTAL is the
+    // CLAIM (reimbursement = full fare), not the card charge — an eCredit ticket claims the full fare.
     const { data: items } = await supabase
       .from("payables_queue")
-      .select("report_id, amount")
+      .select("report_id, amount, reimbursement_amount")
       .not("report_id", "is", null);
     const counts = new Map<string, { n: number; sum: number }>();
     for (const it of items ?? []) {
       const rid = it.report_id as string;
       const cur = counts.get(rid) ?? { n: 0, sum: 0 };
       cur.n += 1;
-      cur.sum += num(it.amount);
+      cur.sum += it.reimbursement_amount == null || it.reimbursement_amount === "" ? num(it.amount) : num(it.reimbursement_amount);
       counts.set(rid, cur);
     }
     return (reports as ReportRowDb[]).map((r) => {
@@ -277,10 +278,10 @@ export async function getExpenseReport(id: string): Promise<ExpenseReport | null
     if (error || !data) return null;
     const { data: items } = await supabase
       .from("payables_queue")
-      .select("amount")
+      .select("amount, reimbursement_amount")
       .eq("report_id", id);
     const n = items?.length ?? 0;
-    const sum = (items ?? []).reduce((a, it) => a + num(it.amount), 0);
+    const sum = (items ?? []).reduce((a, it) => a + (it.reimbursement_amount == null || it.reimbursement_amount === "" ? num(it.amount) : num(it.reimbursement_amount)), 0);
     return mapReport(data as ReportRowDb, n, sum);
   } catch {
     return null;

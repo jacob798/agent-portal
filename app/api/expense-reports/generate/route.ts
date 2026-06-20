@@ -26,6 +26,7 @@ interface ExpDb {
   bc_category: string | null;
   gl: string | null;
   amount: number | string | null;
+  reimbursement_amount: number | string | null;
   payment_method_id: string | null;
   memo: string | null;
   doc_url: string | null;
@@ -75,7 +76,7 @@ function buildXlsx(exps: ExpDb[], trips: Map<string, TripDb>): Uint8Array {
     "Transaction Date": fmtDate(e.txn_date),
     "Payment Method": e.account || e.payment_method_id || "",
     Account: acctOf(e),
-    Amount: Number(num(e.amount).toFixed(2)),
+    Amount: Number((e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount)).toFixed(2)),
     Traveler: e.extracted?.traveler || "",
     Trip: e.trip_id ? tripLabel(trips.get(e.trip_id)) : "Non-trip",
     Notes: e.memo || "",
@@ -203,7 +204,8 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
     let sub = 0;
     for (const e of g.items) {
       newPageIfNeeded(18);
-      const amt = num(e.amount);
+      // CLAIM = reimbursement (full fare), not the card charge — an eCredit ticket reimburses the fare.
+      const amt = e.reimbursement_amount == null || e.reimbursement_amount === "" ? num(e.amount) : num(e.reimbursement_amount);
       sub += amt;
       grand += amt;
       cell(page, clip(font, fmtMD(e.txn_date), 8, cVendor - cDate - 6), cDate, y, 8, font);
@@ -258,7 +260,7 @@ export async function POST(req: NextRequest) {
   const { data: rows } = await admin
     .from("payables_queue")
     .select(
-      "id, txn_date, vendor, entity, account, bc_category, gl, amount, payment_method_id, memo, doc_url, trip_id, extracted",
+      "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, payment_method_id, memo, doc_url, trip_id, extracted",
     )
     .eq("report_id", reportId)
     .order("txn_date", { ascending: true });

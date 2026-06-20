@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { money } from "@/lib/data/entities";
-import { type ExpenseReport, type ExpenseRow, fmtMD, fmtRange } from "@/lib/data/expenseReportsShared";
+import { type ExpenseReport, type ExpenseRow, fmtMD, fmtRange, requestedAmount } from "@/lib/data/expenseReportsShared";
 import Button from "@/components/ui/Button";
 import { Toast, useToast } from "@/components/ui/Toast";
 
@@ -49,7 +49,7 @@ export default function SelectExpenses({
         case "traveler": return (r.traveler ?? "").toLowerCase();
         case "trip": return r.tripName?.destination?.toLowerCase() ?? "";
         case "account": return r.account.toLowerCase();
-        case "amount": return r.amount;
+        case "amount": return requestedAmount(r);  // the CLAIM = reimbursement (full fare), not the card charge
       }
     };
     return [...rows].sort((a, b) => {
@@ -65,7 +65,7 @@ export default function SelectExpenses({
   }
 
   const selectedTotal = useMemo(
-    () => rows.filter((r) => checked.has(r.id)).reduce((a, r) => a + r.amount, 0),
+    () => rows.filter((r) => checked.has(r.id)).reduce((a, r) => a + requestedAmount(r), 0),
     [rows, checked],
   );
 
@@ -186,6 +186,12 @@ export default function SelectExpenses({
                           {r.entityCode}
                         </span>
                       )}
+                      {r.docUrl ? (
+                        <a href={r.docUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-emerald-700 hover:underline">view doc ↗</a>
+                      ) : (
+                        <span className="text-[11px] text-slate-300">no doc</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">{r.traveler ?? "—"}</td>
@@ -202,7 +208,7 @@ export default function SelectExpenses({
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm font-medium" style={{ color: "#ba7517" }}>{r.account || "—"}</td>
-                  <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-slate-900">{money(r.amount)}</td>
+                  <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-slate-900">{money(requestedAmount(r))}</td>
                 </tr>
               );
             })}

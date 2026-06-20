@@ -16,8 +16,8 @@ const VARIANTS: Record<Variant, string> = {
 // sm = dense inline-row actions. Every button in the portal uses one of these,
 // so sizing never drifts.
 const SIZES: Record<Size, string> = {
-  md: "h-9 px-4 text-sm gap-2",
-  sm: "h-8 px-3 text-[12.5px] gap-1.5",
+  md: "h-8 px-3 text-[13px] gap-1.5",
+  sm: "h-7 px-2.5 text-xs gap-1",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

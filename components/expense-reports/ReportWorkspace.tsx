@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Archive, Download, Pencil, Check } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -236,10 +236,16 @@ export default function ReportWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {(report.status === "generated" || report.status === "submitted") && !editing && (
-              <Button variant="ghost" onClick={() => setEditing(true)}>
-                <Pencil className="h-4 w-4" /> Edit items
-              </Button>
+            {(report.status === "generated" || report.status === "submitted") && (
+              editing ? (
+                <Button variant="ghost" onClick={() => setEditing(false)}>
+                  <Check className="h-4 w-4" /> Done editing
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => setEditing(true)}>
+                  <Pencil className="h-4 w-4" /> Edit items
+                </Button>
+              )
             )}
             {report.status === "draft" && (
               <Button variant="success" disabled={busy} onClick={generate}>
@@ -369,6 +375,7 @@ export default function ReportWorkspace({
                         )}
                       </div>
                       {r.memo && <div className="mt-0.5 text-[11px] text-slate-400">{r.memo}</div>}
+                      {r.invoiceNumber && <div className="mt-0.5 text-[11px] text-slate-400">Ticket / invoice #{r.invoiceNumber}</div>}
                     </td>
                     <td className="px-4 py-3 align-top text-sm text-slate-600">{r.traveler ?? "—"}</td>
                     <td className="px-4 py-3 align-top">

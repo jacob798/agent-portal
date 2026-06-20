@@ -85,6 +85,7 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    invoiceNumber: null,
     creditAmount: null,
     creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
@@ -102,6 +103,7 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    invoiceNumber: null,
     creditAmount: null,
     creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
@@ -119,6 +121,7 @@ const MOCK_EXPENSES: ExpenseRow[] = [
     docUrl: null,
     paymentMethod: "AMEX Delta ••5001",
     memo: null,
+    invoiceNumber: null,
     creditAmount: null,
     creditNumber: null,
     reconcile: { reimbursed: null, varianceEntity: null },
@@ -183,6 +186,7 @@ interface PayableExpenseDb {
   doc_url: string | null;
   payment_method_id: string | null;
   memo: string | null;
+  invoice_number: string | null;
   trip_id: string | null;
   extracted: {
     payee?: string;
@@ -211,6 +215,7 @@ function mapExpense(r: PayableExpenseDb, trips: TripMap): ExpenseRow {
       r.reimbursement_amount === null || r.reimbursement_amount === undefined || r.reimbursement_amount === ""
         ? null
         : num(r.reimbursement_amount),
+    invoiceNumber: r.invoice_number ?? null,
     docUrl: r.doc_url ?? null,
     paymentMethod: r.account || r.payment_method_id || null,
     memo: r.memo ?? null,
@@ -224,7 +229,7 @@ function mapExpense(r: PayableExpenseDb, trips: TripMap): ExpenseRow {
 }
 
 const EXP_COLS =
-  "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, doc_url, payment_method_id, memo, trip_id, extracted";
+  "id, txn_date, vendor, entity, account, bc_category, gl, amount, reimbursement_amount, doc_url, payment_method_id, memo, invoice_number, trip_id, extracted";
 
 /** Load the trips referenced by a set of rows into a destination/purpose/date map. */
 async function loadTrips(

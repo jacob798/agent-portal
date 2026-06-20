@@ -52,6 +52,8 @@ export interface ExpenseRow {
   account: string; // bc_category (BC) else gl
   amount: number;
   reimbursementAmount: number | null;
+  /** Ticket # for a travel expense = the invoice number (QB DocNumber). */
+  invoiceNumber: string | null;
   docUrl: string | null;
   paymentMethod: string | null;
   memo: string | null;

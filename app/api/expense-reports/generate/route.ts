@@ -172,13 +172,17 @@ RULES
 }
 
 // ─── PDF helpers ─────────────────────────────────────────────────────────────
+// pdf-lib's StandardFonts use WinAnsi (CP1252), which can't encode arrows like "→" (they appear in
+// route memos, e.g. "BOI → CLE") — drawing one throws and kills the whole PDF. Map them to ASCII.
+const pdfText = (s: unknown): string => String(s ?? "").replace(/→/g, "->").replace(/←/g, "<-").replace(/[↔⇒]/g, "-");
 function clip(font: PDFFont, text: string, size: number, maxW: number): string {
-  let t = String(text ?? "");
+  const full = pdfText(text);
+  let t = full;
   while (t.length > 1 && font.widthOfTextAtSize(t, size) > maxW) t = t.slice(0, -2);
-  return t === String(text ?? "") ? t : t.replace(/.$/, "…");
+  return t === full ? t : t.replace(/.$/, "…");
 }
 function cell(page: PDFPage, text: string, x: number, y: number, size: number, font: PDFFont, color = OXFORD, rightX?: number) {
-  const t = String(text ?? "");
+  const t = pdfText(text);
   if (rightX != null) page.drawText(t, { x: rightX - font.widthOfTextAtSize(t, size), y, size, font, color });
   else page.drawText(t, { x, y, size, font, color });
 }
@@ -506,6 +510,12 @@ export async function POST(req: NextRequest) {
     .from("expense_reports")
     .update({ status: "generated", generated_at: new Date().toISOString() })
     .eq("id", reportId);
+
+  // Dropbox-only mode: the package was saved to Dropbox — return JSON, no local zip download
+  // (Jacob, 2026-06-20: clicking Dropbox shouldn't also drop a copy in Downloads).
+  if (only === "dropbox") {
+    return NextResponse.json({ ok: true, saved: dropboxSaved, folder: dropboxFolder, attached, missing });
+  }
 
   const blob = await zip.generateAsync({ type: "nodebuffer" });
   return new NextResponse(new Uint8Array(blob), {

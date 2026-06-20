@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, FileText, Download, Pencil, Check, ChevronRight } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet, FileText, Pencil, Check, ChevronRight } from "lucide-react";
 import { ENT, money } from "@/lib/data/entities";
 import {
   type ExpenseReport,
@@ -209,10 +209,24 @@ export default function ReportWorkspace({
     }
   }
 
-  async function generate() {
-    await download(`/api/expense-reports/generate`, `${report.name}.zip`);
-    toast("Package generated");
-    router.refresh();
+  // Save the package to Dropbox only — no local download (Jacob, 2026-06-20).
+  async function saveToDropbox() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/expense-reports/generate?only=dropbox`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: report.id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Failed");
+      toast(j.saved ? `Saved to Dropbox · ${j.folder}` : "Generated (Dropbox not configured)");
+      router.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to save to Dropbox");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function markSubmitted() {
@@ -272,7 +286,7 @@ export default function ReportWorkspace({
     </IconBtn>
   );
   const DropboxBtn = () => (
-    <IconBtn title="Download package to Dropbox" onClick={() => download(`/api/expense-reports/generate`, `${report.name}.zip`)}>
+    <IconBtn title="Save package to Dropbox" onClick={saveToDropbox}>
       <DropboxMark />
     </IconBtn>
   );
@@ -340,8 +354,8 @@ export default function ReportWorkspace({
               </IconBtn>
             )}
             {report.status === "draft" && (
-              <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={generate}>
-                <Download className="h-4 w-4" /> Generate package
+              <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={saveToDropbox}>
+                <DropboxMark /> Generate to Dropbox
               </Button>
             )}
             {report.status === "generated" && (

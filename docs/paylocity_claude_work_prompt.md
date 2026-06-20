@@ -7,6 +7,10 @@ Fill in the two placeholders first: the **package folder path** and the **report
 
 You are filing a Builders Capital expense report in Paylocity from a downloaded package.
 
+Log in at https://access.paylocity.com — Company ID `123342`, Username `jacob.wolbach`; the
+operator enters the password (1Password), never type or request it. Then open Expense →
+Expense Reports. (The portal-generated PROMPT.txt already includes this and creates the report.)
+
 **Inputs**
 - Package folder (already unzipped): `<PASTE FOLDER PATH — e.g. ~/Downloads/2026-06 BC Cleveland Trip 6-10-6-14 - Flights>`
 - Use this exact text as the Paylocity **Report Title**: `<PASTE THE PACKAGE FOLDER NAME>`

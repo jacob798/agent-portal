@@ -255,18 +255,18 @@ export default function ReportWorkspace({
       aria-label={title}
       disabled={busy}
       onClick={onClick}
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] transition disabled:opacity-50 ${tint}`}
+      className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg transition disabled:opacity-50 ${tint}`}
     >
       {children}
     </button>
   );
   const DropboxMark = () => (
-    <svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true">
+    <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 2 0 6l6 4 6-4-6-4Zm12 0-6 4 6 4 6-4-6-4ZM0 14l6 4 6-4-6-4-6 4Zm18-4-6 4 6 4 6-4-6-4ZM6 19l6 4 6-4-6-4-6 4Z" fill="#0061FF" />
     </svg>
   );
   const ClaudeMark = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <g fill="#D97757">
         <rect x="10.7" y="1" width="2.6" height="22" rx="1.3" />
         <rect x="10.7" y="1" width="2.6" height="22" rx="1.3" transform="rotate(60 12 12)" />
@@ -274,15 +274,15 @@ export default function ReportWorkspace({
       </g>
     </svg>
   );
-  const Chev = () => <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />;
+  const Chev = () => <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />;
   const XlsxBtn = () => (
     <IconBtn title="Download XLSX" onClick={() => download(`/api/expense-reports/generate?only=xlsx`, `${report.name}.xlsx`)}>
-      <FileSpreadsheet className="h-[19px] w-[19px] text-emerald-600" />
+      <FileSpreadsheet className="h-[17px] w-[17px] text-emerald-600" />
     </IconBtn>
   );
   const PdfBtn = () => (
     <IconBtn title="BCX report PDF" onClick={() => download(`/api/expense-reports/generate?only=pdf`, `${report.name}.pdf`)}>
-      <FileText className="h-[19px] w-[19px] text-slate-500" />
+      <FileText className="h-[17px] w-[17px] text-slate-500" />
     </IconBtn>
   );
   const DropboxBtn = () => (
@@ -295,7 +295,7 @@ export default function ReportWorkspace({
       <ClaudeMark />
     </IconBtn>
   );
-  const Divider = () => <span className="mx-1 h-6 w-px shrink-0 bg-slate-200" />;
+  const Divider = () => <span className="mx-1 h-5 w-px shrink-0 bg-slate-200" />;
 
   const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
     <th
@@ -350,11 +350,11 @@ export default function ReportWorkspace({
           <div className="flex flex-wrap items-center justify-end gap-2">
             {canEdit && (
               <IconBtn title={editing ? "Done editing" : "Edit items"} onClick={() => setEditing(!editing)}>
-                {editing ? <Check className="h-[19px] w-[19px]" /> : <Pencil className="h-[19px] w-[19px]" />}
+                {editing ? <Check className="h-[17px] w-[17px]" /> : <Pencil className="h-[17px] w-[17px]" />}
               </IconBtn>
             )}
             {report.status === "draft" && (
-              <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={saveToDropbox}>
+              <Button variant="success" size="sm" className="h-[30px] px-3 text-[13px]" disabled={busy} onClick={saveToDropbox}>
                 <DropboxMark /> Generate to Dropbox
               </Button>
             )}
@@ -367,7 +367,7 @@ export default function ReportWorkspace({
                 <Chev />
                 <ClaudeBtn />
                 <Chev />
-                <Button variant="primary" size="sm" className="h-10 px-5 text-sm" disabled={busy} onClick={markSubmitted}>
+                <Button variant="primary" size="sm" className="h-[30px] px-4 text-[13px]" disabled={busy} onClick={markSubmitted}>
                   <Check className="h-4 w-4" /> Submit
                 </Button>
               </>
@@ -379,7 +379,7 @@ export default function ReportWorkspace({
                 <DropboxBtn />
                 <ClaudeBtn />
                 <Divider />
-                <Button variant="success" size="sm" className="h-10 px-4 text-sm" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <Button variant="success" size="sm" className="h-[30px] px-3 text-[13px]" disabled={busy} onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   Reconcile
                 </Button>
               </>
@@ -391,7 +391,7 @@ export default function ReportWorkspace({
                 <DropboxBtn />
                 <ClaudeBtn />
                 <Divider />
-                <Button variant="ghost" size="sm" className="h-10 px-4 text-sm" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
+                <Button variant="ghost" size="sm" className="h-[30px] px-3 text-[13px]" onClick={() => router.push(`/expense-reports/${report.id}/reconcile`)}>
                   View reconciliation
                 </Button>
               </>

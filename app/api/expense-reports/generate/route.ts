@@ -147,13 +147,19 @@ function buildPrompt(
     ].join("\n");
   }).join("\n\n");
 
-  return `You are filing a Builders Capital expense report in Paylocity (app.paylocity.com → Expense → Expense Reports). Drive the browser; do not invent or reformat any value.
+  return `You are filing a Builders Capital expense report in Paylocity. Drive the browser; do not invent or reformat any value.
+
+LOG IN — https://access.paylocity.com
+  Company ID: 123342
+  Username: jacob.wolbach
+  Password: the operator enters it (1Password). Never type, copy, or request the password.
+Then open Expense (left nav) → Expense Reports.
 
 All files for this report are in this Dropbox folder (synced locally under your Dropbox sync of /Finance):
   ${dropboxFolder}
 Each expense's Receipt below is a PDF filename inside that folder.
 
-STEP 1 — Create the expense report:
+STEP 1 — Create a NEW expense report ("Create Expense Report"):
   Report Title: ${dropboxFolder.split("/").pop()}
   Business Purpose: ${businessPurpose || "(none)"}
   Event: N/A · Department / Location: default

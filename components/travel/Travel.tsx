@@ -111,6 +111,20 @@ export default function Travel({
   const { message, toast } = useToast();
   const router = useRouter();
 
+  // Keep the open trip in the URL (?trip=…) so a router.refresh() after an action (Accept invoice,
+  // etc.) — which can remount this client tree on a force-dynamic page — RESTORES the trip instead
+  // of bouncing back to the list. Also makes a trip deep-linkable. replaceState avoids a nav/remount.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("trip");
+    if (t) setOpenTripId(t);
+  }, []);
+  function openTripById(id: string | null) {
+    setOpenTripId(id);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", id ? `${window.location.pathname}?trip=${encodeURIComponent(id)}` : window.location.pathname);
+    }
+  }
+
   async function dismissNeeds(id: string) {
     setNeeds((n) => n.filter((x) => x.id !== id));
     try {
@@ -240,7 +254,7 @@ export default function Travel({
         <TripDetail
           trip={openTrip}
           trips={trips}
-          onBack={() => setOpenTripId(null)}
+          onBack={() => openTripById(null)}
           onReport={() => setReportId(openTrip.id)}
           onZip={() => downloadZip(openTrip)}
           zipping={zipping}
@@ -275,7 +289,7 @@ export default function Travel({
             trips={trips}
             search={search}
             setSearch={setSearch}
-            onOpen={setOpenTripId}
+            onOpen={openTripById}
           />
         </>
       )}

@@ -220,7 +220,8 @@ export default function ReportWorkspace({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Failed");
-      toast(j.saved ? `Saved to Dropbox · ${j.folder}` : "Generated (Dropbox not configured)");
+      if (j.corrupt?.length) toast(`⚠ ${j.corrupt.length} receipt(s) failed validation — re-export: ${j.corrupt.join(", ")}`);
+      else toast(j.saved ? `Saved to Dropbox · ${j.folder}` : "Generated (Dropbox not configured)");
       router.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to save to Dropbox");

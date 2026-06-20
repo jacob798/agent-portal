@@ -73,6 +73,56 @@ export async function ensureFolder(path: string): Promise<void> {
   }
 }
 
+/** Size of a Dropbox file in bytes, or null if it doesn't exist. */
+export async function fileSize(path: string): Promise<number | null> {
+  try {
+    const token = await accessToken();
+    const r = await fetch(`${RPC}/files/get_metadata`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(await rootHeaders(token)) },
+      body: JSON.stringify({ path }),
+    });
+    if (!r.ok) return null;
+    return (await r.json())?.size ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteQuiet(path: string): Promise<void> {
+  try {
+    const token = await accessToken();
+    await fetch(`${RPC}/files/delete_v2`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(await rootHeaders(token)) },
+      body: JSON.stringify({ path }),
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Copy a file WITHIN Dropbox (server-side, byte-exact — never re-downloads, so it can't
+ *  truncate). Overwrites the destination. Returns the copied file's size for verification. */
+export async function copyFile(fromPath: string, toPath: string): Promise<number> {
+  const doCopy = async () => {
+    const token = await accessToken();
+    return fetch(`${RPC}/files/copy_v2`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(await rootHeaders(token)) },
+      body: JSON.stringify({ from_path: fromPath, to_path: toPath, autorename: false }),
+    });
+  };
+  let r = await doCopy();
+  if (!r.ok) {
+    const txt = await r.text();
+    if (txt.includes("conflict")) { await deleteQuiet(toPath); r = await doCopy(); }
+    else throw new Error(`dropbox copy ${fromPath}: ${txt.slice(0, 200)}`);
+  }
+  if (!r.ok) throw new Error(`dropbox copy retry ${fromPath}: ${(await r.text()).slice(0, 200)}`);
+  return (await r.json())?.metadata?.size ?? 0;
+}
+
 export async function uploadFile(path: string, bytes: Uint8Array | Buffer): Promise<void> {
   const token = await accessToken();
   const arg = headerSafe(JSON.stringify({ path, mode: "overwrite", mute: true, autorename: false }));

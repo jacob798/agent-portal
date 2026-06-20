@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { ENT } from "@/lib/data/entities";
-import { dropboxConfigured, ensureFolder, uploadFile } from "@/lib/dropbox/dropbox";
+import { dropboxConfigured, ensureFolder, uploadFile, copyFile, fileSize } from "@/lib/dropbox/dropbox";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,6 +77,26 @@ function forceDownload(url: string): string {
   if (/[?&]dl=1/.test(url)) return url;
   if (/[?&]dl=0/.test(url)) return url.replace(/dl=0/, "dl=1");
   return url + (url.includes("?") ? "&dl=1" : "?dl=1");
+}
+/** A complete PDF: %PDF header + an %%EOF trailer near the end. Catches a truncated download. */
+function isCompletePdf(buf: Buffer | null): boolean {
+  return !!buf && buf.length > 400 && buf.subarray(0, 5).toString("latin1") === "%PDF-" && buf.subarray(-2048).includes("%%EOF");
+}
+/** Re-download a receipt via its share link, validating it's a complete PDF (retry once). Returns
+ *  the bytes only if valid — never a truncated file. (Fallback for rows with no canonical doc_path;
+ *  the normal path copies within Dropbox via copy_v2, which can't truncate.) */
+async function fetchValidatedPdf(docUrl: string): Promise<Buffer | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(forceDownload(docUrl));
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (isCompletePdf(buf)) return buf;
+    } catch {
+      /* retry */
+    }
+  }
+  return null;
 }
 
 // ─── XLSX ────────────────────────────────────────────────────────────────────
@@ -450,61 +469,56 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Full package: ONE flat folder — BCX PDF + XLSX + PROMPT.txt + a copy of every receipt. Zipped
-  // for download AND copied into the month's Dropbox folder. Flips status → generated.
-  const zip = new JSZip();
+  // Build the package artifacts in memory (small, generated — no truncation risk).
   let xlsxBytes: Uint8Array | null = null;
   let pdfBytes: Uint8Array | null = null;
   try {
     xlsxBytes = buildXlsx(exps, trips, { title: report.name ?? "", businessPurpose: report.note ?? "" });
-    zip.file(`${folder}/${base}.xlsx`, xlsxBytes);
   } catch (err) {
     console.error("[expense-reports/generate] xlsx failed:", err);
   }
   try {
     pdfBytes = await buildReportPdf(meta, exps, trips);
-    zip.file(`${folder}/${base}.pdf`, pdfBytes);
   } catch (err) {
     console.error("[expense-reports/generate] pdf failed:", err);
   }
   const promptTxt = buildPrompt(dropboxFolder, report.note ?? "", exps, trips);
-  zip.file(`${folder}/PROMPT.txt`, promptTxt);
 
-  // Fetch each receipt once; bundle it flat in the zip and keep the bytes to copy to Dropbox.
-  const receiptFiles: { name: string; buf: Buffer }[] = [];
+  // Copy the package into the month's Dropbox folder, in one flat per-report folder. Receipts are
+  // copied WITHIN Dropbox (files/copy_v2 — byte-exact, never re-downloaded) so a copy can never
+  // truncate, and each copy's size is verified against the source. Anything that fails validation
+  // is reported in `corrupt` so it's caught before the report is filed (Jacob, 2026-06-20). The
+  // month's loose originals are untouched.
+  let dropboxSaved = false;
   let attached = 0;
   let missing = 0;
-  for (const e of exps) {
-    if (!e.doc_url) {
-      missing += 1;
-      continue;
-    }
-    try {
-      const res = await fetch(forceDownload(e.doc_url));
-      if (!res.ok) {
-        missing += 1;
-        continue;
-      }
-      const buf = Buffer.from(await res.arrayBuffer());
-      const name = receiptName(e);
-      zip.file(`${folder}/${name}`, buf);
-      receiptFiles.push({ name, buf });
-      attached += 1;
-    } catch {
-      missing += 1;
-    }
-  }
-
-  // Copy the whole package into the month's Dropbox folder (best-effort — never blocks the
-  // download). The month's loose originals are untouched; this is a self-contained copy.
-  let dropboxSaved = false;
+  const corrupt: string[] = [];
   if (dropboxConfigured()) {
     try {
       await ensureFolder(dropboxFolder);
       if (xlsxBytes) await uploadFile(`${dropboxFolder}/${base}.xlsx`, xlsxBytes);
       if (pdfBytes) await uploadFile(`${dropboxFolder}/${base}.pdf`, pdfBytes);
       await uploadFile(`${dropboxFolder}/PROMPT.txt`, Buffer.from(promptTxt, "utf-8"));
-      for (const rf of receiptFiles) await uploadFile(`${dropboxFolder}/${rf.name}`, rf.buf);
+      for (const e of exps) {
+        if (!e.doc_url) { missing += 1; continue; }
+        const name = receiptName(e);
+        const dest = `${dropboxFolder}/${name}`;
+        try {
+          if (e.doc_path) {
+            const srcSize = await fileSize(e.doc_path);
+            const copiedSize = await copyFile(e.doc_path, dest);
+            if (srcSize != null && copiedSize !== srcSize) corrupt.push(name);
+            else attached += 1;
+          } else {
+            // No canonical Dropbox path — re-download, but VALIDATE the bytes are a complete PDF
+            // (retry once) so a truncated fetch is never stored.
+            const buf = await fetchValidatedPdf(e.doc_url);
+            if (buf) { await uploadFile(dest, buf); attached += 1; } else corrupt.push(name);
+          }
+        } catch {
+          corrupt.push(name);
+        }
+      }
       dropboxSaved = true;
     } catch (err) {
       console.error("[expense-reports/generate] dropbox save failed:", err);
@@ -517,21 +531,7 @@ export async function POST(req: NextRequest) {
     .update({ status: "generated", generated_at: new Date().toISOString() })
     .eq("id", reportId);
 
-  // Dropbox-only mode: the package was saved to Dropbox — return JSON, no local zip download
-  // (Jacob, 2026-06-20: clicking Dropbox shouldn't also drop a copy in Downloads).
-  if (only === "dropbox") {
-    return NextResponse.json({ ok: true, saved: dropboxSaved, folder: dropboxFolder, attached, missing });
-  }
-
-  const blob = await zip.generateAsync({ type: "nodebuffer" });
-  return new NextResponse(new Uint8Array(blob), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${folder}.zip"`,
-      "X-Receipts-Attached": String(attached),
-      "X-Receipts-Missing": String(missing),
-      "X-Dropbox-Saved": dropboxSaved ? dropboxFolder : "",
-    },
-  });
+  // The package lives in Dropbox only (no local zip download). Return JSON so the client can toast
+  // where it landed and flag any receipt that failed validation.
+  return NextResponse.json({ ok: true, saved: dropboxSaved, folder: dropboxFolder, attached, missing, corrupt });
 }

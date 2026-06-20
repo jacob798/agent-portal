@@ -1,12 +1,31 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { getExpenseReport } from "@/lib/data/expenseReports";
-import ReportDetail from "@/components/expense-reports/ReportDetail";
+import { getExpenseReport, getUnexpensedExpenses, getReportExpenses } from "@/lib/data/expenseReports";
+import ReportWorkspace from "@/components/expense-reports/ReportWorkspace";
 
-export default async function ReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReportWorkspacePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
   const { id } = await params;
+  const { from, to } = await searchParams;
   const report = await getExpenseReport(id);
   if (!report) notFound();
-  return <ReportDetail report={report} />;
+
+  const fromISO = from || report.dateFrom || "";
+  const toISO = to || report.dateTo || "";
+
+  // Pool = unexpensed for this entity/window + the rows already on this report (so toggling off works).
+  const [pool, onReport] = await Promise.all([
+    getUnexpensedExpenses(report.entity, fromISO, toISO),
+    getReportExpenses(id),
+  ]);
+
+  return (
+    <ReportWorkspace report={report} pool={pool} onReport={onReport} fromISO={fromISO} toISO={toISO} />
+  );
 }

@@ -1,10 +1,8 @@
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
-import { notFound } from "next/navigation";
-import { getExpenseReport, getUnexpensedExpenses, getReportExpenses } from "@/lib/data/expenseReports";
-import SelectExpenses from "@/components/expense-reports/SelectExpenses";
-
-export default async function SelectExpensesPage({
+/** The item picker is now part of the report workspace at /expense-reports/[id].
+ *  This route is kept only so old links redirect there (preserving any date filter). */
+export default async function SelectRedirect({
   params,
   searchParams,
 }: {
@@ -13,25 +11,9 @@ export default async function SelectExpensesPage({
 }) {
   const { id } = await params;
   const { from, to } = await searchParams;
-  const report = await getExpenseReport(id);
-  if (!report) notFound();
-
-  const fromISO = from || report.dateFrom || "";
-  const toISO = to || report.dateTo || "";
-
-  // Pool = unexpensed for this entity/window + the rows already on this report (so toggling off works).
-  const [pool, onReport] = await Promise.all([
-    getUnexpensedExpenses(report.entity, fromISO, toISO),
-    getReportExpenses(id),
-  ]);
-
-  return (
-    <SelectExpenses
-      report={report}
-      pool={pool}
-      onReport={onReport}
-      fromISO={fromISO}
-      toISO={toISO}
-    />
-  );
+  const q = new URLSearchParams();
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  const qs = q.toString();
+  redirect(`/expense-reports/${id}${qs ? `?${qs}` : ""}`);
 }

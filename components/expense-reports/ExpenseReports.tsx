@@ -67,7 +67,7 @@ export default function ExpenseReports({ initial }: { initial: ExpenseReport[] }
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create");
-      router.push(`/expense-reports/${json.id}/select`);
+      router.push(`/expense-reports/${json.id}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to create");
       setBusy(false);

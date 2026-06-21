@@ -44,6 +44,23 @@ const missingDoc = (r: Row) => !!r.nodoc && !r.doc_waived;
 // pay-from dropdown clears the method and flips the row to a Bill; any real card/bank → Expense.
 const BILL_OPTION = "Bill — pay later (no payment method)";
 
+// Plain-text date editing (no native date-picker chrome — Jacob: "the data graphic is awkward").
+// ISO (YYYY-MM-DD) → "M/D/YYYY" for display; parse "M/D[/YY[YY]]" or ISO back to ISO (year defaults
+// to the row's current year). Returns "" when unparseable so the caller can revert.
+const fmtMDY = (iso?: string | null): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  return m ? `${+m[2]}/${+m[3]}/${m[1]}` : "";
+};
+const parseMDY = (s: string, fallbackIso?: string | null): string => {
+  const t = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(t);
+  if (!m) return "";
+  let yr = m[3] || (fallbackIso ?? "").slice(0, 4) || String(new Date().getFullYear());
+  if (yr.length === 2) yr = "20" + yr;
+  return `${yr}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+};
+
 // compact section label used throughout the redesigned coding drawer
 const DLBL = "mb-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400";
 
@@ -1439,15 +1456,16 @@ export default function Payables({
               >
                 {expandedRow === r.id ? "▾" : "▸"}
               </button>
-              {/* Date — editable inline (fixes a parse error the operator must override). The QB
-                  TxnDate; persists via /api/payables/set-date. */}
+              {/* Date — editable inline as PLAIN TEXT (M/D/YYYY), no native date-picker graphic
+                  (Jacob, 2026-06-21). The QB TxnDate; persists via /api/payables/set-date. */}
               <div className="mt-0.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                 <input
-                  type="date"
-                  defaultValue={rowDate(r)}
-                  title="Transaction date (QB TxnDate) — click to edit"
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== rowDate(r)) persistDate(r.id, v); }}
-                  className="w-[112px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+                  type="text"
+                  defaultValue={fmtMDY(rowDate(r))}
+                  title="Transaction date (M/D/YYYY) — click to edit"
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  onBlur={(e) => { const iso = parseMDY(e.target.value, rowDate(r)); if (iso && iso !== rowDate(r)) persistDate(r.id, iso); else e.target.value = fmtMDY(rowDate(r)); }}
+                  className="w-[84px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
                 />
               </div>
               {/* Vendor */}

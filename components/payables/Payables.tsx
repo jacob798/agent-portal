@@ -1105,6 +1105,24 @@ export default function Payables({
     }
   }
 
+  // Persist an operator edit to the MERCHANT (payee) on a travel row. The QB vendor stays the
+  // trip rollup; this corrects the displayed merchant + the memo when the parse mis-IDed it
+  // (e.g. an Uber receipt read as "Lufthansa") — the one thing the operator couldn't fix before.
+  async function persistPayee(id: string, value: string) {
+    const v = value.trim();
+    if (!v) return;
+    setRows((rs) => rs.map((x) => (x.id === id ? { ...x, payee: v } : x)));
+    try {
+      await fetch("/api/payables/set-payee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, payee: v }),
+      });
+    } catch {
+      /* best-effort; local value still shows */
+    }
+  }
+
   // Persist an operator edit to the invoice number (→ QB invoice-number field).
   async function persistInvoice(id: string, value: string) {
     setRows((rs) => rs.map((x) => (x.id === id ? { ...x, invoiceNumber: value } : x)));
@@ -1417,11 +1435,18 @@ export default function Payables({
                   )}
                   <div className="min-w-0 flex-1">
                     {r.tripId ? (
-                      // Travel: the QB vendor is the trip rollup, so show the PAYEE (merchant). Read-only
-                      // here — change the merchant on the source confirmation, not the payables row.
-                      <span className="block truncate text-[13px] font-medium text-slate-800" title={`Payee · QB vendor: ${r.vendor}`}>
-                        {r.payee || r.vendor}
-                      </span>
+                      // Travel: the QB vendor is the trip rollup, so show + EDIT the PAYEE (merchant).
+                      // Editable so the operator can fix a mis-IDed merchant (e.g. an Uber receipt that
+                      // parsed as "Lufthansa") right on the row — the QB vendor stays the trip header.
+                      <input
+                        type="text"
+                        defaultValue={r.payee || r.vendor}
+                        title={`Merchant (payee) · QB vendor: ${r.vendor}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== (r.payee || r.vendor)) persistPayee(r.id, v); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        className="block w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-medium text-slate-800 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+                      />
                     ) : (
                       <VendorPicker
                         value={r.vendorDisplay ?? r.vendor}

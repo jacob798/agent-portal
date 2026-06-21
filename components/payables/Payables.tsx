@@ -531,6 +531,19 @@ export default function Payables({
     if (open && rows.some((x) => x.id === open)) setDrawerId(open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Pull fresh server data whenever the operator returns to the tab. An open tab otherwise shows a
+  // snapshot from when it loaded — so coding changed elsewhere (a sweep, another device) looked like
+  // "it's not updating" until a manual reload (Jacob, 2026-06-21). router.refresh() re-runs the
+  // server components without a full page reload.
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === "visible") router.refresh(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [router]);
   useEffect(() => {
     const r = rows.find((x) => x.id === drawerId);
     if (!r) return;
@@ -1457,16 +1470,18 @@ export default function Payables({
               >
                 {expandedRow === r.id ? "▾" : "▸"}
               </button>
-              {/* Date — editable inline as PLAIN TEXT (M/D/YYYY), no native date-picker graphic
+              {/* Date — editable inline as PLAIN TEXT (MM/DD/YY), no native date-picker graphic.
+                  w-full (NOT a fixed width) so it stays inside its 72px grid column instead of
+                  overflowing into the vendor cell; aligned to the row top like every other cell
                   (Jacob, 2026-06-21). The QB TxnDate; persists via /api/payables/set-date. */}
-              <div className="mt-0.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+              <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="text"
                   defaultValue={fmtMDY(rowDate(r))}
                   title="Transaction date (MM/DD/YY) — click to edit"
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   onBlur={(e) => { const iso = parseMDY(e.target.value, rowDate(r)); if (iso && iso !== rowDate(r)) persistDate(r.id, iso); else e.target.value = fmtMDY(rowDate(r)); }}
-                  className="w-[84px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+                  className="w-full rounded border border-transparent bg-transparent px-0.5 py-px text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
                 />
               </div>
               {/* Vendor */}

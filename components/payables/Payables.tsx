@@ -40,6 +40,10 @@ type Row = PayableRow & {
 
 const missingDoc = (r: Row) => !!r.nodoc && !r.doc_waived;
 
+// Pay-from sentinel: an unpaid Bill (pay later) has NO payment method. Picking this in the
+// pay-from dropdown clears the method and flips the row to a Bill; any real card/bank → Expense.
+const BILL_OPTION = "Bill — pay later (no payment method)";
+
 // compact section label used throughout the redesigned coding drawer
 const DLBL = "mb-1 block text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400";
 
@@ -193,8 +197,16 @@ export default function Payables({
     saveRowFields(r, { gl, lines });
   };
   const saveRowPayFrom = (r: Row, label: string) => {
+    // "Bill — pay later" = unpaid A/P: clear the payment method and post as a Bill (Jacob,
+    // 2026-06-20: "if we have a bill, there should be no payment method"). Picking a real card/bank
+    // instead means it's already paid → post as an Expense (charge). Posting type and payment method
+    // are kept in lockstep so a Bill can never carry a payment method.
+    if (label === BILL_OPTION) {
+      saveRowFields(r, { account: "unpaid", paymentMethodId: null, posting: "bill" });
+      return;
+    }
     const acct = accounts.find((a) => a.label === label);
-    saveRowFields(r, { account: label, paymentMethodId: acct?.id ?? null });
+    saveRowFields(r, { account: label, paymentMethodId: acct?.id ?? null, posting: "charge" });
   };
   const saveRowBcCategory = (r: Row, cat: string) => saveRowFields(r, { gl: BC_ROUTE.gl, category: cat, bcCategory: cat });
   // Which ledger rows have their detail line expanded.
@@ -1518,7 +1530,7 @@ export default function Payables({
               {/* Pay-from — a backend placeholder like "Card ••5001 (pick account)" means UNSET;
                   show the empty "Pay-from…" prompt, not the placeholder string. */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>
-                <SearchSelect value={/pick account|pick a card/i.test(r.account ?? "") ? "" : (r.account ?? "")} options={acctLabelsFor(r.entity)} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
+                <SearchSelect value={r.posting === "bill" ? BILL_OPTION : (/pick account|pick a card/i.test(r.account ?? "") ? "" : (r.account ?? ""))} options={[BILL_OPTION, ...acctLabelsFor(r.entity)]} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
               </div>
               {/* Amount */}
               <div className="text-right text-[13px] font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>

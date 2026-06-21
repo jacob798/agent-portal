@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Printer,
   Download,
@@ -1251,24 +1252,44 @@ function MoveTripSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const btnRef = useRef<HTMLButtonElement>(null);
+  // Fixed-position coords for the portalled menu, computed from the button on open.
+  const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   // newest first (by ISO start), then filter by the typed query
   const opts = [...trips]
     .sort((a, b) => (b.start || "").localeCompare(a.start || ""))
     .filter((t) => !q || `${ENT[t.ent] ?? t.ent} ${t.dest} ${t.purpose ?? ""} ${tripDates(t)}`.toLowerCase().includes(q.toLowerCase()));
+  function toggle() {
+    if (open) { setOpen(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const up = r.bottom + 320 > window.innerHeight && r.top > 320; // flip up near the viewport bottom
+      setPos({ top: up ? r.top : r.bottom, left: r.left, up });
+    }
+    setOpen(true);
+  }
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="flex h-[34px] w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-2 text-[12px] text-slate-600 disabled:opacity-50"
       >
         ↪ Move trip… <ChevronDown className="h-3 w-3" />
       </button>
-      {open && (
+      {/* Portalled to <body> so the ancestor review card's `overflow-hidden` can't CLIP the menu
+          (the bug that left only the search box visible with no trip list — Jacob, 2026-06-21). */}
+      {open && pos && createPortal(
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-20 mt-1 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="fixed inset-0 z-[90]" onClick={() => { setOpen(false); setQ(""); }} />
+          <div
+            className="fixed z-[91] w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
+            style={pos.up
+              ? { left: pos.left, bottom: window.innerHeight - pos.top + 4 }
+              : { left: pos.left, top: pos.top + 4 }}
+          >
             <div className="relative border-b border-slate-100 p-1.5">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
@@ -1287,7 +1308,8 @@ function MoveTripSelect({
               ))}
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   );

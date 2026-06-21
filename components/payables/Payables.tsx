@@ -48,8 +48,9 @@ const BILL_OPTION = "Bill — pay later (no payment method)";
 // ISO (YYYY-MM-DD) → "M/D/YYYY" for display; parse "M/D[/YY[YY]]" or ISO back to ISO (year defaults
 // to the row's current year). Returns "" when unparseable so the caller can revert.
 const fmtMDY = (iso?: string | null): string => {
+  // MM/DD/YY (Jacob, 2026-06-21) — zero-padded month/day, 2-digit year.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
-  return m ? `${+m[2]}/${+m[3]}/${m[1]}` : "";
+  return m ? `${m[2]}/${m[3]}/${m[1].slice(2)}` : "";
 };
 const parseMDY = (s: string, fallbackIso?: string | null): string => {
   const t = s.trim();
@@ -1462,7 +1463,7 @@ export default function Payables({
                 <input
                   type="text"
                   defaultValue={fmtMDY(rowDate(r))}
-                  title="Transaction date (M/D/YYYY) — click to edit"
+                  title="Transaction date (MM/DD/YY) — click to edit"
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   onBlur={(e) => { const iso = parseMDY(e.target.value, rowDate(r)); if (iso && iso !== rowDate(r)) persistDate(r.id, iso); else e.target.value = fmtMDY(rowDate(r)); }}
                   className="w-[84px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"

@@ -1546,7 +1546,19 @@ export default function Payables({
                 <SearchSelect value={r.posting === "bill" ? BILL_OPTION : (/pick account|pick a card/i.test(r.account ?? "") ? "" : (r.account ?? ""))} options={[BILL_OPTION, ...acctLabelsFor(r.entity)]} onPick={(a) => saveRowPayFrom(r, a)} placeholder="Pay-from…" />
               </div>
               {/* Amount */}
-              <div className="text-right text-[13px] font-semibold tabular-nums text-slate-900">{money(r.amount)}</div>
+              {/* Amount — editable inline (a parse error, or a travel-imported $0 seat charge the
+                  operator needs to price). Persists via /api/payables/set-amount. */}
+              <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                <span className="text-[13px] font-semibold text-slate-400">$</span>
+                <input
+                  inputMode="decimal"
+                  defaultValue={r.amount ? r.amount.toFixed(2) : ""}
+                  placeholder="0.00"
+                  title="Amount — click to edit"
+                  onBlur={(e) => { const n = Number(e.target.value.replace(/[^0-9.]/g, "")); if (Number.isFinite(n) && Math.abs(n - (r.amount ?? 0)) > 0.005) persistAmount(r.id, n); }}
+                  className="w-[78px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-right text-[13px] font-semibold tabular-nums text-slate-900 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+                />
+              </div>
               {/* Trip · doc · post — the trip picker (plane), the source doc, and a per-row post icon */}
               <div className="flex items-center justify-end gap-2.5" onClick={(e) => e.stopPropagation()}>
                 <TripPickerButton tripId={r.tripId ?? null} trips={trips} onPick={(id) => setTrip(r.id, id)} />

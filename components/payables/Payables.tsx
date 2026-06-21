@@ -1433,9 +1433,16 @@ export default function Payables({
               >
                 {expandedRow === r.id ? "▾" : "▸"}
               </button>
-              {/* Date — compact M/D (single line) like the mockup */}
-              <div className="mt-0.5 whitespace-nowrap text-[13px] tabular-nums text-slate-500">
-                {(() => { const d = rowDate(r); const m = d && /(\d{4})-(\d{2})-(\d{2})/.exec(d); return m ? `${+m[2]}/${+m[3]}` : (d || "—"); })()}
+              {/* Date — editable inline (fixes a parse error the operator must override). The QB
+                  TxnDate; persists via /api/payables/set-date. */}
+              <div className="mt-0.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="date"
+                  defaultValue={rowDate(r)}
+                  title="Transaction date (QB TxnDate) — click to edit"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== rowDate(r)) persistDate(r.id, v); }}
+                  className="w-[112px] rounded border border-transparent bg-transparent px-0.5 py-0.5 text-[12px] tabular-nums text-slate-500 outline-none transition hover:border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+                />
               </div>
               {/* Vendor */}
               <div className="min-w-0" onClick={(e) => e.stopPropagation()}>

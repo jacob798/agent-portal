@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   // gap, not a blocker.
   const { data: rowsToCheck } = await admin
     .from("payables_queue")
-    .select("id, entity, gl, bc_category, account, doc_type, trip_id, vendor, vendor_display, invoice_number, payment_method_id")
+    .select("id, entity, gl, bc_category, account, doc_type, trip_id, vendor, vendor_display, invoice_number, payment_method_id, posting")
     .in("id", ids);
   const incomplete: string[] = [];
   for (const r of rowsToCheck ?? []) {
@@ -41,7 +41,12 @@ export async function POST(req: NextRequest) {
     const m: string[] = [];
     if (!r.entity) m.push("entity");
     if (r.entity === "BC" ? !r.bc_category : !(r.gl && String(r.gl).trim())) m.push("account");
-    if (!acct || /pick account|pick a card|pay-?from/i.test(acct)) m.push("pay-from");
+    // Pay-from ⟺ posting type: a Bill has NO payment method; an Expense must have a real pay-from.
+    if (String(r.posting) === "bill") {
+      if (r.payment_method_id) m.push("bill has a payment method");
+    } else if (!acct || /pick account|pick a card|pay-?from|^unpaid/i.test(acct)) {
+      m.push("pay-from");
+    }
     if (!r.doc_type || /identify|unknown/i.test(String(r.doc_type))) m.push("doc-type");
     if (r.trip_id && !r.invoice_number) m.push("ticket #");
     if (!r.trip_id && r.vendor && r.vendor_display &&

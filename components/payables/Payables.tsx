@@ -361,7 +361,13 @@ export default function Payables({
     const m: string[] = [];
     if (!r.entity) m.push("entity");
     if (r.entity === "BC" ? !r.bcCategory : !(r.gl && r.gl.trim())) m.push("account");
-    if (!r.account || /pick account|pick a card|pay-?from/i.test(r.account)) m.push("pay-from");
+    // Pay-from ⟺ posting type (Jacob: "Bill is unpaid only"). A Bill carries NO payment method;
+    // an Expense MUST have a real pay-from. Block both contradictions.
+    if (r.posting === "bill") {
+      if (r.paymentMethodId) m.push("bill has a payment method");
+    } else if (!r.account || /pick account|pick a card|pay-?from|^unpaid/i.test(r.account)) {
+      m.push("pay-from");
+    }
     if (!r.docType || /identify|unknown/i.test(r.docType)) m.push("doc-type");
     if (!r.tripId && !rowCat(r)) m.push("vendor category");           // non-travel must be categorized
     if (r.tripId && !r.invoiceNumber) m.push("ticket #");             // travel flight needs the ticket #

@@ -107,5 +107,22 @@ export async function POST(req: NextRequest) {
     /* jsonb update is best-effort — the payables update above is the source of truth */
   }
 
+  // 3) On DECLINE, also drop the confirmation from the trip SCHEDULE (itinerary) immediately, so a
+  //    discarded car/hotel/flight disappears on refresh without waiting for a worker rebuild. (The
+  //    worker's _rebuild_itin also honors the declined status, so it never re-adds it.)
+  if (action === "decline") {
+    try {
+      const confSet = new Set(items.map((it) => (it.conf ?? "").trim().toUpperCase()).filter(Boolean));
+      if (confSet.size) {
+        const { data: t2 } = await admin.from("trips").select("itin").eq("id", tripId).maybeSingle();
+        const itin = Array.isArray(t2?.itin) ? (t2!.itin as Array<{ conf?: string }>) : [];
+        const kept = itin.filter((r) => !confSet.has((r.conf ?? "").trim().toUpperCase()));
+        if (kept.length !== itin.length) await admin.from("trips").update({ itin: kept }).eq("id", tripId);
+      }
+    } catch {
+      /* best-effort — the worker rebuild also drops declined confs */
+    }
+  }
+
   return NextResponse.json({ ok: true, action, changed, confsUpdated });
 }

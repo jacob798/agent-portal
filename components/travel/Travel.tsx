@@ -457,6 +457,104 @@ function CreditsScreen({ credits, trips, onBack, toast }: { credits: Credit[]; t
   );
 }
 
+// ---------- travelers multiselect (bound to the people master) ----------
+// Selectable options are the canonical names from /api/travel/people (public.people ∪ trip
+// names). Selecting one stores the canonical string in trips.travelers; the operator can also
+// type-to-add a name not yet in the master. Chips show the current selection (removable).
+function TravelersPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [people, setPeople] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [openList, setOpenList] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/travel/people")
+      .then((r) => r.json())
+      .then((j) => { if (alive) setPeople(Array.isArray(j?.people) ? j.people : []); })
+      .catch(() => { /* picker still works as type-to-add */ });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpenList(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const selectedLower = new Set(value.map((s) => s.toLowerCase()));
+  const q = query.trim().toLowerCase();
+  const options = people.filter((p) => !selectedLower.has(p.toLowerCase()) && (!q || p.toLowerCase().includes(q)));
+  const canAddNew = q.length > 0 && !people.some((p) => p.toLowerCase() === q) && !selectedLower.has(q);
+
+  function add(name: string) {
+    const n = name.trim();
+    if (!n || selectedLower.has(n.toLowerCase())) return;
+    onChange([...value, n]);
+    setQuery("");
+    setOpenList(false);
+  }
+  function remove(name: string) {
+    onChange(value.filter((v) => v !== name));
+  }
+
+  return (
+    <div ref={boxRef} className="relative">
+      {value.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {value.map((name) => (
+            <span key={name} className="inline-flex items-center gap-1 rounded-full border border-brand-navy bg-brand-navy px-2.5 py-1 text-[12px] font-semibold text-white">
+              {name}
+              <button type="button" onClick={() => remove(name)} className="rounded-full p-0.5 hover:bg-white/20" aria-label={`Remove ${name}`}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpenList(true); }}
+        onFocus={() => setOpenList(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (options.length === 1) add(options[0]);
+            else if (canAddNew) add(query);
+          }
+        }}
+        placeholder="Search people, or type a new name…"
+        className={INPUT}
+      />
+      {openList && (options.length > 0 || canAddNew) && (
+        <div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {options.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => add(p)}
+              className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-brand/[0.06]"
+            >
+              {p}
+            </button>
+          ))}
+          {canAddNew && (
+            <button
+              type="button"
+              onClick={() => add(query)}
+              className="block w-full px-3 py-1.5 text-left text-sm font-semibold text-brand-navy hover:bg-brand/[0.06]"
+            >
+              + Add “{query.trim()}”
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- new trip modal ----------
 function NewTripModal({
   open,
@@ -474,7 +572,7 @@ function NewTripModal({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [travelers, setTravelers] = useState("");
+  const [travelers, setTravelers] = useState<string[]>([]);
 
   // Seed from a "needs a trip" ask when opened pre-filled (destination + dates).
   useEffect(() => {
@@ -491,7 +589,7 @@ function NewTripModal({
   function submit() {
     const dates = start || end ? `${fmt(start)}${end ? " – " + fmt(end) : ""}` : "dates TBD";
     const endISO = end || start;
-    const travelerList = travelers.split(",").map((s) => s.trim()).filter(Boolean);
+    const travelerList = travelers.map((s) => s.trim()).filter(Boolean);
     onCreate({
       id: "new" + Date.now(),
       ent,
@@ -506,7 +604,7 @@ function NewTripModal({
       itin: [],
       exps: [],
     });
-    setEnt("BC"); setDest(""); setStart(""); setEnd(""); setPurpose(""); setTravelers("");
+    setEnt("BC"); setDest(""); setStart(""); setEnd(""); setPurpose(""); setTravelers([]);
   }
 
   return (
@@ -554,8 +652,8 @@ function NewTripModal({
           <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="e.g. Site visit — Iota St" className={INPUT} />
         </Field>
         <Field label="Travelers (optional)">
-          <input value={travelers} onChange={(e) => setTravelers(e.target.value)} placeholder="e.g. Jacob Wolbach, Jessica Davidson" className={INPUT} />
-          <p className="mt-1 text-[11.5px] text-slate-400">Comma-separated. Pulled from the flights automatically — set here when there’s no flight, or to override.</p>
+          <TravelersPicker value={travelers} onChange={setTravelers} />
+          <p className="mt-1 text-[11.5px] text-slate-400">Pick from the people master, or type a new name. Pulled from the flights automatically — set here when there’s no flight, or to override.</p>
         </Field>
         <div className="rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-600">
           ↻ On create, recent receipts in this window are re-scanned and queued.
@@ -582,13 +680,13 @@ function EditTripModal({
   const [start, setStart] = useState(trip.start);
   const [end, setEnd] = useState(trip.end);
   const [purpose, setPurpose] = useState(trip.purpose ?? "");
-  const [travelers, setTravelers] = useState((trip.travelers ?? []).join(", "));
+  const [travelers, setTravelers] = useState<string[]>(trip.travelers ?? []);
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
-      const travelerList = travelers.split(",").map((s) => s.trim()).filter(Boolean);
+      const travelerList = travelers.map((s) => s.trim()).filter(Boolean);
       const res = await fetch("/api/travel/update-trip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -649,8 +747,8 @@ function EditTripModal({
           <input value={purpose} onChange={(e) => setPurpose(e.target.value)} className={INPUT} />
         </Field>
         <Field label="Travelers">
-          <input value={travelers} onChange={(e) => setTravelers(e.target.value)} placeholder="e.g. Jacob Wolbach, Jessica Davidson" className={INPUT} />
-          <p className="mt-1 text-[11.5px] text-slate-400">Comma-separated. Pulled from the flights automatically — set here to override.</p>
+          <TravelersPicker value={travelers} onChange={setTravelers} />
+          <p className="mt-1 text-[11.5px] text-slate-400">Pick from the people master, or type a new name. Pulled from the flights automatically — set here to override.</p>
         </Field>
         <div className="rounded-lg border border-brand/20 bg-brand/[0.04] px-3 py-2.5 text-[12.5px] text-slate-600">
           Updates the trip record — the report, the QuickBooks vendor name, and how new invoices attribute to this trip.

@@ -4,6 +4,7 @@ import {
   Activity,
   Calculator,
   Plane,
+  RadioTower,
   CreditCard,
   Receipt,
   BookOpenCheck,
@@ -31,6 +32,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/inbox", label: "Inbox", icon: Inbox },
+      { href: "/ingest-exceptions", label: "Ingest Exceptions", icon: RadioTower },
       { href: "/review-queue", label: "Review Queue", icon: ClipboardCheck },
       { href: "/monitoring", label: "Monitoring", icon: Activity },
     ],

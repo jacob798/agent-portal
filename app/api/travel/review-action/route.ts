@@ -144,5 +144,14 @@ export async function POST(req: NextRequest) {
     worker = { calls: results };
   }
 
+  // 5) On ACCEPT/CONFIRMATION, rebuild the trip so the operator's "mark as invoice" decision actually
+  //    STAGES the expense — a hotel/car/airbnb has no payables row yet (only a booking), so the
+  //    payables update above touches nothing; only the Python worker's rebuild stages it from the
+  //    accepted booking (it now honors accept-as-invoice for any type, not just flights/trains).
+  if (action === "accept_invoice" || action === "accept_confirmation") {
+    const r = await callWorker("/travel/rebuild-trip", { trip_id: tripId });
+    worker = { rebuild: { ok: r.ok, ...(r.body ?? {}) } };
+  }
+
   return NextResponse.json({ ok: true, action, changed, confsUpdated, worker });
 }

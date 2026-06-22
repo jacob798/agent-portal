@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { callWorker } from "@/lib/travel/workerApi";
+
+export const runtime = "nodejs"; // needs node crypto for the worker HMAC
 
 /**
  * The Travel review surface acts on CONFIRMATIONS (not dollar invoices). One call handles a whole
@@ -124,5 +127,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, action, changed, confsUpdated });
+  // 4) On REASSIGN, the itinerary + review cards are BOOKING-derived and only the Python worker can
+  //    rebuild them. The DB updates above are optimistic (instant feedback); this call makes the move
+  //    actually correct: it repoints the BOOKING by confirmation and FULLY rebuilds BOTH the source
+  //    and destination trip (itin + confirmations + staged expenses). Without it, moving a travel item
+  //    left the booking on the old trip — so the item stayed on the old itinerary and never got a
+  //    review card on the new trip (couldn't be accepted into Payables). Realtime; no worker-cycle lag.
+  let worker: Record<string, unknown> | undefined;
+  if (action === "reassign") {
+    const confs = [...new Set(items.map((it) => (it.conf ?? "").trim()).filter(Boolean))];
+    const results: Record<string, unknown>[] = [];
+    for (const conf of confs) {
+      const r = await callWorker("/travel/move-booking", { confirmation: conf, to_trip_id: newTripId });
+      results.push({ conf, ok: r.ok, ...(r.body ?? {}) });
+    }
+    worker = { calls: results };
+  }
+
+  return NextResponse.json({ ok: true, action, changed, confsUpdated, worker });
 }

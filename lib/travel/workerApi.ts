@@ -13,10 +13,14 @@ export async function callWorker(
   path: string,
   payload: unknown,
 ): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
-  const base = process.env.WORKER_API_URL;
+  // The worker URL is the public Container App FQDN (not a secret), so default it here — the portal
+  // then needs only PORTAL_SHARED_SECRET (already set for the valuation SSO). WORKER_API_URL env
+  // still overrides if the worker is ever moved/recreated.
+  const base = process.env.WORKER_API_URL
+    || "https://agent-system-worker.calmmushroom-39c3f2c1.westus.azurecontainerapps.io";
   const secret = process.env.PORTAL_SHARED_SECRET;
   if (!base || !secret) {
-    return { ok: false, status: 0, body: { skipped: "WORKER_API_URL/PORTAL_SHARED_SECRET not set" } };
+    return { ok: false, status: 0, body: { skipped: "PORTAL_SHARED_SECRET not set" } };
   }
   const ts = Math.floor(Date.now() / 1000).toString();
   const body = JSON.stringify(payload);

@@ -147,6 +147,11 @@ export interface ConfReviewConf {
   type_label?: string;   // Flight | Train | Ferry | Hotel | Car rental | Parking | Event | Meeting …
   est_total?: number | null; // hotel/car/event CAPTURED estimated cost (not posted until the folio lands)
   est_rate?: number | null;  // hotel nightly / car daily rate, when the confirmation carries it
+  // NON-flight cost breakdown (hotel/airbnb/car/event): itemized lines the backend captured off the
+  // confirmation — e.g. {"$335.92 × 3 nights": 1007.77}, "Service fee", "Taxes". Rendered as
+  // label-left/amount-right rows + a bold Est. total. Absent/empty → fall back to est_total only.
+  cost_breakdown?: Array<{ label: string; amount: number }> | null;
+  currency?: string | null; // ISO currency for est_total + cost_breakdown amounts (default USD)
 }
 export interface ConfReviewSeg {
   flight: string;

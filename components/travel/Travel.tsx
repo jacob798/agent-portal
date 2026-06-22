@@ -1114,8 +1114,22 @@ type ReviewTicket = {
   name?: string; inPt?: Endpoint; outPt?: Endpoint;
   fare: number | null; net: number | null; credit: number | null; credit_number: string | null;
   estTotal: number | null; estRate: number | null;
+  costBreakdown: Array<{ label: string; amount: number }> | null; currency: string | null;
   awaiting_invoice: boolean; source_url?: string; status: string;
 };
+
+// Currency-aware money for NON-flight cost breakdowns. USD → reuse the shared `money` ($1,217.02);
+// any other ISO currency renders in its own symbol (€181.25) WITHOUT converting — we display the
+// amount as captured. Falls back gracefully if the currency code is unknown.
+function moneyCur(n: number, currency?: string | null): string {
+  const cur = (currency || "USD").toUpperCase();
+  if (cur === "USD") return money(n);
+  try {
+    return n.toLocaleString("en-US", { style: "currency", currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch {
+    return `${money(n).replace(/^\$/, "")} ${cur}`; // unknown code → plain number + code
+  }
+}
 
 const ticketInitials = (name: string) =>
   (name || "?").split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -1160,7 +1174,8 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
       if (!t) {
         t = { key, conf: c.conf, traveler: c.traveler, kind, typeLabel, directions: [], name: undefined,
               inPt: undefined, outPt: undefined, fare: null, net: null, credit: null, credit_number: null,
-              estTotal: null, estRate: null, awaiting_invoice: false, source_url: undefined, status: "needs_review" };
+              estTotal: null, estRate: null, costBreakdown: null, currency: null,
+              awaiting_invoice: false, source_url: undefined, status: "needs_review" };
         map.set(key, t);
       }
       if (kind === "route") {
@@ -1173,6 +1188,9 @@ function buildTickets(items: ConfReviewItem[]): ReviewTicket[] {
         if (segs[1]) t.outPt = mk(segs[1]);
         if (c.est_total != null) t.estTotal = c.est_total;
         if (c.est_rate != null) t.estRate = c.est_rate;
+        // Itemized breakdown (backend, non-flight only). First non-empty wins; currency rides with it.
+        if (!t.costBreakdown && Array.isArray(c.cost_breakdown) && c.cost_breakdown.length) t.costBreakdown = c.cost_breakdown;
+        if (!t.currency && c.currency) t.currency = c.currency;
       }
       if (t.fare == null && c.fare != null) t.fare = c.fare;
       if (t.net == null && c.net != null) t.net = c.net;
@@ -1294,8 +1312,10 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                 )}
               </div>
 
-              {/* financial box — FIXED height, matches across every card; driven by the DATA:
-                  prepaid (fare/card) → ticket lines · captured estimate → est total · neither → note */}
+              {/* financial box — min-height matches across cards; driven by the DATA:
+                  flight prepaid (fare/card) → ticket lines · NON-flight itemized cost_breakdown →
+                  breakdown rows + Est. total · captured estimate only → est total · neither → note.
+                  Flights (route) NEVER show the breakdown — their fare/eCredit/card block is unchanged. */}
               <div className="min-h-[58px] border-t border-slate-100 pt-2 text-[12px]">
                 {hasPrepaid ? (
                   <>
@@ -1303,10 +1323,17 @@ function ReviewSection({ trip, trips }: { trip: Trip; trips: Trip[] }) {
                     <div className={ROW}><span className="text-slate-500">eCredit{t.credit_number ? <span className="text-slate-400"> #…{t.credit_number.slice(-3)}</span> : null}</span><span className="tabular-nums text-emerald-600">{t.credit ? `−${money(t.credit)}` : "—"}</span></div>
                     <div className={`${ROW} font-semibold`}><span>Card</span><span className="tabular-nums">{t.net != null ? money(t.net) : "—"}</span></div>
                   </>
+                ) : t.kind !== "route" && t.costBreakdown && t.costBreakdown.length ? (
+                  <>
+                    {t.costBreakdown.map((b, i) => (
+                      <div key={i} className={ROW}><span className="min-w-0 truncate pr-2 text-slate-500">{b.label}</span><span className="shrink-0 tabular-nums">{moneyCur(b.amount, t.currency)}</span></div>
+                    ))}
+                    <div className={`${ROW} mt-1 border-t border-slate-100 pt-1 font-semibold`}><span>Est. total</span><span className="tabular-nums">{moneyCur(t.estTotal ?? t.costBreakdown.reduce((s, b) => s + b.amount, 0), t.currency)}</span></div>
+                  </>
                 ) : t.estTotal != null ? (
                   <>
-                    {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{money(t.estRate)}{t.kind === "span" ? " / day" : " / night"}</span></div>}
-                    <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{money(t.estTotal)}</span></div>
+                    {t.estRate != null && <div className={ROW}><span className="text-slate-500">Rate</span><span className="tabular-nums">{moneyCur(t.estRate, t.currency)}{t.kind === "span" ? " / day" : " / night"}</span></div>}
+                    <div className={`${ROW} font-semibold`}><span>Est. total</span><span className="tabular-nums">{moneyCur(t.estTotal, t.currency)}</span></div>
                   </>
                 ) : t.kind === "route" ? (
                   <div className="text-slate-500">No cost on the confirmation — set the amount in payables after accepting.</div>
@@ -1613,6 +1640,22 @@ function TripDetail({
     seenConf.add(conf);
     needsReceipt.push({ conf: i.conf as string, sub: i.who || i.sub || "" });
   }
+  // Resolve a source document URL for each itinerary confirmation so the `conf …` renders as a link
+  // for EVERY event type (flight/train/hotel/car/event/ride/meal). The itin row itself only carries
+  // a `conf`, so we map conf → best available source: the booking's filed source_url (preferred,
+  // doc of record) > its summary_url > the matched expense's docUrl. Keyed by UPPERCASE conf.
+  const confSource = new Map<string, string>();
+  for (const ci of trip.confirmations ?? []) {
+    for (const c of ci.confs ?? []) {
+      const k = (c.conf ?? "").toUpperCase();
+      const url = c.source_url || c.summary_url;
+      if (k && url && !confSource.has(k)) confSource.set(k, url);
+    }
+  }
+  for (const e of trip.exps) {
+    const k = (e.confirmation ?? "").toUpperCase();
+    if (k && e.docUrl && !confSource.has(k)) confSource.set(k, e.docUrl);
+  }
   return (
     <div>
       <button onClick={onBack} className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand">
@@ -1683,7 +1726,25 @@ function TripDetail({
                     <div className="font-medium">{i.title || i.what}</div>
                     {(i.sub || i.who || i.conf) && (
                       <div className="truncate text-[12.5px] text-slate-500">
-                        {i.who ? `✈ ${i.who}` : i.sub}{i.conf ? `${i.who || i.sub ? " · " : ""}conf ${i.conf}` : ""}
+                        {i.who ? `✈ ${i.who}` : i.sub}
+                        {i.conf ? (
+                          <>
+                            {i.who || i.sub ? " · " : ""}
+                            {/* clickable confirmation → opens the booking's source document (every type) */}
+                            {confSource.get((i.conf ?? "").toUpperCase()) ? (
+                              <a
+                                href={confSource.get((i.conf ?? "").toUpperCase())}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-brand hover:underline"
+                              >
+                                conf {i.conf} ↗
+                              </a>
+                            ) : (
+                              <>conf {i.conf}</>
+                            )}
+                          </>
+                        ) : null}
                       </div>
                     )}
                   </div>

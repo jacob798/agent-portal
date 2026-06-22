@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     .from("payables_queue")
     .select("id, entity, gl, bc_category, account, doc_type, trip_id, vendor, vendor_display, invoice_number, payment_method_id, posting")
     .in("id", ids);
-  const incomplete: string[] = [];
+  // Per-row detail so the operator sees WHICH row and WHICH field — not a generic banner (bug 8c).
+  const incompleteDetail: { id: string; vendor: string; missing: string[] }[] = [];
   for (const r of rowsToCheck ?? []) {
     const acct = String(r.account ?? "");
     const m: string[] = [];
@@ -51,11 +52,16 @@ export async function POST(req: NextRequest) {
     if (r.trip_id && !r.invoice_number) m.push("ticket #");
     if (!r.trip_id && r.vendor && r.vendor_display &&
         String(r.vendor).toLowerCase().trim() !== String(r.vendor_display).toLowerCase().trim()) m.push("vendor mismatch");
-    if (m.length) incomplete.push(r.id);
+    if (m.length) incompleteDetail.push({ id: r.id, vendor: String(r.vendor_display || r.vendor || r.id), missing: m });
   }
-  if (incomplete.length) {
+  if (incompleteDetail.length) {
+    const lines = incompleteDetail.map((d) => `${d.vendor}: ${d.missing.join(", ")}`);
     return NextResponse.json(
-      { error: `Not ready to post — ${incomplete.length} row(s) are incomplete. Fill entity, account, pay-from, and doc-type first.`, incomplete },
+      {
+        error: `Not ready to post — fix ${incompleteDetail.length} row(s): ${lines.join(" · ")}`,
+        incomplete: incompleteDetail.map((d) => d.id), // ids (back-compat for callers that select/scroll)
+        incompleteDetail, // [{id, vendor, missing[]}] — the UI highlights the row + names the field
+      },
       { status: 422 },
     );
   }

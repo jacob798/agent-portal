@@ -112,6 +112,14 @@ export default function Travel({
   const { message, toast } = useToast();
   const router = useRouter();
 
+  // Re-sync local state when the server re-fetches (router.refresh() after an action). Without this,
+  // useState(initialTrips) keeps the FIRST snapshot forever, so the list's review-progress bars stay
+  // yellow until a full page reload re-mounts the component — the "have to refresh to clear" bug.
+  // (Same pattern as the credits list below.) Optimistic create/remove still works; the refreshed
+  // server list is authoritative and reconciles it.
+  useEffect(() => { setTrips(initialTrips); }, [initialTrips]);
+  useEffect(() => { setNeeds(needsTrip); }, [needsTrip]);
+
   // Keep the open trip in the URL (?trip=…) so a router.refresh() after an action (Accept invoice,
   // etc.) — which can remount this client tree on a force-dynamic page — RESTORES the trip instead
   // of bouncing back to the list. Also makes a trip deep-linkable. replaceState avoids a nav/remount.

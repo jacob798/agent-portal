@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { domainsFrom, isSelfName, isTravelVendor, learnFingerprints } from "@/lib/payables/fingerprints";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * "Reprocess vendors" — re-run vendor ID on the existing backlog using everything we've
@@ -14,6 +15,8 @@ import { domainsFrom, isSelfName, isTravelVendor, learnFingerprints } from "@/li
  * (The backend CLI agents.payables.core.reprocess does the deeper OCR-based pass.)
  */
 export async function POST() {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

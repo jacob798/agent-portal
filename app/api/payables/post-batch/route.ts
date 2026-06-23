@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Approve a batch of payables rows in one shot — the QuickBooks batch checkpoint.
@@ -8,6 +9,8 @@ import { getProfile } from "@/lib/auth/profile";
  * (staged for the backend QBO post_runner). Returns how many were staged.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

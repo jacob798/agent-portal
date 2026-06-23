@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * "Not travel": detach a mis-attributed expense from its trip and send it back to Payables review
@@ -10,6 +11,8 @@ import { can } from "@/lib/auth/roles";
  * merchant (payee). Never touches posted/accepted rows (those are committed).
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("travel");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

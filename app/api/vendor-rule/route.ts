@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { isSelfName } from "@/lib/payables/fingerprints";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Persist an "always code <vendor> this way" rule. Upserts into vendor_rules,
@@ -9,6 +10,8 @@ import { isSelfName } from "@/lib/payables/fingerprints";
  * vendor_master.json. Requires an authenticated operator.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("rules");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

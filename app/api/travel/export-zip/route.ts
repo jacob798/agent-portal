@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 type Exp = {
   vendor: string | null; memo: string | null; amount: number | string | null;
@@ -127,6 +128,8 @@ function safe(s: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("travel");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

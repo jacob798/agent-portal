@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { ENT } from "@/lib/data/entities";
 import { dropboxConfigured, ensureFolder, uploadFile, copyFile, fileSize } from "@/lib/dropbox/dropbox";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -371,6 +372,8 @@ async function buildReportPdf(meta: ReportMeta, exps: ExpDb[], trips: Map<string
 
 // ─── route ───────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("expense-reports");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

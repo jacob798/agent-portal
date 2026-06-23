@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { NAV_SECTIONS } from "./nav";
+import { buildNavSections } from "./nav";
 import { LogoMark } from "./Logo";
 
 interface SidebarUser {
@@ -20,9 +20,19 @@ function initials(name: string): string {
 
 const STORAGE_KEY = "portal:navCollapsed";
 
-export default function Sidebar({ user }: { user: SidebarUser | null }) {
+export default function Sidebar({
+  user,
+  allowedModules,
+}: {
+  user: SidebarUser | null;
+  /** Module keys the user may see. Omit/undefined = show all (e.g. mock mode fallback). */
+  allowedModules?: string[];
+}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const navSections = buildNavSections(
+    allowedModules ? new Set(allowedModules) : undefined,
+  );
 
   // Restore the collapsed preference on mount; persist on change.
   useEffect(() => {
@@ -61,7 +71,7 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
 
       {/* Nav */}
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section) => (
           <div key={section.heading}>
             {!collapsed && (
               <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">

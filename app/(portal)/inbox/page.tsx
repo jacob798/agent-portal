@@ -4,8 +4,10 @@ export const dynamic = "force-dynamic";
 import { getOperatorActions } from "@/lib/data/actions";
 import Inbox from "@/components/inbox/Inbox";
 import PageHeader from "@/components/ui/PageHeader";
+import { requireModule } from "@/lib/auth/guard";
 
 export default async function InboxPage() {
+  await requireModule("inbox");
   const actions = await getOperatorActions();
 
   return (

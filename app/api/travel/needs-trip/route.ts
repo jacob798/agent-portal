@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Resolve or dismiss a "needs a trip" ask item (public.travel_needs_trip).
@@ -9,6 +10,8 @@ import { can } from "@/lib/auth/roles";
  * it isn't a trip. Trips are never auto-created — this only clears the ask.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("travel");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { callWorker } from "@/lib/travel/workerApi";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Resolve a "needs a path" ingest exception: record the vendor's pathway (payables vs travel) so
@@ -11,6 +12,8 @@ import { callWorker } from "@/lib/travel/workerApi";
  * over the same HMAC channel the travel move-booking flow uses.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("ingest-exceptions");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

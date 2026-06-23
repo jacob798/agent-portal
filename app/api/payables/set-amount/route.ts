@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Correct a wrong invoice amount (e.g. the parser read $0 on a paid invoice). Sets the
@@ -9,6 +10,8 @@ import { getProfile } from "@/lib/auth/profile";
  * "lines = invoice" check). The Dropbox file re-files to the corrected amount at post time.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

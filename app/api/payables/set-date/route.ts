@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Persist an operator edit to a row's transaction (invoice/service) date. This is the
  * QB TxnDate — the date the expense was incurred, never the processing date.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

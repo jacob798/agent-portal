@@ -10,6 +10,7 @@ import {
 import { getAgents, type AgentStatus } from "@/lib/data/agents";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import PageHeader from "@/components/ui/PageHeader";
+import { requireModule } from "@/lib/auth/guard";
 
 const STATUS: Record<AgentStatus, { tone: Tone; label: string }> = {
   healthy: { tone: "green", label: "Healthy" },
@@ -38,6 +39,7 @@ function formatLastRun(iso: string | null): string {
 }
 
 export default async function DashboardPage() {
+  await requireModule("dashboard");
   const agents = await getAgents();
 
   const counts = agents.reduce(

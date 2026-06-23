@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Approve a payables row: persist the operator's confirmed coding (entity,
@@ -9,6 +10,8 @@ import { getProfile } from "@/lib/auth/profile";
  * post_runner flips it to 'posted' once written to QBO.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyReconcile, type ReconcileBody } from "../reconcile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Record the reimbursement: same persistence as save-reconcile (payroll-paid date + per-line
@@ -7,6 +8,8 @@ import { applyReconcile, type ReconcileBody } from "../reconcile";
  * QuickBooks is a backend phase handled elsewhere — we only persist here.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("expense-reports");
+  if (_gate.error) return _gate.error;
   let b: ReconcileBody;
   try {
     b = await req.json();

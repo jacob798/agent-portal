@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Apply the same coding change to many invoices at once (mass edit): posting
@@ -8,6 +9,8 @@ import { getProfile } from "@/lib/auth/profile";
  * changed; the lines' entity/gl are kept in sync with the row when given.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

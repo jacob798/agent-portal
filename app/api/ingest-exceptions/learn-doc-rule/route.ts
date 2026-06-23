@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { callWorker } from "@/lib/travel/workerApi";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Resolve a DIVERGENCE exception: the operator confirms which pathway a known vendor's diverging
@@ -10,6 +11,8 @@ import { callWorker } from "@/lib/travel/workerApi";
  * router matches it explicitly next time and the flag goes silent.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("ingest-exceptions");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

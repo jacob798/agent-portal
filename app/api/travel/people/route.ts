@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * The PEOPLE MASTER for the trip Travelers picker — the canonical names from the `people`
@@ -10,6 +11,8 @@ import { getProfile } from "@/lib/auth/profile";
  * (Jacob, 2026-06-21).
  */
 export async function GET() {
+  const _gate = await guardModuleApi("travel");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

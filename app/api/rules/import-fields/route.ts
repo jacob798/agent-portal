@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Bulk-import a document type's field spec from a CSV the operator generated in Claude.
@@ -9,6 +10,8 @@ import { getProfile } from "@/lib/auth/profile";
  * source='curated'. Idempotent (upserts).
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("rules");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: "not configured" }, { status: 500 });

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { headers } from "next/headers";
 import Placeholder from "@/components/Placeholder";
 import ValuationFrame from "@/components/valuation/ValuationFrame";
-import { requireCapability } from "@/lib/auth/guard";
+import { requireCapability, requireModule } from "@/lib/auth/guard";
 import { mintValuationToken, valuationBaseUrl } from "@/lib/valuation/portalToken";
 
 /**
@@ -28,6 +28,7 @@ function parentDomain(host: string): string {
 }
 
 export default async function ValuationPage() {
+  await requireModule("valuation");
   const profile = await requireCapability("read");
   const base = valuationBaseUrl();
   const secret = process.env.PORTAL_SHARED_SECRET;

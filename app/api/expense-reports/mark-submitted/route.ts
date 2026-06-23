@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /** Mark a generated report as submitted (to payroll). status → 'submitted'. */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("expense-reports");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

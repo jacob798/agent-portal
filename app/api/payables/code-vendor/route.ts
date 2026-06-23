@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { isSelfName } from "@/lib/payables/fingerprints";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * "Save & remember": learn a vendor's coding once, applied to all of its queued
@@ -12,6 +13,8 @@ import { isSelfName } from "@/lib/payables/fingerprints";
  * auto-code; the ones already in the queue still get a human glance.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {

@@ -2,8 +2,10 @@
 export const dynamic = "force-dynamic";
 
 import Placeholder from "@/components/Placeholder";
+import { requireModule } from "@/lib/auth/guard";
 
-export default function MonitoringPage() {
+export default async function MonitoringPage() {
+  await requireModule("monitoring");
   return (
     <Placeholder
       title="Monitoring"

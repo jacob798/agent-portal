@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Create a new expense report header (status 'draft'). The expenses themselves are
  * attached afterward via add-expenses (which sets payables_queue.report_id).
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("expense-reports");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

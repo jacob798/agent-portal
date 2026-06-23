@@ -4,8 +4,10 @@ export const dynamic = "force-dynamic";
 import { getLedger } from "@/lib/data/bookkeeper";
 import { getBcReimbursement, BC_HISTORY } from "@/lib/data/bc";
 import BookkeeperModule from "@/components/bookkeeper/BookkeeperModule";
+import { requireModule } from "@/lib/auth/guard";
 
 export default async function BookkeeperPage() {
+  await requireModule("bookkeeper");
   const [ledger, bc] = await Promise.all([getLedger(), getBcReimbursement()]);
   return <BookkeeperModule ledger={ledger} bc={bc} bcHistory={BC_HISTORY} />;
 }

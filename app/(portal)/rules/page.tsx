@@ -1,9 +1,11 @@
 import { getLearningStats, getFailureReport, getLearnedItems, getDocTypeCatalog, getKnowledgeVendors, getResolutionRules, getConfidenceGates } from "@/lib/data/rules";
 import Rules from "@/components/rules/Rules";
+import { requireModule } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function RulesPage() {
+  await requireModule("rules");
   const [stats, report, learned, catalog, vendors, rules] = await Promise.all([
     getLearningStats(), getFailureReport(), getLearnedItems(), getDocTypeCatalog(), getKnowledgeVendors(), getResolutionRules(),
   ]);

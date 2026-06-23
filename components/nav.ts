@@ -11,13 +11,18 @@ import {
   ClipboardCheck,
   Shield,
   Sparkles,
+  HandCoins,
+  Mic,
   type LucideIcon,
 } from "lucide-react";
+import { MODULES, type ModuleDef } from "@/lib/auth/modules";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Module key this nav item maps to (for per-user filtering). */
+  moduleKey: string;
 }
 
 export interface NavSection {
@@ -25,36 +30,58 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/** Single source of truth for navigation — used by the sidebar and context bar. */
-export const NAV_SECTIONS: NavSection[] = [
-  {
-    heading: "Operations",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/inbox", label: "Inbox", icon: Inbox },
-      { href: "/ingest-exceptions", label: "Ingest Exceptions", icon: RadioTower },
-      { href: "/review-queue", label: "Review Queue", icon: ClipboardCheck },
-      { href: "/monitoring", label: "Monitoring", icon: Activity },
-    ],
-  },
-  {
-    heading: "Agents",
-    items: [
-      { href: "/payables", label: "Payables", icon: CreditCard },
-      { href: "/expense-reports", label: "Expense reports", icon: Receipt },
-      { href: "/travel", label: "Travel", icon: Plane },
-      { href: "/bookkeeper", label: "Bookkeeper", icon: BookOpenCheck },
-      { href: "/valuation", label: "Valuation", icon: Calculator },
-    ],
-  },
-  {
-    heading: "Settings",
-    items: [
-      { href: "/rules", label: "Rules & Learning", icon: Sparkles },
-      { href: "/admin", label: "Admin", icon: Shield },
-    ],
-  },
+/** Icon per module key. Icons live here (client) so lib/auth/modules.ts stays
+ *  edge-safe and importable from middleware. */
+const ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  inbox: Inbox,
+  "ingest-exceptions": RadioTower,
+  "review-queue": ClipboardCheck,
+  monitoring: Activity,
+  payables: CreditCard,
+  "expense-reports": Receipt,
+  travel: Plane,
+  bookkeeper: BookOpenCheck,
+  valuation: Calculator,
+  "bc-reimbursement": HandCoins,
+  briefings: Mic,
+  rules: Sparkles,
+  admin: Shield,
+};
+
+const SECTION_ORDER: NavSection["heading"][] = [
+  "Operations",
+  "Agents",
+  "Settings",
 ];
+
+function toItem(m: ModuleDef): NavItem {
+  return {
+    href: m.route,
+    label: m.label,
+    icon: ICONS[m.key] ?? LayoutDashboard,
+    moduleKey: m.key,
+  };
+}
+
+/** Build the nav sections from the registry, optionally filtered to a set of
+ *  module keys the current user may access. Single source of truth = MODULES. */
+export function buildNavSections(allowed?: ReadonlySet<string>): NavSection[] {
+  const sections: NavSection[] = [];
+  for (const heading of SECTION_ORDER) {
+    const items = MODULES.filter(
+      (m) =>
+        m.inNav &&
+        m.section === heading &&
+        (!allowed || allowed.has(m.key)),
+    ).map(toItem);
+    if (items.length) sections.push({ heading, items });
+  }
+  return sections;
+}
+
+/** Full nav (unfiltered) — used where access filtering isn't applied. */
+export const NAV_SECTIONS: NavSection[] = buildNavSections();
 
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
 import { can } from "@/lib/auth/roles";
 import { tripVendor } from "@/lib/data/tripVendor";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Manually ADD an expense to the queue — for when extraction produced no row at all (e.g. an award
@@ -12,6 +13,8 @@ import { tripVendor } from "@/lib/data/tripVendor";
  * merchant shown in the app; vendor = the QB posting name (defaults to payee, or the trip label).
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("payables");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!can(profile.role, "act")) return NextResponse.json({ error: "forbidden" }, { status: 403 });

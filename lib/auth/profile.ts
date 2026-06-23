@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { type Role, type Capability, can, isRole } from "@/lib/auth/roles";
+import { isOwnerEmail, ownerEmails } from "@/lib/auth/owner";
 
 export interface Profile {
   id: string;
@@ -10,18 +11,8 @@ export interface Profile {
   role: Role;
 }
 
-/** Emails that are always treated as `admin`, regardless of their DB row.
- *  Bootstrap so you can never lock yourself out. Set PORTAL_OWNER_EMAILS. */
-function ownerEmails(): string[] {
-  return (process.env.PORTAL_OWNER_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function isOwnerEmail(email: string | null | undefined): boolean {
-  return !!email && ownerEmails().includes(email.toLowerCase());
-}
+// Re-export so existing imports of isOwnerEmail from this module keep working.
+export { isOwnerEmail };
 
 /** Demo profile shown when Supabase isn't configured yet (mock mode). */
 const DEMO_PROFILE: Profile = {
@@ -32,12 +23,24 @@ const DEMO_PROFILE: Profile = {
 };
 
 /**
+ * In mock mode, DEMO_USER=operator|viewer lets you sign in "as" a restricted
+ * mock user to exercise per-module access in the browser. Defaults to the
+ * owner/admin demo profile. Has no effect once Supabase is configured.
+ */
+function mockProfile(): Profile {
+  const who = (process.env.DEMO_USER ?? "").toLowerCase();
+  if (who === "operator") return MOCK_PROFILES[1];
+  if (who === "viewer") return MOCK_PROFILES[2];
+  return DEMO_PROFILE;
+}
+
+/**
  * The current user's profile, or null if not signed in.
  * In mock mode (no Supabase) returns a demo admin so the UI is populated.
  * The owner-email allowlist overrides the stored role to `admin`.
  */
 export async function getProfile(): Promise<Profile | null> {
-  if (!isSupabaseConfigured()) return DEMO_PROFILE;
+  if (!isSupabaseConfigured()) return mockProfile();
 
   const supabase = await createClient();
   const {

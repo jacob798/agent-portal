@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProfile } from "@/lib/auth/profile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Operator approves (or discards) the reviewed drafts for one briefing.
@@ -13,6 +14,8 @@ import { getProfile } from "@/lib/auth/profile";
  * 'confirmed' rows and executes the kept drafts. The portal is the review gate.
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("briefings");
+  if (_gate.error) return _gate.error;
   const profile = await getProfile();
   if (!profile) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

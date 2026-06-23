@@ -5,8 +5,10 @@ import { getPayablesQueue, getVendors, getTrips, getDocTypes } from "@/lib/data/
 import { getCodingConfig } from "@/lib/data/config";
 import { getIngestionLog } from "@/lib/data/ingestion";
 import Payables from "@/components/payables/Payables";
+import { requireModule } from "@/lib/auth/guard";
 
 export default async function PayablesPage() {
+  await requireModule("payables");
   const [rows, config, ingestion, vendors, trips, docTypes] = await Promise.all([
     getPayablesQueue(),
     getCodingConfig(),

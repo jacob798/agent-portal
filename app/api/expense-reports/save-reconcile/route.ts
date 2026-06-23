@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyReconcile, type ReconcileBody } from "../reconcile";
+import { guardModuleApi } from "@/lib/auth/guard";
 
 /**
  * Save reconcile progress: store the payroll-paid date on the report and merge each line's
@@ -7,6 +8,8 @@ import { applyReconcile, type ReconcileBody } from "../reconcile";
  * 'submitted' (this is a save, not the final reimbursement record).
  */
 export async function POST(req: NextRequest) {
+  const _gate = await guardModuleApi("expense-reports");
+  if (_gate.error) return _gate.error;
   let b: ReconcileBody;
   try {
     b = await req.json();

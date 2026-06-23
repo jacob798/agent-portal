@@ -3,8 +3,10 @@ export const dynamic = "force-dynamic";
 
 import { getTravel, getNeedsTrip } from "@/lib/data/travel";
 import Travel from "@/components/travel/Travel";
+import { requireModule } from "@/lib/auth/guard";
 
 export default async function TravelPage() {
+  await requireModule("travel");
   const [{ trips, credits }, needsTrip] = await Promise.all([getTravel(), getNeedsTrip()]);
   return <Travel trips={trips} needsTrip={needsTrip} credits={credits} />;
 }

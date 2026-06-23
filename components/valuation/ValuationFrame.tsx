@@ -32,7 +32,7 @@ export default function ValuationFrame({ src }: { src: string }) {
         type="button"
         onClick={() => setPresent((p) => !p)}
         title={present ? "Exit present mode" : "Present (hide portal — lender-facing)"}
-        className="absolute bottom-4 right-4 z-10 flex items-center gap-2 rounded-full bg-brand-navy/90 px-3.5 py-2 text-xs font-medium text-white shadow-lg backdrop-blur transition hover:bg-brand-navy"
+        className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-full bg-brand-navy/90 px-3.5 py-2 text-xs font-medium text-white shadow-lg backdrop-blur transition hover:bg-brand-navy"
       >
         {present ? (
           <>

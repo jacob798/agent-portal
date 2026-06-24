@@ -714,7 +714,7 @@ export default function Payables({
         options: [{ id: "discard_dup", label: "Discard duplicate" }, { id: "keep_both", label: "Keep both" }] });
     if (r.amount === 0 && !r.cost_resolved)
       qs.push({ kind: "cost_zero", prompt: "Cost is $0 — enter the amount charged to the card, or accept $0.",
-        options: [{ id: "enter_amount", label: "Enter actual cost", input: "amount" }, { id: "accept_zero", label: "Accept $0" }] });
+        options: [{ id: "enter_amount", label: "Enter actual cost", input: "amount" }, { id: "accept_zero", label: "Accept $0" }, { id: "discard_zero", label: "Discard" }] });
     const isNewVendor = r.vendorStatus === "new" || /unknown/i.test(r.vendor || "");
     if (!r.tripId && isNewVendor)
       qs.push({ kind: "new_vendor", prompt: `New vendor ‘${r.vendorDisplay || r.vendor}’.`,
@@ -730,6 +730,7 @@ export default function Payables({
   async function answerQuestion(r: Row, optionId: string, amount?: number) {
     if (optionId === "attach_receipt") { setShowInvoices(true); return; }
     if (optionId === "pick_vendor") { toggleExpand(r.id); return; }
+    if (optionId === "discard_zero") { discardRow(r.id); return; }  // a $0 row can now be discarded
     const prev = { ...r };
     const p: Partial<Row> = {};
     if (optionId === "enter_amount" && amount != null) p.amount = amount;

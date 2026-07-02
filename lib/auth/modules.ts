@@ -47,7 +47,7 @@ export const MODULES: ModuleDef[] = [
   { key: "expense-reports", label: "Expense reports", route: "/expense-reports", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
   { key: "travel", label: "Travel", route: "/travel", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
   { key: "bookkeeper", label: "Bookkeeper", route: "/bookkeeper", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
-  { key: "valuation", label: "Valuation", route: "/valuation", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
+  { key: "valuation", label: "Valuation", route: "/valuation", section: "Agents", defaultRoles: [...ALL_ROLES, "underwriter", "analyst"], inNav: true },
   { key: "bc-reimbursement", label: "BC Reimbursement", route: "/bc-reimbursement", section: "Agents", defaultRoles: ALL_ROLES, inNav: false },
   { key: "briefings", label: "Briefings", route: "/briefings", section: "Agents", defaultRoles: ALL_ROLES, inNav: false },
   // Settings

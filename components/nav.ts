@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard,
+  Home,
   Inbox,
   Activity,
   Calculator,
@@ -33,7 +33,7 @@ export interface NavSection {
 /** Icon per module key. Icons live here (client) so lib/auth/modules.ts stays
  *  edge-safe and importable from middleware. */
 const ICONS: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
+  dashboard: Home,
   inbox: Inbox,
   "ingest-exceptions": RadioTower,
   "review-queue": ClipboardCheck,
@@ -59,7 +59,7 @@ function toItem(m: ModuleDef): NavItem {
   return {
     href: m.route,
     label: m.label,
-    icon: ICONS[m.key] ?? LayoutDashboard,
+    icon: ICONS[m.key] ?? Home,
     moduleKey: m.key,
   };
 }

@@ -37,7 +37,7 @@ const ALL_ROLES: Role[] = ["admin", "operator", "viewer"];
  */
 export const MODULES: ModuleDef[] = [
   // Operations
-  { key: "dashboard", label: "Dashboard", route: "/dashboard", section: "Operations", defaultRoles: ALL_ROLES, alwaysOn: true, inNav: true },
+  { key: "dashboard", label: "Home", route: "/dashboard", section: "Operations", defaultRoles: ALL_ROLES, alwaysOn: true, inNav: true },
   { key: "inbox", label: "Inbox", route: "/inbox", section: "Operations", defaultRoles: ALL_ROLES, inNav: true },
   { key: "ingest-exceptions", label: "Ingest Exceptions", route: "/ingest-exceptions", section: "Operations", defaultRoles: ALL_ROLES, inNav: true },
   { key: "review-queue", label: "Review Queue", route: "/review-queue", section: "Operations", defaultRoles: ALL_ROLES, inNav: true },

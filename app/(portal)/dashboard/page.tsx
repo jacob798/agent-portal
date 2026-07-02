@@ -1,168 +1,119 @@
-// Operator data — render fresh so a change shows on the next screen without lag.
+// The portal landing — a launcher showing only the modules this user can open.
+// Render fresh so a grant change reflects on the next load.
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
-  Activity,
-  CheckCircle2,
-  AlertTriangle,
   Inbox,
+  RadioTower,
+  ClipboardCheck,
+  Activity,
+  CreditCard,
+  Receipt,
+  Plane,
+  BookOpenCheck,
+  Calculator,
+  HandCoins,
+  Mic,
+  Sparkles,
+  Shield,
+  type LucideIcon,
 } from "lucide-react";
-import { getAgents, type AgentStatus } from "@/lib/data/agents";
-import { Badge, type Tone } from "@/components/ui/Badge";
+import { getProfile } from "@/lib/auth/profile";
+import { getModuleGrants } from "@/lib/auth/moduleGrants";
+import { isOwnerEmail } from "@/lib/auth/owner";
+import { canAccessModule, MODULES } from "@/lib/auth/modules";
 import PageHeader from "@/components/ui/PageHeader";
-import { requireModule } from "@/lib/auth/guard";
 
-const STATUS: Record<AgentStatus, { tone: Tone; label: string }> = {
-  healthy: { tone: "green", label: "Healthy" },
-  degraded: { tone: "amber", label: "Degraded" },
-  down: { tone: "red", label: "Down" },
-  idle: { tone: "neutral", label: "Idle" },
+// Icon + one-line purpose per module. Icons mirror components/nav.ts.
+const ICONS: Record<string, LucideIcon> = {
+  inbox: Inbox,
+  "ingest-exceptions": RadioTower,
+  "review-queue": ClipboardCheck,
+  monitoring: Activity,
+  payables: CreditCard,
+  "expense-reports": Receipt,
+  travel: Plane,
+  bookkeeper: BookOpenCheck,
+  valuation: Calculator,
+  "bc-reimbursement": HandCoins,
+  briefings: Mic,
+  rules: Sparkles,
+  admin: Shield,
 };
 
-// A "Healthy" badge only reflects the LAST write — an agent that stopped reporting days ago
-// still shows green. Staleness of the heartbeat is the real "is the backend alive?" signal.
-const STALE_WARN_MIN = 120; // >2h since last run → suspicious
-const STALE_DOWN_MIN = 1440; // >24h → backend almost certainly not running
+const BLURB: Record<string, string> = {
+  inbox: "Upload and route documents.",
+  "ingest-exceptions": "Fix routing and parse gaps.",
+  "review-queue": "Resolve flagged items.",
+  monitoring: "Agent health and recent runs.",
+  payables: "Invoices, coding, and posting.",
+  "expense-reports": "Build and reconcile BCX reports.",
+  travel: "Trips, itineraries, and expenses.",
+  bookkeeper: "QuickBooks posting and reconciliation.",
+  valuation: "Construction-loan valuations.",
+  "bc-reimbursement": "Builders Capital reimbursements.",
+  briefings: "Capture and route briefings.",
+  rules: "Vendor and doc-type rules.",
+  admin: "Users and access.",
+};
 
-function minsSince(iso: string | null): number | null {
-  return iso ? Math.round((Date.now() - new Date(iso).getTime()) / 60000) : null;
-}
+const SECTION_ORDER = ["Operations", "Agents", "Settings"] as const;
 
-function formatLastRun(iso: string | null): string {
-  const mins = minsSince(iso);
-  if (mins === null) return "Never";
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
+export default async function HomePage() {
+  const profile = await getProfile();
+  if (!profile) redirect("/login");
 
-export default async function DashboardPage() {
-  await requireModule("dashboard");
-  const agents = await getAgents();
+  const grants = await getModuleGrants(profile.id);
+  const ctx = { role: profile.role, isOwner: isOwnerEmail(profile.email) };
 
-  const counts = agents.reduce(
-    (acc, a) => ({ ...acc, [a.status]: (acc[a.status] ?? 0) + 1 }),
-    {} as Record<AgentStatus, number>,
+  // Only the modules this user can actually open (nav-eligible, minus the home card itself).
+  const mods = MODULES.filter(
+    (m) => m.inNav && m.key !== "dashboard" && canAccessModule(ctx, grants, m.key),
   );
-  const attention = (counts.degraded ?? 0) + (counts.down ?? 0);
-  const totalQueue = agents.reduce((sum, a) => sum + a.queueDepth, 0);
-  const stale = agents.filter((a) => {
-    const m = minsSince(a.lastRunAt);
-    return m === null || m > STALE_WARN_MIN;
-  });
+
+  // Scope-aware landing: a user with exactly one module skips the launcher and drops
+  // straight into it (e.g. a valuation-only underwriter → /valuation).
+  if (mods.length === 1) redirect(mods[0].route);
+
+  const sections = SECTION_ORDER.map((heading) => ({
+    heading,
+    items: mods.filter((m) => m.section === heading),
+  })).filter((s) => s.items.length);
+
+  const firstName = (profile.displayName || "").trim().split(/\s+/)[0] || "there";
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
-      <PageHeader
-        title="Agent Health"
-        subtitle="Live status across every agent in the system."
-      />
+      <PageHeader title={`Welcome, ${firstName}`} subtitle="Jump into any of your tools." />
 
-      {/* Heartbeat-staleness banner — a green badge can hide a backend that stopped reporting. */}
-      {stale.length > 0 && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            <b>{stale.length} agent{stale.length === 1 ? "" : "s"} haven&apos;t reported in over 2h</b> — the
-            status badges below reflect the last heartbeat, not live state. If this is unexpected, the backend
-            worker may be down. ({stale.map((a) => a.name).join(", ")})
-          </span>
-        </div>
-      )}
-
-      {/* Summary */}
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat icon={Activity} label="Agents" value={agents.length} tone="indigo" />
-        <Stat icon={CheckCircle2} label="Healthy" value={counts.healthy ?? 0} tone="green" />
-        <Stat icon={AlertTriangle} label="Need attention" value={attention} tone={attention ? "amber" : "neutral"} />
-        <Stat icon={Inbox} label="Queued items" value={totalQueue} tone="indigo" />
-      </div>
-
-      {/* Agent grid */}
-      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {agents.map((agent) => {
-          const s = STATUS[agent.status];
-          return (
-            <div
-              key={agent.id}
-              className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h2 className="text-sm font-semibold text-slate-900">
-                  {agent.name}
-                </h2>
-                <Badge tone={s.tone} dot>
-                  {s.label}
-                </Badge>
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                {agent.description}
-              </p>
-              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                {(() => {
-                  const m = minsSince(agent.lastRunAt);
-                  const stale = m === null || m > STALE_WARN_MIN;
-                  const down = m === null || m > STALE_DOWN_MIN;
-                  return (
-                    <span className={down ? "font-semibold text-red-600" : stale ? "font-semibold text-amber-600" : ""}>
-                      {stale && "⚠ "}Last run · {formatLastRun(agent.lastRunAt)}
-                    </span>
-                  );
-                })()}
-                <span className="inline-flex items-center gap-1">
-                  Queue
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 font-semibold ${
-                      agent.queueDepth > 0
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-400"
-                    }`}
+      <div className="mt-6 space-y-8">
+        {sections.map((section) => (
+          <div key={section.heading}>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {section.heading}
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {section.items.map((m) => {
+                const Icon = ICONS[m.key] ?? Calculator;
+                return (
+                  <Link
+                    key={m.key}
+                    href={m.route}
+                    className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
                   >
-                    {agent.queueDepth}
-                  </span>
-                </span>
-              </div>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                      <Icon className="h-5 w-5" strokeWidth={2} />
+                    </span>
+                    <h2 className="mt-4 text-sm font-semibold text-slate-900">{m.label}</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500">{BLURB[m.key] ?? ""}</p>
+                  </Link>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: number;
-  tone: Tone;
-}) {
-  const iconTone: Record<Tone, string> = {
-    indigo: "bg-brand/10 text-brand",
-    green: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    red: "bg-red-50 text-red-600",
-    neutral: "bg-slate-100 text-slate-500",
-    slate: "bg-slate-100 text-slate-500",
-  };
-  return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconTone[tone]}`}>
-        <Icon className="h-5 w-5" strokeWidth={2} />
-      </span>
-      <div>
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          {label}
-        </div>
-        <div className="text-2xl font-semibold tracking-tight text-slate-900">
-          {value}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

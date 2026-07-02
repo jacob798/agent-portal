@@ -24,6 +24,7 @@ import { getProfile } from "@/lib/auth/profile";
 import { getModuleGrants } from "@/lib/auth/moduleGrants";
 import { isOwnerEmail } from "@/lib/auth/owner";
 import { canAccessModule, MODULES } from "@/lib/auth/modules";
+import { getAttentionCounts } from "@/lib/data/attention";
 import PageHeader from "@/components/ui/PageHeader";
 
 // Icon + one-line purpose per module. Icons mirror components/nav.ts.
@@ -77,16 +78,23 @@ export default async function HomePage() {
   // straight into it (e.g. a valuation-only underwriter → /valuation).
   if (mods.length === 1) redirect(mods[0].route);
 
+  // Real "needs attention" counts (from the same reads each module uses) — no fabricated numbers.
+  const counts = await getAttentionCounts(new Set(mods.map((m) => m.key)));
+  const totalAttention = Object.values(counts).reduce((s, n) => s + n, 0);
+
   const sections = SECTION_ORDER.map((heading) => ({
     heading,
     items: mods.filter((m) => m.section === heading),
   })).filter((s) => s.items.length);
 
   const firstName = (profile.displayName || "").trim().split(/\s+/)[0] || "there";
+  const subtitle = totalAttention
+    ? `${totalAttention} item${totalAttention === 1 ? "" : "s"} need your attention.`
+    : "Jump into any of your tools.";
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
-      <PageHeader title={`Welcome, ${firstName}`} subtitle="Jump into any of your tools." />
+      <PageHeader title={`Welcome, ${firstName}`} subtitle={subtitle} />
 
       <div className="mt-6 space-y-8">
         {sections.map((section) => (
@@ -101,11 +109,16 @@ export default async function HomePage() {
                   <Link
                     key={m.key}
                     href={m.route}
-                    className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+                    className="group relative rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
                   >
                     <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
                       <Icon className="h-5 w-5" strokeWidth={2} />
                     </span>
+                    {counts[m.key] ? (
+                      <span className="absolute right-4 top-4 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                        {counts[m.key]}
+                      </span>
+                    ) : null}
                     <h2 className="mt-4 text-sm font-semibold text-slate-900">{m.label}</h2>
                     <p className="mt-1 text-sm leading-relaxed text-slate-500">{BLURB[m.key] ?? ""}</p>
                   </Link>

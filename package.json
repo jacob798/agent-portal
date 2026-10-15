@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "tokens:build": "node scripts/build-tokens.mjs",
+    "tokens:check": "node scripts/check-tokens.mjs",
+    "storybook": "npm run tokens:build && storybook dev -p 6006 --no-open",
+    "build-storybook": "npm run tokens:build && storybook build",
+    "test:design": "playwright test --config playwright.design.config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -21,12 +26,18 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@fontsource/poppins": "5.3.0",
+    "@playwright/test": "1.64.1",
+    "@storybook/addon-a11y": "10.6.2",
+    "@storybook/nextjs-vite": "10.6.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "storybook": "10.6.2",
+    "style-dictionary": "5.6.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

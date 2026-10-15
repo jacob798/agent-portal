@@ -1,0 +1,10 @@
+:root {
+  --foundry-color-brand: #1768a3;
+  --foundry-color-brand-navy: #0a2c4e;
+  --foundry-color-brand-sky: #5ba3d2;
+  --foundry-color-background: #f8fafc;
+  --foundry-color-foreground: #0f172a;
+  --foundry-font-portal: Poppins, Arial, sans-serif;
+  --foundry-space-card: 1rem;
+  --foundry-radius-card: 0.75rem;
+}

@@ -1,0 +1,9 @@
+:root {
+  --font-poppins: Poppins;
+  --background: var(--foundry-color-background);
+  --foreground: var(--foundry-color-foreground);
+  --color-brand: var(--foundry-color-brand);
+  --color-brand-navy: var(--foundry-color-brand-navy);
+  --color-brand-sky: var(--foundry-color-brand-sky);
+}
+/* These bindings are Storybook-only until the token baseline is approved. */

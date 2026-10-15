@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Design development artifacts
+/storybook-static/
+/test-results/
+/playwright-report/

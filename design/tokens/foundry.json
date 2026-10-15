@@ -1,0 +1,12 @@
+{
+  "color": {
+    "brand": {"value": "#1768a3", "type": "color"},
+    "brand-navy": {"value": "#0a2c4e", "type": "color"},
+    "brand-sky": {"value": "#5ba3d2", "type": "color"},
+    "background": {"value": "#f8fafc", "type": "color"},
+    "foreground": {"value": "#0f172a", "type": "color"}
+  },
+  "font": {"portal": {"value": "Poppins, Arial, sans-serif", "type": "fontFamily"}},
+  "space": {"card": {"value": "1rem", "type": "dimension"}},
+  "radius": {"card": {"value": "0.75rem", "type": "dimension"}}
+}

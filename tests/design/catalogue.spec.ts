@@ -8,7 +8,8 @@ test('Travel uses fictional data and never calls a backend', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Travel', exact: true })).toBeVisible();
   await expect(page.getByText('Seattle · Design review', { exact: true })).toBeVisible();
   await page.getByText('Seattle · Design review', { exact: true }).click();
-  await expect(page.getByText('Fictional planning workshop', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Seattle · Design review', exact: true })).toBeVisible();
+  await expect(page.getByText('Flight: Sample Air · Boise → Seattle', { exact: true })).toBeVisible();
   const status = await page.evaluate(async () => (await fetch('/api/travel/create-trip', { method: 'POST' })).status);
   expect(status).toBe(403);
   expect(apiRequests).toEqual([]);

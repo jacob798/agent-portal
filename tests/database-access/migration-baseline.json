@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "description": "Immutable inventory of supabase/migrations as of PR5 7b0d455. status recorded_in_ledger: version+name seen in the live ledger and file digest equals the retained applied SQL; this is not proof of whole-schema equivalence. status unverified_legacy: application state UNKNOWN, unreconciled. Any change to this file is a reviewed decision; ledger rows alone cannot change a status.",
+  "legacyDuplicatePrefixes": [
+    "0008",
+    "0013",
+    "0014",
+    "0015",
+    "0016",
+    "0017",
+    "0018",
+    "0019",
+    "0031"
+  ],
+  "files": [
+    {
+      "filename": "0001_portal.sql",
+      "version": "0001",
+      "sha256": "ea23e72ae370332cd9fe41a9c2911d1e01f86b0b5e3eaf02e4c7c26c046e6850",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0002_profiles.sql",
+      "version": "0002",
+      "sha256": "095f3836b79dcc17711aa3febdd817f624b92581f4cffbd72ad48ade9956a44f",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0003_operator_actions.sql",
+      "version": "0003",
+      "sha256": "64fca732ecfa38311275effa8bd628b8f222920f60a704c00069edf04b4249eb",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0004_operator_actions_consumed.sql",
+      "version": "0004",
+      "sha256": "58f03c4cde5a0f015360af8fe0b5662befc6edcf0d021574194e0b5cc7fc59b7",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0005_operator_actions_source.sql",
+      "version": "0005",
+      "sha256": "591773fca488c952cc2373d3a603385960966fdaeb289023dc0b7ba8b2d7f068",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0006_agent_modules.sql",
+      "version": "0006",
+      "sha256": "eeaf0070033156b3875c43ff3bd1870c916b2a004420d2fdf7274130d447e9a3",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0007_ingestion_jobs.sql",
+      "version": "0007",
+      "sha256": "f7eb5493268c7c4aa4ec165c5f58ca85e73d1d69708e8176ae45211c401b9970",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0008_briefings_notes.sql",
+      "version": "0008",
+      "sha256": "8ddc5c0ea5628990f8f89acf782a66bac55e24b324b5315fb638bb3d2173d5ff",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0008_payables_doc_url.sql",
+      "version": "0008",
+      "sha256": "eeb8172bc49b370813a5fd0efd207d585aa4c45b3844cfdb791d4b1006e27ceb",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0009_storage_upload_policy.sql",
+      "version": "0009",
+      "sha256": "1146f64342d709923f08ee91626298a9730481fdef054c79dd6d8bce916e4f16",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0010_agent_tables_consolidated.sql",
+      "version": "0010",
+      "sha256": "4fc47aa77b6789a3a0b642c7175c227d93e28199183c283b2e3e51e31a8281e4",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0011_payables_dedup.sql",
+      "version": "0011",
+      "sha256": "24d626f9d56fd98f11d18b34483fcf3dda51e7b9e16f801281b3cd3a66dd083e",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0012_config_payment_methods_gl.sql",
+      "version": "0012",
+      "sha256": "f65923f7e98a056b678c058522bbf07828e8f89584249be45a95573581fdecbf",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0013_bc_categories.sql",
+      "version": "0013",
+      "sha256": "c15c9620e806d409755ebe97e7fff9226a8596d08153397b29de6805758f5bed",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0013_teach_jobs.sql",
+      "version": "0013",
+      "sha256": "315de8c22e4d4f55463b6209f011e15baef2758305575dc37c97dd44ec3705a8",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0014_field_scope.sql",
+      "version": "0014",
+      "sha256": "d28809da7f0a221e19b944bc2d0a70d95679afab7505459baae6f3de56084746",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0014_payables_payment_method.sql",
+      "version": "0014",
+      "sha256": "b546e7e563542bbca43435a8396f2dd0abcc7b386b2ff344894db8f133a14f32",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0015_payables_status.sql",
+      "version": "0015",
+      "sha256": "8bd9deb8baa675de8b12a42e4012479cad8e45cc9434839add754fbb3ab6a350",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0015_protect_curated_fields.sql",
+      "version": "0015",
+      "sha256": "a9a9ab3f0740846a8f8796f24a777c4a7639b744c3178225c5d9f68b5b27629d",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0016_field_source_format.sql",
+      "version": "0016",
+      "sha256": "7f0c5058cc7f3d088b179e7fee06d370c74ee2de370148c46534eadb1004ab68",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0016_vendor_rules_contact.sql",
+      "version": "0016",
+      "sha256": "dc8fbedb79bc594beaa0888c0104ee66dca6ce8faa93798d9028908391955095",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0017_doc_type_counts.sql",
+      "version": "0017",
+      "sha256": "de31612f0b2da9d9bbe046c98d7b392d862167f51f195390de6d8b703a855733",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0017_vendor_rules_auto_approve.sql",
+      "version": "0017",
+      "sha256": "6390c358f044e5958fc53c2bf59d8fd7868b94eb9a5c5f149568cbf6f36013f1",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0018_fields_curated_only.sql",
+      "version": "0018",
+      "sha256": "083640fa09dcee36f453670c2256da485cda62c785b28506a6ebb5ceefc62261",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0018_payables_vendor_contact.sql",
+      "version": "0018",
+      "sha256": "eed1f8eed8861b724d89c274eff56ab43f9a165a9dfff2916c5765777b3a0ee2",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0019_doc_type_materialize.sql",
+      "version": "0019",
+      "sha256": "99c637c1b633fe5ab2260e9d2f33f17d785077fde05334e1009852843790c769",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0019_payables_vendor_status.sql",
+      "version": "0019",
+      "sha256": "c04cb1609c72f6c8b0f089c9991e7b4bbf6fcf34624fca9be5453c034ae1250e",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0020_vendors_master.sql",
+      "version": "0020",
+      "sha256": "8e1da2980e106d3f91be279b2705ea1e65a7ee31c9d4fb113b6bcd7fc4ff8c71",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0021_config_blobs.sql",
+      "version": "0021",
+      "sha256": "4e03aab3f218e931af888b5f65b436d6737c94f022178e473a93f0b3d22fa56e",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0022_state_documents.sql",
+      "version": "0022",
+      "sha256": "35955a33e86ab71e5c15b95448f465a46fd66457cb52b5c6a8f07235d7013cf2",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0023_payables_posted_legs.sql",
+      "version": "0023",
+      "sha256": "436905f9c4e66e780936022be9a82a55e1c0c7086d351ca62b350590385ef0c0",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0024_payables_invoice_number.sql",
+      "version": "0024",
+      "sha256": "8e4a90457a4376d4770dc9cb096ee22dcde646bfe1cb05c5e5bb7e9bead7bcd3",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0025_payables_extracted_docpath.sql",
+      "version": "0025",
+      "sha256": "af9ce8a88821f3d1f7c88737c25ff212ed615ad02b18ff8fae088bfbc7ba4599",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0026_vendor_qbo_refs.sql",
+      "version": "0026",
+      "sha256": "f5ba02b6e9556372b0418c205173e66bf52f6f5ceae95dbda24288d4d2d13df0",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0027_payables_memo.sql",
+      "version": "0027",
+      "sha256": "1cbb01d0207d9c39aca89ca2e80db00518e6534711e27bbd8ea20375c3d70f28",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0028_vendor_memo_formats.sql",
+      "version": "0028",
+      "sha256": "fb64f5eba701f26831e6bc6e13fdcc877cb8a6cecde8e955ad3dd2c442d4eeef",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0029_vendor_memo_sample_values.sql",
+      "version": "0029",
+      "sha256": "5b37b1b65ca3f1282bded73e77e1896d923354ddaec8014d43c6ab1e527b2fa7",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0030_vendor_templates.sql",
+      "version": "0030",
+      "sha256": "80c8d35aaf6c99cfd4d4d6755889a04c760bad020395f725c28196b99a4c3703",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0031_payables_trip_id.sql",
+      "version": "0031",
+      "sha256": "0e6a0e67cf55477d5c79af5140a580e4c6c7f28b7057d939b73f50859645645b",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0031_payables_txn_date.sql",
+      "version": "0031",
+      "sha256": "f5c2b1528de37fb09e129008183b30918799336f9dc887bcdbb026ba4e3d3fca",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0032_vendor_entity_coding.sql",
+      "version": "0032",
+      "sha256": "144414720ce7886699ed8dc5b63d7357ea85223d3667f3480b355f1d51f04422",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0033_trips_travelers.sql",
+      "version": "0033",
+      "sha256": "5e4b05423e34688829fa76fd837afec6bd4812571996e68b3f90ef469461c69e",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0034_trips_confirmations.sql",
+      "version": "0034",
+      "sha256": "3958d7ffbcc40bccc057aadae044b75408791e44ed86d8484fdd19632d0fdaa3",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0035_module_access.sql",
+      "version": "0035",
+      "sha256": "65b86dd0d512a0c739e7d7a8a67ebc225bac5edab6398aef8124c82c3764aa6c",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "0036_valuation_roles.sql",
+      "version": "0036",
+      "sha256": "58ded5cc60be7e6e8c72dc19d8618dc72a637c20a5ba56fa374d717acaae3998",
+      "status": "unverified_legacy"
+    },
+    {
+      "filename": "20261015191718_foundry_restrict_public_data_access.sql",
+      "version": "20261015191718",
+      "sha256": "215030971b570daa249feb563b463c268a345a1cd30c271c12d66f69edb1b4c4",
+      "status": "recorded_in_ledger"
+    }
+  ]
+}

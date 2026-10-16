@@ -23,6 +23,23 @@ The fixture represents the current policy names and grants with minimal syntheti
 
 Legacy files use duplicate numeric prefixes and the live migration ledger does not contain all historical files. Do not run an unrestricted `supabase db push` against production. Reconcile the historical baseline and migration ledger in isolation first; do not mark historical files applied merely to suppress differences. This PR preserves history and records the already-applied fix; it does not resolve the legacy baseline automatically.
 
+## Migration baseline guard (offline, read-only)
+
+`check-migration-baseline.mjs` uses Node builtins only (no install, network, database or environment-credential reads). It compares three explicit inputs: `migration-baseline.json` (immutable filename/version/SHA-256 inventory of all 46 files in `supabase/migrations`), `fixtures/observed-ledger.json` (live ledger snapshot, version and name only; no project IDs, ACLs or customer data) and the migrations directory.
+
+```
+node --test tests/database-access/migration-baseline.test.mjs
+node tests/database-access/check-migration-baseline.mjs check --ledger tests/database-access/fixtures/observed-ledger.json
+node tests/database-access/check-migration-baseline.mjs deployment-preflight --ledger tests/database-access/fixtures/observed-ledger.json   # exits 1 today
+```
+
+- Fails closed (exit 1) on changed, missing, new or renamed SQL files; undeclared or phantom duplicate prefixes; malformed manifest or ledger (including extra keys); duplicate ledger versions; unknown ledger versions; wrong names; and ledger rows the manifest does not already mark recorded. Exit 2 is a usage error. There are no override, force or repair modes, and nothing is written or generated.
+- `check` exits 0 only when the inventory is consistent, and prints `inventory_consistent` and `deploy_allowed` explicitly. `deployment-preflight` always exits nonzero: inventory/ledger evidence alone cannot authorize deployment, even for a fully recorded unique inventory.
+- Current state: inventory-consistent, `deploy_allowed: false`. Only `20261015191718_foundry_restrict_public_data_access.sql` is `recorded_in_ledger` (live version/name match, and its digest equals the retained applied SQL). The other 45 files are `unverified_legacy`: unknown whether applied, unreconciled. Duplicate prefixes 0008, 0013–0019 and 0031 are acknowledged but never treated as safe to replay.
+- A recorded ledger row is version/name evidence only. It does not prove whole-schema or DDL equivalence, and the ACL snapshot must not be read as such. Adding ledger rows cannot unblock deployment; statuses change only through a reviewed edit of the manifest, which also needs matching file digests.
+
+Scope, honestly: this is a CI check that the inventory has not drifted and a preflight that reports BLOCKED. There is no existing deploy pipeline and nothing here is wired to an actual `db push`; it does not reconcile or authorize any schema change.
+
 ## Scope
 
 Backend-first. No UI redesign, production merge, subscription purchase, workflow activation, or QuickBooks posting. Existing worker `service_role` grants are retained. The new private no-argument authorization helper returns only the caller's admin flag, with fixed empty search path, explicit authenticated EXECUTE, and no exposed-schema registration.

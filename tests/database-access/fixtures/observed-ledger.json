@@ -1,0 +1,7 @@
+{
+ "schemaVersion": 1,
+ "source": "Read-only live migration ledger snapshot, October 15 2026. Version and name only.",
+ "rows": [
+  { "version": "20261015191718", "name": "foundry_restrict_public_data_access" }
+ ]
+}

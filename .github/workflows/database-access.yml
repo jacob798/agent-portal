@@ -20,3 +20,12 @@ jobs:
           cache-dependency-path: tests/database-access/package-lock.json
       - run: npm ci --prefix tests/database-access
       - run: node tests/database-access/run.mjs
+  migration-baseline-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/database-access/migration-baseline.test.mjs
+      - run: node tests/database-access/check-migration-baseline.mjs check --ledger tests/database-access/fixtures/observed-ledger.json

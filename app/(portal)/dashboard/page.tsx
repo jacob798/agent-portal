@@ -109,6 +109,7 @@ export default async function HomePage() {
                   <Link
                     key={m.key}
                     href={m.route}
+                    prefetch={false}
                     className="group relative rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
                   >
                     <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 text-brand">

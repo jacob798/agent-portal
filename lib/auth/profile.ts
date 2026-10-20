@@ -43,9 +43,25 @@ export async function getProfile(): Promise<Profile | null> {
   if (!isSupabaseConfigured()) return mockProfile();
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Validate the session with a small retry: under a burst of concurrent server
+  // renders, Supabase auth can transiently fail (network/rate-limit), and an
+  // un-retried throw here crashes the whole page render (the intermittent 503s).
+  // A throw after the retries propagates (error boundary); a non-throwing miss
+  // with an error is treated as transient — only a clean "no user" signs out.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (!error) {
+        user = data.user;
+        break;
+      }
+      if (attempt >= 2) return null; // persistent auth error: treat as signed out
+    } catch (e) {
+      if (attempt >= 2) throw e; // persistent failure: let the error boundary handle it
+    }
+    await new Promise((r) => setTimeout(r, 120 * (attempt + 1)));
+  }
   if (!user) return null;
 
   const { data: row } = await supabase

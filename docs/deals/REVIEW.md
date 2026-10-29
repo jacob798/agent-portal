@@ -25,5 +25,18 @@ No real Microsoft browser sign-in or live revocation test has occurred. Dependen
 retain the repository lockfile; no framework upgrade. Retention is deferred and
 Deals production activation remains blocked. See Deals PR #1 and its review guide.
 
-Open: Jacob-only review scope confirmation, backend host and dedicated credentials,
+Open: Approved Jacob-only review scope installation, backend host and dedicated credentials,
 reviewed migration/proof/deploy runbook, then real-session integration evidence.
+
+
+### Review access approved — 2026-10-29
+
+Jacob replied **"yes"** to: "Should Jacob’s existing portal account receive create
+access for the review account and view/edit/review access only to review projects?"
+This approves that narrow scope. It grants neither reference stewardship nor access
+to other users, other accounts or unrelated projects. Grant installation remains
+with the existing authorization owner; the application cannot assign permissions.
+The explicit nonproduction IDs are in the Deals repository’s deploy/review-access.json; they are deployment
+bindings, never application defaults. They have not been provisioned or granted.
+Retention remains deferred. This is not approval to merge either PR, deploy a host
+or execute the draft proof runbook. No access-scope reconfirmation is needed.

@@ -1,14 +1,10 @@
-state: building
-base_head: a2e24df928d08df9b9a496b069b38046d8b1a079
-tests: 5 bridge checks; TypeScript; Next build passed; synthetic/local
-next: approved explicit scope, reserved migration/host bindings, then approved real-session proof
-live_binding: not installed
-retention: deferred in Deals; production blocked
-tracking: https://app.asana.com/1/1209057057495777/project/1219550478041719/task/1219983346005726
-review_access: approved 2026-10-29, Jacob "yes"; no live grants installed
-
-Binding documentation v1.0.1: review scope approved; migration runner extension
-required before live binding (Deals docs/proposals/MIGRATIONS_CONTRACT_V1_3_0.md;
-Asana 1220023756136865). No portal runtime behavior changed in this pass.
-
-activation_package: reserved 0067; five identities verified; no live changes; see Deals deploy/REVIEW_ACTIVATION.md for remaining gaps
+state: ready-for-proof
+review_package: prepared 2026-10-30; no live writes performed
+next: Jacob reviews Deals docs/proofs/deals_workspace_v1.0.0_review.md and explicitly authorizes migration-only merges Deals #3 / agent-portal #8
+retention: OPEN; environment proof; production blocked
+local_validation: six migration rehearsal/rollback/apply/replay; 209 reference/history rows; 20 grants; unprivileged runtime; 35 runner tests; 4 deployment tests; Gunicorn config startup
+live_preflight: passed read-only 2026-10-30; exact six pending, no existing review login/secrets
+full_contract_proof: unexecuted; individual live sessions and 87-case proof remain execution work
+implementation_prs: deals #1; agent-portal #7; shared-services #105 (not authorized to merge)
+migration_prs: deals #3; agent-portal #8 (await explicit merge authorization)
+tracking: https://app.asana.com/0/1219550478041719/1219895902059706

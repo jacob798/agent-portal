@@ -57,3 +57,12 @@ Live execution awaits the completed runbook approval. Full six-migration rehears
 rollback/apply/replay passed locally; 209 catalog/history rows, 20 grants and runtime
 privilege checks passed. Four deployment regression tests and Gunicorn startup
 configuration check passed. No live execution, merge or retention selection.
+
+
+2026-10-30 review package complete: pinned code checkouts and migration hashes,
+exact resource/secret/preview bindings, build/provision/host/test/rollback steps
+are in Deals docs/proofs/deals_workspace_v1.0.0_review.md. Read-only live preflight
+passed (no history blockers, exact six pending, no existing review login/secrets).
+Separate migration-only reviews Deals #3 and portal #8 await explicit merge approval.
+Runbook is not executed or approved; full live contract proof remains pending.
+Retention deferred; no production rollout or implementation PR merge claimed.

@@ -10,3 +10,5 @@ review_access: approved 2026-10-29, Jacob "yes"; no live grants installed
 Binding documentation v1.0.1: review scope approved; migration runner extension
 required before live binding (Deals docs/proposals/MIGRATIONS_CONTRACT_V1_3_0.md;
 Asana 1220023756136865). No portal runtime behavior changed in this pass.
+
+activation_package: reserved 0067; five identities verified; no live changes; see Deals deploy/REVIEW_ACTIVATION.md for remaining gaps

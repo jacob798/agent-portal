@@ -22,3 +22,15 @@ or execute the draft proof runbook. No access-scope reconfirmation is needed.
 Binding documentation v1.0.1: review scope approved; migration runner extension
 required before live binding (Deals docs/proposals/MIGRATIONS_CONTRACT_V1_3_0.md;
 Asana 1220023756136865). No portal runtime behavior changed in this pass.
+
+
+### Review activation preparation — 2026-10-29
+All five approved users matched to existing Azure/Supabase subjects via read-only
+lookup. Deals deploy/team-identities.json records exact bindings. Initial review
+grants are prepared for all five (20 rows), excluding reference administration;
+no live grants installed. Migration reservations 0067 portal capabilities, 0068
+Deals schema, 0069 runtime permissions follow an inventory of 36 refs. The exact
+files passed isolated PostgreSQL rehearsal/rollback/apply/replay and ledger checks.
+Team grant replay/revocation checks passed locally. These are not live proofs.
+See Deals deploy/REVIEW_ACTIVATION.md for remaining seed, future-project grant
+provisioning, secret-safe provisioning and runtime packaging gaps. Retention OPEN.

@@ -66,3 +66,16 @@ passed (no history blockers, exact six pending, no existing review login/secrets
 Separate migration-only reviews Deals #3 and portal #8 await explicit merge approval.
 Runbook is not executed or approved; full live contract proof remains pending.
 Retention deferred; no production rollout or implementation PR merge claimed.
+
+
+### Approved execution stopped; migration-number correction — 2026-10-30
+Jacob approved runbook f84d47f and migration-only merges (#3/#8), recorded at
+1510a1f. Fresh preflight stopped before any write: Travel 0067 is now applied
+live; shared-services PR #109 reserves Save 0068. Approved pinned Travel history
+therefore lacks a newly applied file. All pinned checkouts themselves were clean.
+Renumber the six UNAPPLIED Deals/portal files to 0073–0078 in unchanged relative
+order; SQL content and SHA-256 checksums are identical. Update Travel history pin
+to include live 0067. This is a deployment-input correction, no new business rule.
+The prior approval is preserved; execution does not resume until the revised
+runbook inputs are approved. No build, credential, database, grant, deploy or merge
+step ran. Retention remains deferred.

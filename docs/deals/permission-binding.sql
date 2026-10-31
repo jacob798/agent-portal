@@ -21,3 +21,9 @@ GRANT SELECT ON public.portal_deals_capabilities TO authenticated;
 -- The reviewed migration must grant the dedicated processor SELECT and a matching
 -- SELECT-only policy. It must not grant INSERT/UPDATE/DELETE or inherit an auth role.
 -- Grant administration remains the authorization owner's privileged audited process.
+
+-- Authorization-owner projection: no policy/ownership changes to managed auth tables.
+-- Owner privileges are intentional; only the dedicated server role is granted SELECT.
+CREATE VIEW public.portal_deals_sessions WITH (security_barrier=true,security_invoker=false) AS
+ SELECT id,user_id,not_after FROM auth.sessions;
+REVOKE ALL ON public.portal_deals_sessions FROM PUBLIC,anon,authenticated,service_role;

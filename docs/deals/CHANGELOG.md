@@ -79,3 +79,11 @@ to include live 0067. This is a deployment-input correction, no new business rul
 The prior approval is preserved; execution does not resume until the revised
 runbook inputs are approved. No build, credential, database, grant, deploy or merge
 step ran. Retention remains deferred.
+
+
+### Review deployment session binding fix — v1.0.2, 2026-10-30
+Approved runbook 3b11789 (Jacob: "approved") built ACR run cac5 successfully. Provisioning then stopped; live inspection confirmed zero Deals ledger rows/tables/roles and no review vault secrets. Read-only inspection shows postgres can SELECT/grant SELECT on auth.sessions but is not its owner. Local reproduction: `must be owner of table sessions`. The script suppressed the original child error, so this is a reproduced blocking defect, not a recovered original error trace.
+
+Implementation candidate replaces direct auth.sessions access/policy creation with authorization-owner `public.portal_deals_sessions`, exposing exactly id UUID, user_id UUID, not_after timestamptz nullable. The existing migration operator owns the view; security_invoker=false is intentional, security_barrier=true, all PUBLIC/anon/authenticated/service_role grants revoked, SELECT only to deals_workspace_runtime. No base-table ownership/policy/grant changes, token columns, writes or additional end-user grants. The adapter retains exact verified actor/session and current-expiry checks on every request, fails closed, and caches nothing. This is a physical binding correction under section 7; the seven approved business contracts and retention deferral remain unchanged.
+
+Seven local permission regressions pass with a non-superuser/non-auth-owner migration operator. Separate local checks prove active/wrong actor/missing/expired/revoked sessions, no tokens/writes/client access, and unchanged managed owner/policies. Twelve identity/deployment tests pass; seven unrelated DB grant tests were skipped in that invocation. No live replay, host activation or merge occurred. Revised source/migration hashes require recovery-runbook approval before writes resume.

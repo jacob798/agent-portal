@@ -1,3 +1,7 @@
+## Portal bridge v1.0.3 — unreleased 2026-11-01
+
+Required pilot completion fix: provider budget30s/backend worker40s must complete before bridge45s deadline, avoiding premature unknown outcomes. No retries or credential/access changes. Explicit HTTP409 provider_conflict bodies pass unchanged to the UI. Seven local bridge checks pass including deadline and conflict propagation. Branch codex/deals-workspace-v1.0.0/draftPR7 remains unmerged and undeployed; real-session proof pending.
+
 # Deals portal binding — review candidate, 2026-10-28
 
 Base portal: a2e24df928d08df9b9a496b069b38046d8b1a079. Uses its existing Azure

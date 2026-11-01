@@ -56,7 +56,7 @@ async function forward(request: Request, context: Context) {
     upstream.search = new URL(request.url).search;
     const response = await fetch(upstream, {
       method: request.method, body: body as BodyInit | undefined, cache: "no-store", redirect: "error",
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(45000),
       headers: { Authorization: "Bearer " + session.data.session.access_token,
         "X-Deals-Account": accountId, "X-Deals-Mount": "/deals/" + accountId,
         "Content-Type": "application/json" },

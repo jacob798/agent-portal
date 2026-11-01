@@ -43,6 +43,7 @@ const ICONS: Record<string, LucideIcon> = {
   travel: Plane,
   bookkeeper: BookOpenCheck,
   valuation: Calculator,
+  deals: ClipboardCheck,
   "bc-reimbursement": HandCoins,
   briefings: Mic,
   rules: Sparkles,

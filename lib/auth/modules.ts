@@ -43,6 +43,7 @@ export const MODULES: ModuleDef[] = [
   { key: "review-queue", label: "Review Queue", route: "/review-queue", section: "Operations", defaultRoles: ALL_ROLES, inNav: true },
   { key: "monitoring", label: "Monitoring", route: "/monitoring", section: "Operations", defaultRoles: ALL_ROLES, inNav: true },
   // Agents
+  { key: "deals", label: "Deals", route: "/deals", section: "Agents", defaultRoles: [], inNav: true },
   { key: "payables", label: "Payables", route: "/payables", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
   { key: "expense-reports", label: "Expense reports", route: "/expense-reports", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },
   { key: "travel", label: "Travel", route: "/travel", section: "Agents", defaultRoles: ALL_ROLES, inNav: true },

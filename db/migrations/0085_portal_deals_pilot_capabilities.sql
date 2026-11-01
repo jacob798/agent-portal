@@ -1,4 +1,4 @@
--- Reserved review candidate 2026-10-29; not applied. See Deals deployment runbook.
+-- Jacob-only pilot initial capability schema; no user grants. Supersedes unapplied0073/0078 candidates.
 -- DRAFT authorization-owner binding. No grants or default identities are seeded.
 -- Reserve a shared-services migration number and reviewed runner steps before use.
 CREATE TABLE public.portal_deals_capability_grants (

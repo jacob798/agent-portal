@@ -1,3 +1,7 @@
+## 2026-11-01 — pilot migration reservation
+
+Reserved0085_portal_deals_pilot_capabilities.sql from the authorization-owner binding; removed only unapplied0073/0078 pilot candidates; no user grants or frontend changes. Runner1.4.0 draft PR133 accepts Workflow. Complete0085–0090 package passed local rollback/apply/replay and privilege assertions. Evidence in Deals docs/proofs/results/pilot-migration-package-local-2026-11-01.md; exact hashes in deploy/pilot-migration-manifest.json. Local only; PR remains open, not merged/deployed.
+
 ## Portal bridge v1.0.3 — unreleased 2026-11-01
 
 Required pilot completion fix: provider budget30s/backend worker40s must complete before bridge45s deadline, avoiding premature unknown outcomes. No retries or credential/access changes. Explicit HTTP409 provider_conflict bodies pass unchanged to the UI. Seven local bridge checks pass including deadline and conflict propagation. Branch codex/deals-workspace-v1.0.0/draftPR7 remains unmerged and undeployed; real-session proof pending.
